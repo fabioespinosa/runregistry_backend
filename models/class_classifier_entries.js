@@ -1,0 +1,19 @@
+module.exports = (sequelize, DataTypes) => {
+    const ClassClassifierEntries = sequelize.define(
+        'ClassClassifierEntries',
+        {}
+    );
+    ClassClassifierEntries.associate = function(models) {
+        ClassClassifierEntries.belongsTo(models.ClassClassifierList, {
+            foreignKey: {
+                name: 'CCL_id'
+            }
+        });
+        ClassClassifierEntries.belongsTo(models.ClassClassifier, {
+            foreignKey: {
+                name: 'id'
+            }
+        });
+    };
+    return ClassClassifierEntries;
+};
