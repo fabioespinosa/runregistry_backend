@@ -1,15 +1,12 @@
-const ClassClassifier = require('../controllers/class_classifier');
+const Classifier = require('../controllers/classifier');
 const { catchAPIError: catchAPI } = require('../utils/error_handlers');
 
 module.exports = app => {
-    app.get('/classifiers/class_classifiers', catchAPI(ClassClassifier.get));
-    app.put(
-        '/classifiers/class_classifiers/:classifier_id',
-        catchAPI(ClassClassifier.edit)
-    );
-    app.post('/classifiers/class_classifiers', catchAPI(ClassClassifier.new));
+    app.get('/classifiers/:category', catchAPI(Classifier.getClassifiers));
+    app.put('/classifiers/:category', catchAPI(Classifier.edit));
+    app.post('/classifiers/:category', catchAPI(Classifier.new));
     app.delete(
-        '/classifiers/class_classifiers/:classifier_id',
-        catchAPI(ClassClassifier.delete)
+        '/classifiers/:category/:classifier_id',
+        catchAPI(Classifier.delete)
     );
 };

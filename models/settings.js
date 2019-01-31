@@ -1,15 +1,21 @@
 module.exports = (sequelize, DataTypes) => {
-    const Settings = sequelize.define('Settings', {
-        id: {
-            primaryKey: true,
-            type: DataTypes.INTEGER,
-            autoIncrement: true
+    const Settings = sequelize.define(
+        'Settings',
+        {
+            id: {
+                primaryKey: true,
+                type: DataTypes.INTEGER,
+                autoIncrement: true
+            },
+            metadata: {
+                type: DataTypes.JSONB,
+                allowNull: false
+            }
         },
-        reason: {
-            type: DataTypes.TEXT,
-            allowNull: false
+        {
+            updatedAt: false
         }
-    });
+    );
     Settings.associate = function(models) {
         Settings.belongsTo(models.ClassClassifierList, {
             foreignKey: {

@@ -19,6 +19,9 @@ module.exports = (sequelize, DataTypes) => {
                 type: DataTypes.BOOLEAN,
                 allowNull: false
             }
+        },
+        {
+            updatedAt: false
         }
     );
     OfflineDatasetClassifier.associate = function(models) {

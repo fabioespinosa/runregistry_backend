@@ -1,7 +1,8 @@
 module.exports = (sequelize, DataTypes) => {
     const ClassClassifierEntries = sequelize.define(
         'ClassClassifierEntries',
-        {}
+        {},
+        { timestamps: false }
     );
     ClassClassifierEntries.associate = function(models) {
         ClassClassifierEntries.belongsTo(models.ClassClassifierList, {
