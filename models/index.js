@@ -33,6 +33,30 @@ sequelize
     .catch(err => {
         console.log('ERROR assigning permissinos:', err);
     });
+
+// sequelize.query(
+//     `
+//     CREATE TABLE IF NOT EXISTS "Event" (
+//         version SERIAL PRIMARY KEY,
+
+//         -- version meta data
+//         "createdAt" TIMESTAMP,
+//         by TEXT,
+//         comment TEXT
+//     );
+
+// CREATE TABLE IF NOT EXISTS "RunEvent" (
+//     version INTEGER REFERENCES "Event"(version) PRIMARY KEY,
+//     --actual ID(refers to current version)
+//     runnumber INTEGER NOT NULL,
+
+//     --data changed in current version(needs to be accumulated)
+//     class TEXT,
+//     rundata JSONB NOT NULL
+// );
+
+// `
+// );
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 

@@ -7,29 +7,18 @@ module.exports = (sequelize, DataTypes) => {
                 primaryKey: true,
                 autoIncrement: true
             },
-            status: {
-                type: DataTypes.STRING,
-                allowNull: false
-            },
-            component: {
-                type: DataTypes.STRING,
-                allowNull: false
-            },
-            classifier: {
-                type: DataTypes.JSONB,
-                allowNull: false
-            },
-            priority: {
-                type: DataTypes.INTEGER,
-                allowNull: false
-            },
-            enabled: {
-                type: DataTypes.BOOLEAN,
-                allowNull: false
-            }
+            status: { type: DataTypes.STRING, allowNull: false },
+            component: { type: DataTypes.STRING, allowNull: false },
+            classifier: { type: DataTypes.JSONB, allowNull: false },
+            priority: { type: DataTypes.INTEGER, allowNull: false },
+            enabled: { type: DataTypes.BOOLEAN, allowNull: false }
         },
         {
-            updatedAt: false
+            updatedAt: false,
+            name: {
+                singular: 'ComponentClassifier',
+                plural: 'ComponentClassifier'
+            }
         }
     );
     ComponentClassifier.associate = function(models) {

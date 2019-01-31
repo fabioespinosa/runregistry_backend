@@ -30,34 +30,39 @@ const ClassifierTypes = {
         Classifier: ClassClassifier,
         Entries: ClassClassifierEntries,
         List: ClassClassifierList,
-        id: 'CCL_id'
+        id: 'CCL_id',
+        name: 'ClassClassifier'
     },
     component: {
         Classifier: ComponentClassifier,
         Entries: ComponentClassifierEntries,
         List: ComponentClassifierList,
-        id: 'CPCL_id'
+        id: 'CPCL_id',
+        name: 'ComponentClassifier'
     },
     dataset: {
         Classifier: DatasetClassifier,
         Entries: DatasetClassifierEntries,
         List: DatasetClassifierList,
-        id: 'DCL_id'
+        id: 'DCL_id',
+        name: 'DatasetClassifier'
     },
     offline_dataset: {
         Classifier: OfflineDatasetClassifier,
         Entries: OfflineDatasetClassifierEntries,
         List: OfflineDatasetClassifierList,
-        id: 'ODCL_id'
+        id: 'ODCL_id',
+        name: 'OfflineDatasetClassifier'
     }
 };
 
 exports.getClassifiers = async (req, res) => {
     // Get max in settings:
     const { category } = req.params;
-    const { Classifier, Entries, List } = ClassifierTypes[category];
+    const { Classifier, List, name } = ClassifierTypes[category];
     const max_settings_id = await Settings.max('id');
-    const classifiers = await Settings.findByPk(max_settings_id, {
+    const classifiers_structure = await Settings.findByPk(max_settings_id, {
+        attributes: [],
         include: [
             {
                 model: List,
@@ -69,7 +74,16 @@ exports.getClassifiers = async (req, res) => {
             }
         ]
     });
-    res.json(classifiers);
+    if (classifiers_structure[`${name}List`]) {
+        let classifiers = classifiers_structure[`${name}List`][name];
+        classifiers = classifiers.map(classifier => {
+            classifier.classifier = JSON.stringify(classifier.classifier);
+            return classifier;
+        });
+        res.json(classifiers);
+    } else {
+        res.json([]);
+    }
 };
 
 exports.new = async (req, res) => {
@@ -105,7 +119,10 @@ exports.new = async (req, res) => {
         metadata: { by: 'fespinos@cern.ch' },
         [id]: new_classifier_list.id
     }).save();
-    res.json(new_classifier);
+    new_classifier.dataValues.classifier = JSON.stringify(
+        new_classifier.dataValues.classifier
+    );
+    res.json(new_classifier.dataValues);
 };
 
 exports.edit = async (req, res) => {
@@ -131,7 +148,7 @@ exports.edit = async (req, res) => {
             return { [id]: new_classifier_list.id, id: entry.id };
         })
         // If the classifier is edited, we don't want it duplicated, since we just saved the edited one, the previous classifier (identified by the id in the request) is the one we don't want to duplicate
-        .filter(classifier => +req.body.id !== classifier.id);
+        .filter(classifier => +req.params.classifier_id !== classifier.id);
     new_classifier_entries.push({
         [id]: new_classifier_list.id,
         id: new_classifier.id
@@ -143,6 +160,7 @@ exports.edit = async (req, res) => {
         metadata: { by: 'fespinos@cern.ch' },
         [id]: new_classifier_list.id
     }).save();
+    new_classifier.classifier = JSON.stringify(new_classifier.classifier);
     res.json(new_classifier);
 };
 

@@ -7,25 +7,17 @@ module.exports = (sequelize, DataTypes) => {
                 primaryKey: true,
                 autoIncrement: true
             },
-            class: {
-                type: DataTypes.STRING,
-                allowNull: false
-            },
-            classifier: {
-                type: DataTypes.JSONB,
-                allowNull: false
-            },
-            priority: {
-                type: DataTypes.INTEGER,
-                allowNull: false
-            },
-            enabled: {
-                type: DataTypes.BOOLEAN,
-                allowNull: false
-            }
+            class: { type: DataTypes.STRING, allowNull: false },
+            classifier: { type: DataTypes.JSONB, allowNull: false },
+            priority: { type: DataTypes.INTEGER, allowNull: false },
+            enabled: { type: DataTypes.BOOLEAN, allowNull: false }
         },
         {
-            updatedAt: false
+            updatedAt: false,
+            name: {
+                singular: 'ClassClassifier',
+                plural: 'ClassClassifier'
+            }
         }
     );
     ClassClassifier.associate = function(models) {

@@ -21,7 +21,11 @@ module.exports = (sequelize, DataTypes) => {
             }
         },
         {
-            updatedAt: false
+            updatedAt: false,
+            name: {
+                singular: 'OfflineDatasetClassifier',
+                plural: 'OfflineDatasetClassifier'
+            }
         }
     );
     OfflineDatasetClassifier.associate = function(models) {

@@ -21,7 +21,11 @@ module.exports = (sequelize, DataTypes) => {
             }
         },
         {
-            updatedAt: false
+            updatedAt: false,
+            name: {
+                singular: 'DatasetClassifier',
+                plural: 'DatasetClassifier'
+            }
         }
     );
     DatasetClassifier.associate = function(models) {
