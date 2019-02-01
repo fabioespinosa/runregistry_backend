@@ -8,10 +8,6 @@ const { API_URL, OMS_URL, OMS_LUMISECTIONS } = require('../config/config')[
 const { online_components } = require('../config/config');
 
 exports.setupRun = async (run, now) => {
-    run = {
-        ...run.attributes,
-        ...run
-    };
     run = await exports.setComponentsIncludedBooleans(run);
     run = await exports.getLumisectionAttributes(run);
     run = exports.fill_component_status(run, now);

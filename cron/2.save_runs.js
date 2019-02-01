@@ -19,28 +19,20 @@ const {
 exports.save_runs = async new_runs => {
     let significant_runs = 0;
     const now = Date.now();
-    const default_history_attribute = value => ({
-        value: value,
-        when: now,
-        history: [],
-        by: 'auto'
-    });
     const promises = new_runs.map(async run => {
         run = await setupRun(run, now);
         run = {
             ...run,
             // Significant starts being false, class is to be determined later, state starts OPEN:
-            significant: default_history_attribute(false),
-            stop_reason: default_history_attribute(''),
-            class: default_history_attribute(''),
-            state: default_history_attribute('OPEN'),
-            hlt_key: default_history_attribute(run.hlt_key),
-            hlt_physics_counter: default_history_attribute(
-                run.hlt_physics_counter
-            )
+            significant: false,
+            stop_reason: '',
+            class: '',
+            state: 'OPEN',
+            hlt_key: run.hlt_key,
+            hlt_physics_counter: run.hlt_physics_counter
         };
 
-        if (run.hlt_key.value !== null) {
+        if (run.hlt_key !== null) {
             run = await assign_run_class(run);
         }
         // DATASET TRIPLETS START:
@@ -50,10 +42,9 @@ exports.save_runs = async new_runs => {
             const components_status = await assign_component_status(run, now);
             const components_status_renamed = appendToAllAttributes(
                 components_status,
-                '_triplet'
+                '_status'
             );
-            run.significant = default_history_attribute(true);
-            run = { ...run, ...components_status_renamed };
+            run = { ...run, ...components_status_renamed, significant: true };
         }
 
         await axios.post(`${API_URL}/runs`, run, {

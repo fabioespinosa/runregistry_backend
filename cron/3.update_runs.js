@@ -37,15 +37,11 @@ exports.update_runs = async (
             run = await assign_run_class(run);
         }
         const run_is_significant = await is_run_significant(run);
-        if (
-            manually_signficant ||
-            run_is_significant ||
-            run.significant.value
-        ) {
+        if (manually_signficant || run_is_significant || run.significant) {
             const components_status = await assign_component_status(run, now);
             const components_status_renamed = appendToAllAttributes(
                 components_status,
-                '_triplet'
+                '_status'
             );
             // Set significant as true value so that api can compare them:
             run = { ...run, ...components_status_renamed, significant: true };

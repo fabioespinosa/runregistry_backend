@@ -25,7 +25,9 @@ Object.keys(db).forEach(function(modelName) {
 
 sequelize
     .query(
-        'GRANT SELECT, INSERT ON ALL TABLES IN SCHEMA "public" to "hackathon"'
+        `GRANT SELECT, INSERT ON ALL TABLES IN SCHEMA "public" to "${
+            config.username
+        }"`
     )
     .then(result => {
         console.log('Permissions granted on all tables to SELECT and INSERT');

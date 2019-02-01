@@ -1,5 +1,5 @@
-DROP VIEW "Run";
-DROP AGGREGATE mergeall
+DROP VIEW IF EXISTS "Run";
+DROP AGGREGATE IF EXISTS mergeall
 (jsonb);
 
 

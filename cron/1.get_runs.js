@@ -8,6 +8,7 @@ const axios = require('axios').create({
 });
 const { deepEqual } = require('assert');
 const getAttributesSpecifiedFromArray = require('get-attributes-specified-from-array');
+const getObjectWithAttributesThatChanged = require('get-object-with-attributes-that-changed');
 const { handleErrors } = require('../utils/error_handlers');
 const config = require('../config/config');
 const cookie_generator = require('./get_cookie').get_cookie;
@@ -43,7 +44,9 @@ const fetch_runs = async (
         }
     );
 
-    const all_fetched_runs = oms_response.data.data;
+    let all_fetched_runs = oms_response.data.data.map(
+        ({ attributes }) => attributes
+    );
 
     if (typeof all_fetched_runs === 'undefined') {
         throw Error('Invalid cookie in request');
@@ -60,7 +63,7 @@ const fetch_runs = async (
     // Therefore, it is good to call recursively until at least some run that is fetched was previously fetched and saved, and then save them all.
     if (
         new_runs.length === fetched_runs.length &&
-        all_fetched_runs.length < 300
+        all_fetched_runs.length < 20
     ) {
         console.log(
             `All fetched runs are new, fetching ${fetch_amount * 2} runs...`
@@ -134,26 +137,24 @@ const calculate_runs_to_update = (fetched_runs, last_saved_runs) => {
     const id_fetched_run_2 = +fetched_runs[1].run_number;
     const runs_to_update = [];
     fetched_runs.forEach(fetched_run => {
-        const new_attributes = fetched_run.attributes;
+        let fetched_run_attributes = fetched_run.attributes;
         last_saved_runs.forEach(existing_run => {
             // if runs are the same (i.e. same run_number), do comparison:
             if (+fetched_run.run_number === +existing_run.run_number) {
-                try {
-                    deepEqual(existing_run, new_attributes);
-                    // Always include the first two to compare:
-                    if (
-                        +existing_run.run_number === id_fetched_run_1 ||
-                        +existing_run.run_number === id_fetched_run_2
-                    ) {
-                        runs_to_update.push({
-                            ...existing_run,
-                            ...fetched_run.attributes
-                        });
-                    }
-                } catch (e) {
-                    // old attributes !== new attributes, the run has been updated in the relevant attributes, include those in the previous run so that it can compare
+                // If something changed (the object with attributes that changed has one or more properties), we update it
+                const new_attributes = getObjectWithAttributesThatChanged(
+                    existing_run,
+                    fetched_run_attributes
+                );
+                if (Object.keys(new_attributes).length > 0) {
+                    runs_to_update.push(fetched_run_attributes);
+                }
+                // Always include the first two runs to compare
+                if (
+                    +existing_run.run_number === id_fetched_run_1 ||
+                    +existing_run.run_number === id_fetched_run_2
+                ) {
                     runs_to_update.push({
-                        ...existing_run,
                         ...fetched_run.attributes
                     });
                 }

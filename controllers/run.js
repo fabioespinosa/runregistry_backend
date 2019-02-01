@@ -23,7 +23,8 @@ exports.getOne = async (req, res) => {
 };
 
 exports.get50 = async (req, res) => {
-    res.json([]);
+    const runs = await Run.findAll();
+    res.json(runs);
 };
 
 exports.new = async (req, res) => {
