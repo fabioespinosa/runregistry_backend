@@ -7,33 +7,14 @@ const { API_URL, OMS_URL, OMS_LUMISECTIONS } = require('../config/config')[
 
 const { online_components } = require('../config/config');
 
-// Takes the value of the version controlled attributes:
-const run_values = run => {
-    const copy_of_run = Object.assign({}, run);
-    for (const [key, val] of Object.entries(copy_of_run)) {
-        if (typeof val === 'object') {
-            if (val === null) {
-                copy_of_run[key] = null;
-            } else {
-                if (val.history) {
-                    // if it contains value its a version controlled attribute, if it contains status its a triplet:
-                    copy_of_run[key] = val.value || val.status || null;
-                }
-            }
-        }
-    }
-    return copy_of_run;
-};
-
 exports.setupRun = async (run, now) => {
     run = {
-        id: run.id,
         ...run.attributes,
         ...run
     };
     run = await exports.setComponentsIncludedBooleans(run);
     run = await exports.getLumisectionAttributes(run);
-    run = exports.fill_component_triplets(run, now);
+    run = exports.fill_component_status(run, now);
     return run;
 };
 // Takes the 'included array' from API and turns it into attributes:
@@ -52,7 +33,7 @@ exports.getLumisectionAttributes = handleErrors(async run => {
     // Get lumisections:
     let {
         data: { data: lumisections }
-    } = await axios.get(`${OMS_URL}/${OMS_LUMISECTIONS(run.id)}`);
+    } = await axios.get(`${OMS_URL}/${OMS_LUMISECTIONS(run.run_number)}`);
 
     const ls_duration = lumisections.length;
     // Deconstruct attributes inside lumisections:
@@ -128,16 +109,16 @@ exports.assign_run_class = handleErrors(async run => {
 
     classifiers_array.forEach(classifier => {
         const classifier_json = JSON.parse(classifier.classifier);
-        if (json_logic.apply(classifier_json, run_values(run))) {
+        if (json_logic.apply(classifier_json, run)) {
             const assigned_class = classifier.class;
-            const previous_class = run.class.value;
+            const previous_class = run.class;
             // A smaller integer in priority is equivalent to MORE priority:
             if (
                 previous_class === '' ||
                 classifier.priority <
                     class_classifiers_indexed_by_class[previous_class].priority
             ) {
-                run.class.value = assigned_class;
+                run.class = assigned_class;
             }
         }
     });
@@ -152,11 +133,8 @@ exports.is_run_significant = handleErrors(async run => {
     classifiers_array.forEach(classifier => {
         const classifier_class = classifier.class;
         classifier = JSON.parse(classifier.classifier);
-        if (classifier_class === run.class.value) {
-            const create_dataset = json_logic.apply(
-                classifier,
-                run_values(run)
-            );
+        if (classifier_class === run.class) {
+            const create_dataset = json_logic.apply(classifier, run);
             if (create_dataset === 'CREATE_DATASET') {
                 run_is_significant = true;
             }
@@ -165,17 +143,10 @@ exports.is_run_significant = handleErrors(async run => {
     return run_is_significant;
 }, 'Error determining if run is significant');
 
-exports.fill_component_triplets = (run, now) => {
+exports.fill_component_status = (run, now) => {
     const triplet_names = {};
     online_components.forEach(component => {
-        triplet_names[`${component}_triplet`] = {
-            status: '',
-            comment: '',
-            cause: '',
-            when: now,
-            by: 'auto',
-            history: []
-        };
+        triplet_names[`${component}_status`] = '';
     });
     return { ...run, ...triplet_names };
 };
@@ -185,9 +156,8 @@ exports.assign_component_status = handleErrors(async (run, now) => {
         `${API_URL}/classifiers/component`
     );
 
-    const dataset = {};
     online_components.forEach(component => {
-        dataset[component] = {};
+        run_components[component] = {};
     });
 
     // For each component:
@@ -206,15 +176,8 @@ exports.assign_component_status = handleErrors(async (run, now) => {
         });
 
         // We start with the worst possible priority status (NO VALUE FOUND) once it finds a higher priority status, then we change it
-        if (run[`${component}_triplet`].status === '') {
-            dataset[component] = {
-                status: 'NO VALUE FOUND',
-                comment: '',
-                cause: '',
-                when: now,
-                by: 'auto',
-                history: []
-            };
+        if (run[`${component}_status`] === '') {
+            run_components[component] = 'NO VALUE FOUND';
         }
 
         // And then for each classifier inside the component, we find its priority and check if its superior then the actual one
@@ -222,10 +185,10 @@ exports.assign_component_status = handleErrors(async (run, now) => {
             const classifier_json = JSON.parse(classifier.classifier);
 
             // If it passes the classifier test for this run:
-            if (json_logic.apply(classifier_json, run_values(run))) {
+            if (json_logic.apply(classifier_json, run)) {
                 const assigned_status = classifier.status;
                 // We have to compare priorities to the previous one assigned
-                const previous_status = dataset[component].status;
+                const previous_status = run_components[component];
                 // In priority the less, the more priority:
                 // If the newly calculated status has higher priority than the previous one, then assigned it to the triplet (the classifier by default returns NO VALUE FOUND if it does not pass the test)
                 if (
@@ -235,10 +198,10 @@ exports.assign_component_status = handleErrors(async (run, now) => {
                         component_classifiers_indexed_by_status[previous_status]
                             .priority
                 ) {
-                    dataset[component].status = assigned_status;
+                    run_components[component] = assigned_status;
                 }
             }
         });
     });
-    return dataset;
+    return run_components;
 }, 'Error assigning component status in dataset');

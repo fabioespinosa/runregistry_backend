@@ -22,18 +22,13 @@ const { save_runs } = require('./2.save_runs');
 const { update_runs } = require('./3.update_runs');
 
 // These are the attributes we track history from in the OMS API:
-const critical_attributes = ['hlt_key', 'hlt_physics_counter'];
-
-let headers = {
-    Cookie:
-        '_shibsession_64656661756c7468747470733a2f2f636d736f6d732e6365726e2e63682f53686962626f6c6574682e73736f2f41444653=_a435c47e0184f5d6c0ca5c1aaae48ced'
-};
 
 // Will call itself recursively if all runs are new
 const fetch_runs = async (
     fetch_amount = RUNS_PER_API_CALL,
     first_time = true
 ) => {
+    let headers = {};
     // insert cookie that will authenticate OMS request:
     if (first_time && process.env.ENV === 'production') {
         headers = {
@@ -112,7 +107,7 @@ const calculate_new_runs = (fetched_runs, last_saved_runs) => {
         let exists = false;
         // Check if it exists in the already saved runs:
         last_saved_runs.forEach(existing_run => {
-            if (+fetched_run.id === existing_run.id) {
+            if (+fetched_run.run_number === existing_run.run_number) {
                 exists = true;
             }
         });
@@ -120,7 +115,7 @@ const calculate_new_runs = (fetched_runs, last_saved_runs) => {
         if (!exists) {
             let already_saved = false;
             new_runs.forEach(run => {
-                if (+fetched_run.id === +run.id) {
+                if (+fetched_run.run_number === +run.run_number) {
                     already_saved = true;
                 }
             });
@@ -135,30 +130,20 @@ const calculate_new_runs = (fetched_runs, last_saved_runs) => {
 // Calculates runs which have been updated in the relevant attributes (critical_attributes)
 const calculate_runs_to_update = (fetched_runs, last_saved_runs) => {
     // Save the first two ids:
-    const id_fetched_run_1 = +fetched_runs[0].id;
-    const id_fetched_run_2 = +fetched_runs[1].id;
+    const id_fetched_run_1 = +fetched_runs[0].run_number;
+    const id_fetched_run_2 = +fetched_runs[1].run_number;
     const runs_to_update = [];
     fetched_runs.forEach(fetched_run => {
-        const new_attributes = getAttributesSpecifiedFromArray(
-            fetched_run.attributes,
-            critical_attributes
-        );
+        const new_attributes = fetched_run.attributes;
         last_saved_runs.forEach(existing_run => {
-            // if runs are the same, do comparison:
-            if (+fetched_run.id === existing_run.id) {
-                const actual_attributes = convert_history_attributes_to_value(
-                    existing_run
-                );
-                const old_attributes = getAttributesSpecifiedFromArray(
-                    actual_attributes,
-                    critical_attributes
-                );
+            // if runs are the same (i.e. same run_number), do comparison:
+            if (+fetched_run.run_number === +existing_run.run_number) {
                 try {
-                    deepEqual(old_attributes, new_attributes);
+                    deepEqual(existing_run, new_attributes);
                     // Always include the first two to compare:
                     if (
-                        +existing_run.id === id_fetched_run_1 ||
-                        +existing_run.id === id_fetched_run_2
+                        +existing_run.run_number === id_fetched_run_1 ||
+                        +existing_run.run_number === id_fetched_run_2
                     ) {
                         runs_to_update.push({
                             ...existing_run,
@@ -176,14 +161,4 @@ const calculate_runs_to_update = (fetched_runs, last_saved_runs) => {
         });
     });
     return runs_to_update;
-};
-
-const convert_history_attributes_to_value = run => {
-    const converted_object = {};
-    for (const [key, val] of Object.entries(run)) {
-        if (typeof val === 'object' && val !== null) {
-            converted_object[key] = val.value;
-        }
-    }
-    return converted_object;
 };

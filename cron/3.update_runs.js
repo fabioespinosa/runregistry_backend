@@ -73,7 +73,7 @@ exports.update_runs = async (
             }
         }
         try {
-            await axios.put(`${API_URL}/runs/id_run/${run.id}`, sent_run, {
+            await axios.put(`${API_URL}/runs/${run.run_number}`, sent_run, {
                 // The email HAS to start with auto, or else API won't know it's an automatic change
                 headers: {
                     email:

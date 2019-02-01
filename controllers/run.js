@@ -1,3 +1,4 @@
+const getObjectWithAttributesThatChanged = require('get-object-with-attributes-that-changed');
 const { Event, RunEvent, Run } = require('../models');
 
 // exports.new = async (req, res) => {
@@ -11,9 +12,14 @@ const { Event, RunEvent, Run } = require('../models');
 //     `);
 // };
 
-exports.get = async (req, res) => {
+exports.getAll = async (req, res) => {
     const runs = await Run.findAll();
     res.json(runs);
+};
+
+exports.getOne = async (req, res) => {
+    const run = await Run.findByPk(req.params.run_number);
+    res.json(run);
 };
 
 exports.get50 = async (req, res) => {
@@ -34,4 +40,14 @@ exports.new = async (req, res) => {
     res.json(runEvent);
 };
 
-exports.update = async (req, res) => {};
+// This edits or updates the run
+// The new_attributes are a collection of the attributes that changed with respect to the run
+exports.edit = async (req, res) => {
+    const run = await Run.findByPk(req.params.run_number);
+    const new_attributes = getObjectWithAttributesThatChanged(
+        run.dataValues,
+        req.body
+    );
+    req.body = new_attributes;
+    exports.new(req, res);
+};

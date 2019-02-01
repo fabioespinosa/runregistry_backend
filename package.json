@@ -19,6 +19,7 @@
         "cron": "^1.6.0",
         "express": "^4.16.4",
         "get-attributes-specified-from-array": "^1.0.1",
+        "get-object-with-attributes-that-changed": "^1.0.0",
         "json-logic-js": "^1.2.2",
         "lodash": "^4.17.11",
         "morgan": "^1.9.1",
