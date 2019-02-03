@@ -34,7 +34,7 @@ exports.new = async (req, res) => {
         comment: 'automatic - OMS'
     }).save();
     const runEvent = await RunEvent.build({
-        run_number: req.body.run_number,
+        run_number: +req.body.run_number,
         metadata: req.body,
         version: event.version
     }).save();

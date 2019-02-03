@@ -4,7 +4,7 @@ module.exports = {
         password: '',
         database: 'hackathon',
         host: '127.0.0.1',
-        logging: false,
+        logging: true,
         dialect: 'postgres',
         operatorsAliases: false,
         define: {

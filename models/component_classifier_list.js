@@ -7,7 +7,8 @@ module.exports = (sequelize, DataTypes) => {
                 primaryKey: true,
                 autoIncrement: true
             }
-        }
+        },
+        { timestamps: false }
     );
     ComponentClassifierList.associate = function(models) {
         ComponentClassifierList.hasMany(models.Settings, {

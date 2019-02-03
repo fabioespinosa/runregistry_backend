@@ -105,6 +105,7 @@ exports.assign_run_class = handleErrors(async run => {
 
     classifiers_array.forEach(classifier => {
         const classifier_json = JSON.parse(classifier.classifier);
+        const sss = json_logic.apply(classifier_json, run);
         if (json_logic.apply(classifier_json, run)) {
             const assigned_class = classifier.class;
             const previous_class = run.class;

@@ -137,7 +137,7 @@ const calculate_runs_to_update = (fetched_runs, last_saved_runs) => {
     const id_fetched_run_2 = +fetched_runs[1].run_number;
     const runs_to_update = [];
     fetched_runs.forEach(fetched_run => {
-        let fetched_run_attributes = fetched_run.attributes;
+        let fetched_run_attributes = fetched_run;
         last_saved_runs.forEach(existing_run => {
             // if runs are the same (i.e. same run_number), do comparison:
             if (+fetched_run.run_number === +existing_run.run_number) {
@@ -155,7 +155,7 @@ const calculate_runs_to_update = (fetched_runs, last_saved_runs) => {
                     +existing_run.run_number === id_fetched_run_2
                 ) {
                     runs_to_update.push({
-                        ...fetched_run.attributes
+                        ...fetched_run
                     });
                 }
             }

@@ -1,15 +1,16 @@
 module.exports = (sequelize, DataTypes) => {
     const ComponentClassifierEntries = sequelize.define(
         'ComponentClassifierEntries',
-        {}
+        {},
+        { timestamps: false }
     );
     ComponentClassifierEntries.associate = function(models) {
-        ComponentClassifierEntries.hasMany(models.ComponentClassifierList, {
+        ComponentClassifierEntries.belongsTo(models.ComponentClassifierList, {
             foreignKey: {
                 name: 'CPCL_id'
             }
         });
-        ComponentClassifierEntries.hasMany(models.ComponentClassifier, {
+        ComponentClassifierEntries.belongsTo(models.ComponentClassifier, {
             foreignKey: {
                 name: 'id'
             }

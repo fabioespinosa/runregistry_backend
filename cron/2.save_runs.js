@@ -36,7 +36,8 @@ exports.save_runs = async new_runs => {
             run = await assign_run_class(run);
         }
         // DATASET TRIPLETS START:
-        const run_is_significant = await is_run_significant(run);
+        // const run_is_significant = await is_run_significant(run);
+        const run_is_significant = false;
         if (run_is_significant) {
             significant_runs += 1;
             const components_status = await assign_component_status(run, now);

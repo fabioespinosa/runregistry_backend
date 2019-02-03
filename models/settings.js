@@ -21,25 +21,29 @@ module.exports = (sequelize, DataTypes) => {
             foreignKey: {
                 name: 'CCL_id',
                 allowNull: false
-            }
+            },
+            onDelete: 'CASCADE'
         });
         Settings.belongsTo(models.DatasetClassifierList, {
             foreignKey: {
                 name: 'DCL_id',
                 allowNull: false
-            }
+            },
+            onDelete: 'CASCADE'
         });
         Settings.belongsTo(models.ComponentClassifierList, {
             foreignKey: {
                 name: 'CCL_id',
                 allowNull: false
-            }
+            },
+            onDelete: 'CASCADE'
         });
         Settings.belongsTo(models.OfflineDatasetClassifierList, {
             foreignKey: {
                 name: 'ODCL_id',
                 allowNull: false
-            }
+            },
+            onDelete: 'CASCADE'
         });
     };
     return Settings;

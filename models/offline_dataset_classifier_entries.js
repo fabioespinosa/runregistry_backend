@@ -1,16 +1,8 @@
 module.exports = (sequelize, DataTypes) => {
     const OfflineDatasetClassifierEntries = sequelize.define(
         'OfflineDatasetClassifierEntries',
-        {
-            ODCE_id: {
-                type: DataTypes.INTEGER,
-                allowNull: false
-            },
-            ODC_id: {
-                type: DataTypes.INTEGER,
-                allowNull: false
-            }
-        }
+        {},
+        { timestamps: false }
     );
     OfflineDatasetClassifierEntries.associate = function(models) {
         OfflineDatasetClassifierEntries.belongsTo(

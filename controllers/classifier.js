@@ -1,4 +1,5 @@
 const { getMaxIdPlusOne } = require('../utils/model_tools');
+const { sequelize } = require('../models');
 const Settings = require('../models').Settings;
 const {
     ClassClassifier,
@@ -61,29 +62,24 @@ exports.getClassifiers = async (req, res) => {
     const { category } = req.params;
     const { Classifier, List, name } = ClassifierTypes[category];
     const max_settings_id = await Settings.max('id');
-    const classifiers_structure = await Settings.findByPk(max_settings_id, {
-        attributes: [],
+    const classifiers = await Classifier.findAll({
         include: [
             {
                 model: List,
+                required: true,
                 include: [
                     {
-                        model: Classifier
+                        model: Settings,
+                        required: true,
+                        where: {
+                            id: max_settings_id
+                        }
                     }
                 ]
             }
         ]
     });
-    if (classifiers_structure[`${name}List`]) {
-        let classifiers = classifiers_structure[`${name}List`][name];
-        classifiers = classifiers.map(classifier => {
-            classifier.classifier = JSON.stringify(classifier.classifier);
-            return classifier;
-        });
-        res.json(classifiers);
-    } else {
-        res.json([]);
-    }
+    res.json(classifiers);
 };
 
 exports.new = async (req, res) => {
@@ -114,7 +110,10 @@ exports.new = async (req, res) => {
     });
     await Entries.bulkCreate(new_classifier_entries);
 
+    const current_settings_id = await Settings.max('id');
+    const current_settings = await Settings.findByPk(current_settings_id);
     await Settings.build({
+        ...current_settings.dataValues,
         id: await getMaxIdPlusOne(Settings),
         metadata: { by: 'fespinos@cern.ch' },
         [id]: new_classifier_list.id
@@ -155,7 +154,10 @@ exports.edit = async (req, res) => {
     });
     await Entries.bulkCreate(new_classifier_entries);
 
+    const current_settings_id = await Settings.max('id');
+    const current_settings = await Settings.findByPk(current_settings_id);
     await Settings.build({
+        ...current_settings.dataValues,
         id: await getMaxIdPlusOne(Settings),
         metadata: { by: 'fespinos@cern.ch' },
         [id]: new_classifier_list.id
@@ -189,7 +191,10 @@ exports.delete = async (req, res) => {
         .filter(classifier => +req.params.classifier_id !== classifier.id);
     await Entries.bulkCreate(new_classifier_entries);
 
+    const current_settings_id = await Settings.max('id');
+    const current_settings = await Settings.findByPk(current_settings_id);
     await Settings.build({
+        ...current_settings.dataValues,
         id: await getMaxIdPlusOne(Settings),
         metadata: { by: 'fespinos@cern.ch' },
         [id]: new_classifier_list.id
