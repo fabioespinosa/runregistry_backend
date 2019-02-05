@@ -12,7 +12,10 @@ module.exports = (sequelize, DataTypes) => {
     );
     ClassClassifierList.associate = function(models) {
         ClassClassifierList.hasMany(models.Settings, {
-            foreignKey: 'CCL_id'
+            foreignKey: {
+                name: 'CCL_id',
+                allowNull: false
+            }
         });
         ClassClassifierList.belongsToMany(models.ClassClassifier, {
             through: models.ClassClassifierEntries,

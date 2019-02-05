@@ -22,14 +22,16 @@ const {
 const { save_runs } = require('./2.save_runs');
 const { update_runs } = require('./3.update_runs');
 
-// These are the attributes we track history from in the OMS API:
+let headers = {
+    Cookie:
+        '_shibsession_64656661756c7468747470733a2f2f636d736f6d732e6365726e2e63682f53686962626f6c6574682e73736f2f41444653=_5c2eeb0569299b4e839830a1e42758f3'
+};
 
 // Will call itself recursively if all runs are new
 const fetch_runs = async (
     fetch_amount = RUNS_PER_API_CALL,
     first_time = true
 ) => {
-    let headers = {};
     // insert cookie that will authenticate OMS request:
     if (first_time && process.env.ENV === 'production') {
         headers = {
@@ -63,7 +65,7 @@ const fetch_runs = async (
     // Therefore, it is good to call recursively until at least some run that is fetched was previously fetched and saved, and then save them all.
     if (
         new_runs.length === fetched_runs.length &&
-        all_fetched_runs.length < 20
+        all_fetched_runs.length < 300
     ) {
         console.log(
             `All fetched runs are new, fetching ${fetch_amount * 2} runs...`
@@ -86,10 +88,7 @@ const fetch_runs = async (
             fetched_runs,
             last_saved_runs
         );
-        // This will minimum include two runs to update (the last two are always updated, unless they just got saved)
-        if (runs_to_update.length > 0) {
-            update_runs(runs_to_update);
-        }
+        update_runs(runs_to_update);
     }
 };
 
@@ -130,33 +129,21 @@ const calculate_new_runs = (fetched_runs, last_saved_runs) => {
     return new_runs;
 };
 
-// Calculates runs which have been updated in the relevant attributes (critical_attributes)
+// Calculates runs which have been updated in any of the OMS attributes
 const calculate_runs_to_update = (fetched_runs, last_saved_runs) => {
-    // Save the first two ids:
-    const id_fetched_run_1 = +fetched_runs[0].run_number;
-    const id_fetched_run_2 = +fetched_runs[1].run_number;
     const runs_to_update = [];
     fetched_runs.forEach(fetched_run => {
-        let fetched_run_attributes = fetched_run;
         last_saved_runs.forEach(existing_run => {
             // if runs are the same (i.e. same run_number), do comparison:
             if (+fetched_run.run_number === +existing_run.run_number) {
                 // If something changed (the object with attributes that changed has one or more properties), we update it
                 const new_attributes = getObjectWithAttributesThatChanged(
-                    existing_run,
-                    fetched_run_attributes
+                    existing_run.oms_attributes,
+                    fetched_run
                 );
+                // If the object has one or more properties:
                 if (Object.keys(new_attributes).length > 0) {
-                    runs_to_update.push(fetched_run_attributes);
-                }
-                // Always include the first two runs to compare
-                if (
-                    +existing_run.run_number === id_fetched_run_1 ||
-                    +existing_run.run_number === id_fetched_run_2
-                ) {
-                    runs_to_update.push({
-                        ...fetched_run
-                    });
+                    runs_to_update.push(fetched_run);
                 }
             }
         });

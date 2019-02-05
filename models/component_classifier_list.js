@@ -12,7 +12,10 @@ module.exports = (sequelize, DataTypes) => {
     );
     ComponentClassifierList.associate = function(models) {
         ComponentClassifierList.hasMany(models.Settings, {
-            foreignKey: 'CPCL_id'
+            foreignKey: {
+                name: 'CPCL_id',
+                allowNull: false
+            }
         });
         ComponentClassifierList.belongsToMany(models.ComponentClassifier, {
             through: models.ComponentClassifierEntries,

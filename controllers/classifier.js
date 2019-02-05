@@ -1,25 +1,18 @@
 const { getMaxIdPlusOne } = require('../utils/model_tools');
-const { sequelize } = require('../models');
 const Settings = require('../models').Settings;
 const {
     ClassClassifier,
     ClassClassifierEntries,
-    ClassClassifierList
-} = require('../models');
+    ClassClassifierList,
 
-const {
     ComponentClassifier,
     ComponentClassifierEntries,
-    ComponentClassifierList
-} = require('../models');
+    ComponentClassifierList,
 
-const {
     DatasetClassifier,
     DatasetClassifierEntries,
-    DatasetClassifierList
-} = require('../models');
+    DatasetClassifierList,
 
-const {
     OfflineDatasetClassifier,
     OfflineDatasetClassifierEntries,
     OfflineDatasetClassifierList
@@ -59,7 +52,7 @@ exports.getClassifiers = async (req, res) => {
     const { Classifier, List } = ClassifierTypes[category];
     const max_settings_id = await Settings.max('id');
     // This will join the Classifiers with the Setting configuration of higher ID (the current one).
-    const classifiers = await Classifier.findAll({
+    let classifiers = await Classifier.findAll({
         include: [
             {
                 model: List,
@@ -76,6 +69,11 @@ exports.getClassifiers = async (req, res) => {
             }
         ]
     });
+    // We convert the classifier into a string:
+    classifiers = classifiers.map(({ dataValues }) => ({
+        ...dataValues,
+        classifier: JSON.stringify(dataValues.classifier)
+    }));
     res.json(classifiers);
 };
 

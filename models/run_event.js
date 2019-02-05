@@ -11,7 +11,11 @@ module.exports = (sequelize, DataTypes) => {
                 type: DataTypes.INTEGER,
                 allowNull: false
             },
-            metadata: {
+            oms_metadata: {
+                type: DataTypes.JSONB,
+                allowNull: false
+            },
+            rr_metadata: {
                 type: DataTypes.JSONB,
                 allowNull: false
             }

@@ -23,3 +23,14 @@ exports.expressError = (err, req, res, next) => {
     console.log(err);
     res.status(400).json({ err: err.message || err });
 };
+
+// We want the error to fail so that a run does not get saved/updated
+exports.handleCronErrors = (fn, error_message) => {
+    return function(...params) {
+        return fn(...params).catch(err => {
+            console.log(error_message, err.message);
+            // console.log(err.stack);
+            throw err;
+        });
+    };
+};

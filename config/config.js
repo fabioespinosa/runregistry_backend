@@ -12,7 +12,7 @@ module.exports = {
             freezeTableName: true
         },
         API_URL: 'http://localhost:9500',
-        OMS_URL: `http://cmsomsapidev.cern.ch:8080/api/v1`,
+        OMS_URL: `https://cmsoms.cern.ch/agg/api/v1`,
         OMS_RUNS: (number_of_runs = 10) =>
             `runs?sort=-run_number&page%5Blimit%5D=${number_of_runs}`,
         OMS_SPECIFIC_RUN: run_number => `runs?filter[run_number

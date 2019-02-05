@@ -13,7 +13,10 @@ module.exports = (sequelize, DataTypes) => {
 
     OfflineDatasetClassifierList.associate = function(models) {
         OfflineDatasetClassifierList.hasMany(models.Settings, {
-            foreignKey: 'ODCL_id'
+            foreignKey: {
+                name: 'ODCL_id',
+                allowNull: false
+            }
         });
         OfflineDatasetClassifierList.belongsToMany(
             models.OfflineDatasetClassifier,
