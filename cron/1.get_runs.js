@@ -19,12 +19,11 @@ const {
     RUNS_PER_API_CALL,
     SECONDS_PER_API_CALL
 } = config[process.env.NODE_ENV || 'development'];
-const { save_runs } = require('./2.save_runs');
-const { update_runs } = require('./3.update_runs');
+const { save_runs, update_runs } = require('./2.save_or_update_runs');
 
 let headers = {
     Cookie:
-        '_shibsession_64656661756c7468747470733a2f2f636d736f6d732e6365726e2e63682f53686962626f6c6574682e73736f2f41444653=_5c2eeb0569299b4e839830a1e42758f3'
+        '_shibsession_64656661756c7468747470733a2f2f636d736f6d732e6365726e2e63682f53686962626f6c6574682e73736f2f41444653=_43d62519f85553627613c6f8e16be277'
 };
 
 // Will call itself recursively if all runs are new
@@ -45,14 +44,14 @@ const fetch_runs = async (
             headers
         }
     );
+    if (typeof oms_response.data.data === 'undefined') {
+        throw Error('Invalid cookie in request');
+    }
 
     let all_fetched_runs = oms_response.data.data.map(
         ({ attributes }) => attributes
     );
 
-    if (typeof all_fetched_runs === 'undefined') {
-        throw Error('Invalid cookie in request');
-    }
     // all_fetched_runs is an accumulation of all runs, we need to slice it to get the actually new runs in the corresponding request
     let fetched_runs = first_time
         ? all_fetched_runs
@@ -88,7 +87,9 @@ const fetch_runs = async (
             fetched_runs,
             last_saved_runs
         );
-        update_runs(runs_to_update);
+        if (runs_to_update.length > 0) {
+            update_runs(runs_to_update);
+        }
     }
 };
 

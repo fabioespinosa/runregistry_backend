@@ -53,9 +53,12 @@ exports.edit = async (req, res) => {
         oms_attributes,
         req.body.oms_attributes
     );
+    if (rr_attributes.significant && !req.body.rr_attributes.significant) {
+        throw 'Cannot turn a run which was significant into a run which is non-significant';
+    }
     const new_rr_attributes = getObjectWithAttributesThatChanged(
         rr_attributes,
-        req.body.oms_attributes
+        req.body.rr_attributes
     );
 
     let comment = '';

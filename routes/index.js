@@ -1,6 +1,6 @@
-const class_classifier = require('./class_classifier');
+const classifier = require('./classifier');
 const runs = require('./run');
 module.exports = function(app) {
-    class_classifier(app);
+    classifier(app);
     runs(app);
 };

@@ -47,12 +47,12 @@ exports.getLumisectionAttributes = handleErrors(async oms_attributes => {
         {
             headers: {
                 Cookie:
-                    '_shibsession_64656661756c7468747470733a2f2f636d736f6d732e6365726e2e63682f53686962626f6c6574682e73736f2f41444653=_5c2eeb0569299b4e839830a1e42758f3'
+                    '_shibsession_64656661756c7468747470733a2f2f636d736f6d732e6365726e2e63682f53686962626f6c6574682e73736f2f41444653=_43d62519f85553627613c6f8e16be277'
             }
         }
     );
     if (typeof lumisections === 'undefined') {
-        throw new Error();
+        throw new 'invalid OMS LUMISECTION request'();
     }
 
     const ls_duration = lumisections.length;

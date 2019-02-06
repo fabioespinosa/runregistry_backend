@@ -17,6 +17,7 @@ module.exports = (sequelize, DataTypes) => {
         const viewPath = path.resolve(__dirname, '../views/run.sql');
         const file = fs.readFileSync(viewPath, { encoding: 'utf-8' });
         sequelize.query(file);
+        return null;
     };
     RunView.drop = async options => {
         return sequelize.query('DROP VIEW IF EXISTS Run', {

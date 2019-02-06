@@ -1,6 +1,6 @@
 module.exports = (sequelize, DataTypes) => {
-    const ClassClassifierList = sequelize.define(
-        'ClassClassifierList',
+    const DatasetsAcceptedList = sequelize.define(
+        'DatasetsAcceptedList',
         {
             id: {
                 type: DataTypes.INTEGER,
@@ -10,22 +10,22 @@ module.exports = (sequelize, DataTypes) => {
         },
         { timestamps: false }
     );
-    ClassClassifierList.associate = function(models) {
-        ClassClassifierList.hasMany(models.Settings, {
+    DatasetsAcceptedList.associate = function(models) {
+        DatasetsAcceptedList.hasMany(models.Settings, {
             foreignKey: {
-                name: 'CCL_id',
+                name: 'DAL_id',
                 allowNull: false
             },
             onDelete: 'RESTRICT',
             onUpdate: 'RESTRICT'
         });
-        ClassClassifierList.belongsToMany(models.ClassClassifier, {
-            through: models.ClassClassifierEntries,
-            foreignKey: 'CCL_id',
+        DatasetsAcceptedList.belongsToMany(models.DatasetsAccepted, {
+            through: models.DatasetsAcceptedEntries,
+            foreignKey: 'DAL_id',
             otherKey: 'id',
             onDelete: 'RESTRICT',
             onUpdate: 'RESTRICT'
         });
     };
-    return ClassClassifierList;
+    return DatasetsAcceptedList;
 };

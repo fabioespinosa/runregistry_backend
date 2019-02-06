@@ -1,5 +1,13 @@
-const { getMaxIdPlusOne } = require('../utils/model_tools');
 const Settings = require('../models').Settings;
+const {
+    findAllItems,
+    generateNewItem,
+    generateNewList,
+    getCurrentEntries,
+    generateNewEntries,
+    generateNewSettings
+} = require('./version_tracking_helpers');
+
 const {
     ClassClassifier,
     ClassClassifierEntries,
@@ -50,9 +58,24 @@ exports.getClassifiers = async (req, res) => {
     // Get max in settings:
     const { category } = req.params;
     const { Classifier, List } = ClassifierTypes[category];
-    const max_settings_id = await Settings.max('id');
+
     // This will join the Classifiers with the Setting configuration of higher ID (the current one).
+    let classifiers = await findAllItems(List, Classifier);
+    // We convert the classifier into a string:
+    classifiers = classifiers.map(({ dataValues }) => ({
+        ...dataValues,
+        classifier: JSON.stringify(dataValues.classifier)
+    }));
+    res.json(classifiers);
+};
+
+exports.getClassifiersFiltered = async (req, res) => {
+    const { category } = req.params;
+    const { Classifier, List } = ClassifierTypes[category];
     let classifiers = await Classifier.findAll({
+        where: {
+            component: req.params.component
+        },
         include: [
             {
                 model: List,
@@ -69,60 +92,11 @@ exports.getClassifiers = async (req, res) => {
             }
         ]
     });
-    // We convert the classifier into a string:
-    classifiers = classifiers.map(({ dataValues }) => ({
-        ...dataValues,
-        classifier: JSON.stringify(dataValues.classifier)
-    }));
+    classifiers = classifiers.map(classifier => {
+        classifier.classifier = JSON.stringify(classifier.classifier);
+        return classifier;
+    });
     res.json(classifiers);
-};
-
-const generateNewClassifier = async (Classifier, classifier_data) => {
-    const new_classifier = await Classifier.build({
-        ...classifier_data,
-        id: await getMaxIdPlusOne(Classifier)
-    }).save();
-    return new_classifier;
-};
-
-const generateNewClassifierList = async List => {
-    const new_classifier_list = await List.build({
-        id: await getMaxIdPlusOne(List)
-    }).save();
-    return new_classifier_list;
-};
-
-const getCurrentClasssifierEntries = async (Entries, id) => {
-    const current_id_version = await Entries.max(id);
-    const current_classifier_entries = await Entries.findAll({
-        where: {
-            [id]: current_id_version || 0
-        }
-    });
-    return current_classifier_entries;
-};
-
-const generateNewClassifierEntries = (
-    current_classifier_entries,
-    new_classifier_list,
-    id
-) => {
-    const new_classifier_entries = current_classifier_entries.map(entry => {
-        return { [id]: new_classifier_list.id, id: entry.id };
-    });
-    return new_classifier_entries;
-};
-
-const generateNewSettings = async (Settings, id, new_classifier_list, by) => {
-    const current_settings_id = await Settings.max('id');
-    const current_settings = await Settings.findByPk(current_settings_id);
-    const new_settings = await Settings.build({
-        ...current_settings.dataValues,
-        id: await getMaxIdPlusOne(Settings),
-        [id]: new_classifier_list.id,
-        metadata: { by }
-    }).save();
-    return new_settings;
 };
 
 exports.new = async (req, res) => {
@@ -130,16 +104,13 @@ exports.new = async (req, res) => {
     const new_classifier_data = req.body;
     const { Classifier, Entries, List, id } = ClassifierTypes[category];
 
-    const new_classifier = await generateNewClassifier(
+    const new_classifier = await generateNewItem(
         Classifier,
         new_classifier_data
     );
-    const new_classifier_list = await generateNewClassifierList(List);
-    const current_classifier_entries = await getCurrentClasssifierEntries(
-        Entries,
-        id
-    );
-    const new_classifier_entries = generateNewClassifierEntries(
+    const new_classifier_list = await generateNewList(List);
+    const current_classifier_entries = await getCurrentEntries(Entries, id);
+    const new_classifier_entries = generateNewEntries(
         current_classifier_entries,
         new_classifier_list,
         id
@@ -151,12 +122,7 @@ exports.new = async (req, res) => {
     });
     await Entries.bulkCreate(new_classifier_entries);
 
-    const new_settings = await generateNewSettings(
-        Settings,
-        id,
-        new_classifier_list,
-        'fespinos@cern.ch'
-    );
+    await generateNewSettings(id, new_classifier_list, 'fespinos@cern.ch');
     new_classifier.classifier = JSON.stringify(new_classifier.classifier);
     res.json(new_classifier);
 };
@@ -165,18 +131,15 @@ exports.edit = async (req, res) => {
     const { category } = req.params;
     const new_classifier_data = req.body;
     const { Classifier, Entries, List, id } = ClassifierTypes[category];
-    const new_classifier = await generateNewClassifier(
+    const new_classifier = await generateNewItem(
         Classifier,
         new_classifier_data
     );
 
-    const new_classifier_list = await generateNewClassifierList(List);
+    const new_classifier_list = await generateNewList(List);
 
-    const current_classifier_entries = await getCurrentClasssifierEntries(
-        Entries,
-        id
-    );
-    const new_classifier_entries = generateNewClassifierEntries(
+    const current_classifier_entries = await getCurrentEntries(Entries, id);
+    const new_classifier_entries = generateNewEntries(
         current_classifier_entries,
         new_classifier_list,
         id
@@ -192,12 +155,7 @@ exports.edit = async (req, res) => {
     });
     await Entries.bulkCreate(new_classifier_entries);
 
-    const new_settings = await generateNewSettings(
-        Settings,
-        id,
-        new_classifier_list,
-        'fespinos@cern.ch'
-    );
+    await generateNewSettings(id, new_classifier_list, 'fespinos@cern.ch');
     new_classifier.classifier = JSON.stringify(new_classifier.classifier);
     res.json(new_classifier);
 };
@@ -208,13 +166,10 @@ exports.delete = async (req, res) => {
     const deleted_classifier = await Classifier.findByPk(
         req.params.classifier_id
     );
-    const new_classifier_list = await generateNewClassifierList(List);
+    const new_classifier_list = await generateNewList(List);
 
-    const current_classifier_entries = await getCurrentClasssifierEntries(
-        Entries,
-        id
-    );
-    const new_classifier_entries = generateNewClassifierEntries(
+    const current_classifier_entries = await getCurrentEntries(Entries, id);
+    const new_classifier_entries = generateNewEntries(
         current_classifier_entries,
         new_classifier_list,
         id
@@ -224,11 +179,6 @@ exports.delete = async (req, res) => {
         classifier => +req.params.classifier_id !== classifier.id
     );
     await Entries.bulkCreate(new_classifier_entries);
-    const new_settings = await generateNewSettings(
-        Settings,
-        id,
-        new_classifier_list,
-        'fespinos@cern.ch'
-    );
+    await generateNewSettings(id, new_classifier_list, 'fespinos@cern.ch');
     res.json(deleted_classifier);
 };
