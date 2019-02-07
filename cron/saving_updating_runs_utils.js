@@ -7,7 +7,7 @@ const axios = require('axios').create({
 const json_logic = require('json-logic-js');
 const { handleCronErrors: handleErrors } = require('../utils/error_handlers');
 const { API_URL, OMS_URL, OMS_LUMISECTIONS } = require('../config/config')[
-    process.env.NODE_ENV || 'development'
+    process.env.ENV || 'development'
 ];
 
 const { online_components } = require('../config/config');

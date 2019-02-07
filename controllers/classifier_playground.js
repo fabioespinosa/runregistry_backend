@@ -2,7 +2,7 @@ const axios = require('axios');
 const json_logic = require('json-logic-js');
 const Run = require('../models').Run;
 const { OMS_URL, OMS_SPECIFIC_RUN } = require('../config/config')[
-    process.env.NODE_ENV || 'development'
+    process.env.ENV || 'development'
 ];
 const { setupRun } = require('../cron/saving_updating_runs_utils');
 

@@ -18,7 +18,7 @@ const {
     API_URL,
     RUNS_PER_API_CALL,
     SECONDS_PER_API_CALL
-} = config[process.env.NODE_ENV || 'development'];
+} = config[process.env.ENV || 'development'];
 const { save_runs, update_runs } = require('./2.save_or_update_runs');
 
 let headers = {
@@ -93,7 +93,7 @@ const fetch_runs = async (
     }
 };
 
-if (process.env.NODE_ENV === 'production') {
+if (process.env.ENV === 'production' || process.env.ENV === 'staging') {
     const job = new CronJob(
         `*/${SECONDS_PER_API_CALL} * * * * *`,
         handleErrors(fetch_runs, 'Error fetching new runs ')

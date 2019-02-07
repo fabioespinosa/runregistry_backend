@@ -4,7 +4,7 @@ const changeNameOfAllKeys = require('change-name-of-all-keys');
 
 const Sequelize = require('../models').Sequelize;
 const { OMS_URL, OMS_SPECIFIC_RUN } = require('../config/config')[
-    process.env.NODE_ENV || 'development'
+    process.env.ENV || 'development'
 ];
 const { update_runs } = require('../cron/2.save_or_update_runs');
 const { Run, Event, RunEvent } = require('../models');

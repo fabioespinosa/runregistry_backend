@@ -2,7 +2,7 @@ const axios = require('axios');
 const Dataset = require('../models').Dataset;
 const { lumisection_attributes } = require('../config/config');
 const { OMS_URL, OMS_LUMISECTIONS } = require('../config/config')[
-    process.env.NODE_ENV || 'development'
+    process.env.ENV || 'development'
 ];
 const getAttributesSpecifiedFromArray = require('get-attributes-specified-from-array');
 const { deepEqual } = require('assert');

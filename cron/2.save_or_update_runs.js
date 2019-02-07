@@ -2,7 +2,7 @@ const axios = require('axios');
 const { getLumisectionAttributes } = require('./saving_updating_runs_utils');
 const { calculate_rr_attributes } = require('./3.calculate_rr_attributes');
 const { API_URL } = require('../config/config')[
-    process.env.NODE_ENV || 'development'
+    process.env.ENV || 'development'
 ];
 
 // The runs to be saved/updated get here, they await to be classified into cosmics/collision/commission:
