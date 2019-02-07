@@ -34,7 +34,7 @@ Object.keys(db).forEach(function(modelName) {
             }"`
         );
         console.log(
-            'Permissions granted on all tables to SELECT and INSERT, DELETE and UPDATE are not permited (this is intended behavior of RR)'
+            'Permissions granted on all tables to SELECT and INSERT. DELETE and UPDATE are not permited (this is intended behavior of RR)'
         );
 
         // Initialize data:
@@ -43,7 +43,8 @@ Object.keys(db).forEach(function(modelName) {
             'INSERT INTO "ComponentClassifierList" ("id") VALUES (1);',
             'INSERT INTO "DatasetClassifierList" ("id") VALUES (1);',
             'INSERT INTO "OfflineDatasetClassifierList" ("id") VALUES (1);',
-            'INSERT INTO "PermissionList" ("id") VALUES (1);'
+            'INSERT INTO "PermissionList" ("id") VALUES (1);',
+            'INSERT INTO "DatasetsAcceptedList" ("id") VALUES (1);'
         ];
         const insert_1_into_lists_promises = insert_1_into_lists.map(query => {
             return sequelize.query(query).catch(err => {
@@ -57,7 +58,7 @@ Object.keys(db).forEach(function(modelName) {
         if (settings.length === 0) {
             // If Settings are empty, we need to fill them with highest id in all tables:
             await sequelize.query(`
-                INSERT INTO "Settings" (id, metadata, "createdAt","CCL_id", "CPCL_id", "DCL_id","ODCL_id", "PL_id")
+                INSERT INTO "Settings" (id, metadata, "createdAt","CCL_id", "CPCL_id", "DCL_id","ODCL_id", "PL_id", "DAL_id")
                 VALUES 
                 (
                 (SELECT COALESCE((SELECT MAX("id") from "Settings"), 0)+1),
@@ -67,13 +68,20 @@ Object.keys(db).forEach(function(modelName) {
                 (SELECT MAX("id") FROM "ComponentClassifierList"),
                 (SELECT MAX("id") FROM "DatasetClassifierList"),
                 (SELECT MAX("id") FROM "OfflineDatasetClassifierList"),
-                (SELECT MAX("id") FROM "PermissionList")
+                (SELECT MAX("id") FROM "PermissionList"),
+                (SELECT MAX("id") FROM "DatasetsAcceptedList")
                 );
                 `);
             console.log('Settings Table was empty');
         }
-    } catch (e) {
+    } catch (err) {
         console.log('Error assigning permissions or initializing data');
+        if (err.message === 'relation "Settings" does not exist');
+        {
+            console.log(
+                'ERROR: Try running again, table Settings was not created yet, it should be created by now, and running it again should show no errors'
+            );
+        }
     }
 })();
 

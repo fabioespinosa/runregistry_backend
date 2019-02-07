@@ -20,7 +20,6 @@ exports.catchAPIErrorHotShot = fn => (req, res, next) =>
 
 exports.expressError = (err, req, res, next) => {
     console.log(err.message || err);
-    console.log(err);
     res.status(400).json({ err: err.message || err });
 };
 

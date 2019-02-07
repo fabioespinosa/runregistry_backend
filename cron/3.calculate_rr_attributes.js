@@ -1,3 +1,4 @@
+const appendToAllAttributes = require('append-to-all-attributes');
 const {
     setupRRAttributes,
     assign_run_class,
@@ -30,7 +31,6 @@ exports.calculate_rr_attributes = async (
         rr_attributes
     );
     if (manually_significant || run_is_significant) {
-        significant_runs += 1;
         const components_status = await assign_component_status(
             oms_attributes,
             rr_attributes

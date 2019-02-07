@@ -16,13 +16,10 @@ exports.setupRRAttributes = async (oms_attributes, now) => {
     const components_included = await exports.setComponentsIncludedBooleans(
         oms_attributes
     );
-    const lumisection_attributes = await exports.getLumisectionAttributes(
-        oms_attributes
-    );
+
     const components_status = exports.fill_component_triplets();
     return {
         ...components_included,
-        ...lumisection_attributes,
         ...components_status
     };
 };
@@ -42,15 +39,16 @@ exports.getLumisectionAttributes = handleErrors(async oms_attributes => {
     // Get lumisections:
     let {
         data: { data: lumisections }
-    } = await axios.get(
-        `${OMS_URL}/${OMS_LUMISECTIONS(oms_attributes.run_number)}`,
-        {
-            headers: {
-                Cookie:
-                    '_shibsession_64656661756c7468747470733a2f2f636d736f6d732e6365726e2e63682f53686962626f6c6574682e73736f2f41444653=_43d62519f85553627613c6f8e16be277'
-            }
-        }
-    );
+    } = await axios
+        .get(`${OMS_URL}/${OMS_LUMISECTIONS(oms_attributes.run_number)}`)
+        .catch(err => {
+            console.log(
+                `Error getting lumisections from OMS for run ${
+                    oms_attributes.run_number
+                }`
+            );
+        });
+
     if (typeof lumisections === 'undefined') {
         throw new 'invalid OMS LUMISECTION request'();
     }
@@ -67,8 +65,13 @@ exports.getLumisectionAttributes = handleErrors(async oms_attributes => {
     // Reduce lumisection attributes so that it can be added to the run object:
     const ls_attributes = reduce_ls_attributes(lumisections);
 
-    // Lumisection attributes contain fields which are named the same in run, it is vital run is put later so that they are overwritten:
-    return { ...ls_attributes, ls_duration };
+    // We delete the attributes that when aggregated make no sense:
+    delete ls_attributes.lumisection_number;
+    delete ls_attributes.end_time;
+    delete ls_attributes.start_time;
+
+    // Lumisection attributes contain fields which are named the same in run, it is vital oms_attributes is put later so that they are overwritten:
+    return { ...ls_attributes, ls_duration, ...oms_attributes };
 }, 'Error getting reduced lumisection attributes for the run');
 
 const set_conjuncted_beam_attribute = lumisections => {

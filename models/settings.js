@@ -41,9 +41,15 @@ module.exports = (sequelize, DataTypes) => {
                 allowNull: false
             }
         });
-        Settings.belongsTo(models.Permission, {
+        Settings.belongsTo(models.PermissionList, {
             foreignKey: {
                 name: 'PL_id',
+                allowNull: false
+            }
+        });
+        Settings.belongsTo(models.DatasetsAcceptedList, {
+            foreignKey: {
+                name: 'DAL_id',
                 allowNull: false
             }
         });

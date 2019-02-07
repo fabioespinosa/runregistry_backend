@@ -1,11 +1,10 @@
 const Settings = require('../models').Settings;
 const {
     findAllItems,
-    generateNewItem,
-    generateNewList,
-    getCurrentEntries,
-    generateNewEntries,
-    generateNewSettings
+    findAllItemsFiltered,
+    saveNewItem,
+    editItem,
+    deleteItem
 } = require('./version_tracking_helpers');
 
 const {
@@ -72,25 +71,10 @@ exports.getClassifiers = async (req, res) => {
 exports.getClassifiersFiltered = async (req, res) => {
     const { category } = req.params;
     const { Classifier, List } = ClassifierTypes[category];
-    let classifiers = await Classifier.findAll({
+    let classifiers = await findAllItemsFiltered(List, Classifier, {
         where: {
             component: req.params.component
-        },
-        include: [
-            {
-                model: List,
-                required: true,
-                include: [
-                    {
-                        model: Settings,
-                        required: true,
-                        where: {
-                            id: max_settings_id
-                        }
-                    }
-                ]
-            }
-        ]
+        }
     });
     classifiers = classifiers.map(classifier => {
         classifier.classifier = JSON.stringify(classifier.classifier);
@@ -104,81 +88,46 @@ exports.new = async (req, res) => {
     const new_classifier_data = req.body;
     const { Classifier, Entries, List, id } = ClassifierTypes[category];
 
-    const new_classifier = await generateNewItem(
+    const new_classifier = await saveNewItem(
+        List,
+        Entries,
         Classifier,
-        new_classifier_data
+        id,
+        new_classifier_data,
+        req.get('email')
     );
-    const new_classifier_list = await generateNewList(List);
-    const current_classifier_entries = await getCurrentEntries(Entries, id);
-    const new_classifier_entries = generateNewEntries(
-        current_classifier_entries,
-        new_classifier_list,
-        id
-    );
-    // We add the new entry (of the new classifier to entries)
-    new_classifier_entries.push({
-        [id]: new_classifier_list.id,
-        id: new_classifier.id
-    });
-    await Entries.bulkCreate(new_classifier_entries);
-
-    await generateNewSettings(id, new_classifier_list, 'fespinos@cern.ch');
     new_classifier.classifier = JSON.stringify(new_classifier.classifier);
     res.json(new_classifier);
 };
 
 exports.edit = async (req, res) => {
-    const { category } = req.params;
+    const { category, classifier_id } = req.params;
     const new_classifier_data = req.body;
     const { Classifier, Entries, List, id } = ClassifierTypes[category];
-    const new_classifier = await generateNewItem(
+
+    const edited_classifier = await editItem(
+        List,
+        Entries,
         Classifier,
-        new_classifier_data
+        id,
+        new_classifier_data,
+        classifier_id,
+        req.get('email')
     );
-
-    const new_classifier_list = await generateNewList(List);
-
-    const current_classifier_entries = await getCurrentEntries(Entries, id);
-    const new_classifier_entries = generateNewEntries(
-        current_classifier_entries,
-        new_classifier_list,
-        id
-    );
-
-    // If the classifier is edited, we don't want it duplicated, since we just saved the edited one, the previous classifier (identified by the id in the request) is the one we don't want to duplicate
-    new_classifier_entries.filter(
-        classifier => +req.params.classifier_id !== classifier.id
-    );
-    new_classifier_entries.push({
-        [id]: new_classifier_list.id,
-        id: new_classifier.id
-    });
-    await Entries.bulkCreate(new_classifier_entries);
-
-    await generateNewSettings(id, new_classifier_list, 'fespinos@cern.ch');
-    new_classifier.classifier = JSON.stringify(new_classifier.classifier);
-    res.json(new_classifier);
+    edited_classifier.classifier = JSON.stringify(edited_classifier.classifier);
+    res.json(edited_classifier);
 };
 
 exports.delete = async (req, res) => {
-    const { category } = req.params;
+    const { category, classifier_id } = req.params;
     const { Classifier, Entries, List, id } = ClassifierTypes[category];
-    const deleted_classifier = await Classifier.findByPk(
-        req.params.classifier_id
+    const deleted_classifier = await deleteItem(
+        List,
+        Entries,
+        Classifier,
+        id,
+        classifier_id,
+        req.get('email')
     );
-    const new_classifier_list = await generateNewList(List);
-
-    const current_classifier_entries = await getCurrentEntries(Entries, id);
-    const new_classifier_entries = generateNewEntries(
-        current_classifier_entries,
-        new_classifier_list,
-        id
-    );
-    // If the classifier is deleted, we don't want it to be added to the next set of entries
-    new_classifier_entries.filter(
-        classifier => +req.params.classifier_id !== classifier.id
-    );
-    await Entries.bulkCreate(new_classifier_entries);
-    await generateNewSettings(id, new_classifier_list, 'fespinos@cern.ch');
     res.json(deleted_classifier);
 };

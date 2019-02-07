@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { getLumisectionAttributes } = require('./saving_updating_runs_utils');
 const { calculate_rr_attributes } = require('./3.calculate_rr_attributes');
 const { API_URL } = require('../config/config')[
     process.env.NODE_ENV || 'development'
@@ -8,14 +9,17 @@ const { API_URL } = require('../config/config')[
 // AND check if they are significant
 // IF the run is significant, the component's statuses get assigned
 exports.save_runs = async new_runs => {
-    let significant_runs = 0;
+    let saved_runs = 0;
     // the timestamp is calculated once for every set of runs we will saved (so that we know they were saved at the same timestamp);
     const now = Date.now();
     const promises = new_runs.map(async run => {
         try {
-            const oms_attributes = run;
-            // We don't want to accidentally alter the attributes we get from OMS, so we freeze them:
+            let oms_attributes = run;
+            // We aggergate the lumisection information from OMS into the run
+            oms_attributes = await getLumisectionAttributes(oms_attributes);
+            // We freeze oms_attributes to prevent them changing later on:
             Object.freeze(oms_attributes);
+
             const rr_attributes = await calculate_rr_attributes(
                 oms_attributes,
                 now
@@ -25,17 +29,14 @@ exports.save_runs = async new_runs => {
                 { oms_attributes, rr_attributes },
                 { headers: { email: 'auto' } }
             );
+            saved_runs += 1;
         } catch (e) {
             console.log(`Error saving run ${run.run_number}`);
             console.log(e);
         }
     });
     await Promise.all(promises);
-    console.log(
-        `${
-            new_runs.length
-        } run(s) saved of which ${significant_runs} were significant`
-    );
+    console.log(`${saved_runs} run(s) saved`);
 };
 
 exports.update_runs = async (
@@ -46,8 +47,10 @@ exports.update_runs = async (
     const now = Date.now();
     const promises = new_runs.map(async run => {
         try {
-            const oms_attributes = run;
-            // We don't want to accidentally alter the attributes we get from OMS, so we freeze them:
+            let oms_attributes = run;
+            // We aggergate the lumisection information from OMS into the run
+            oms_attributes = await getLumisectionAttributes(oms_attributes);
+            // We freeze oms_attributes to prevent them changing later on:
             Object.freeze(oms_attributes);
             const rr_attributes = await calculate_rr_attributes(
                 oms_attributes,
@@ -68,7 +71,6 @@ exports.update_runs = async (
             );
         } catch (e) {
             console.log(`Error updating run ${run.run_number}`);
-            console.log(e);
         }
     });
     await Promise.all(promises);

@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const models = require('./models/index');
+const { expressError } = require('./utils/error_handlers');
 
 const routes = require('./routes/index');
 const port = 9500;
@@ -13,6 +14,18 @@ app.use(cors());
 app.use(bodyParser.json());
 
 routes(app);
+
+// Make errors appear as json to the client
+app.use(expressError);
+
+// Catch Application breaking error and label it here:
+process.on('uncaughtException', err => {
+    console.log('CRITICAL ERROR: ', err);
+});
+// Catch Promise error and label it here:
+process.on('unhandledRejection', (reason, p) => {
+    console.log('Unhandled Promise Rejection at:', p, 'reason:', reason);
+});
 
 models.sequelize.sync({}).then(() => {
     app.listen(port, () => {

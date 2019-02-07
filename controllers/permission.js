@@ -3,11 +3,10 @@ const PermissionEntries = require('../models').PermissionEntries;
 const PermissionList = require('../models').PermissionList;
 const {
     findAllItems,
-    generateNewItem,
-    generateNewList,
-    getCurrentEntries,
-    generateNewEntries,
-    generateNewSettings
+    findOneItem,
+    saveNewItem,
+    editItem,
+    deleteItem
 } = require('./version_tracking_helpers');
 
 const id = 'PL_id';
@@ -23,108 +22,71 @@ exports.getAllPermissions = async () => {
     return permissions;
 };
 
-exports.addPermissionToEgroup = async (req, res) => {
+exports.addEgroup = async (req, res) => {
     const new_permission_data = req.body;
 
-    const new_permission = await generateNewItem(Permission, {
-        new_permission_data
-    });
-
-    const new_permission_list = await generateNewList(PermissionList);
-
-    const current_permission_entries = await getCurrentEntries(
+    const new_permission = await saveNewItem(
+        PermissionList,
         PermissionEntries,
-        id
+        Permission,
+        id,
+        new_permission_data,
+        req.get('email')
     );
-    const new_permission_entries = generateNewEntries(
-        current_permission_entries,
-        new_permission_list,
-        id
-    );
-
-    // If the permission is edited, we don't want it duplicated, since we just saved the edited one, the previous permission (identified by the one we find first) is the one we don't want to duplicate
-    new_permission_entries.filter(
-        permission => +permission.dataValues.id !== permission.id
-    );
-    new_permission_entries.push({
-        [id]: new_permission_list.id,
-        id: new_permission.id
-    });
-    await Permission.bulkCreate(new_permission_entries);
-    await generateNewSettings(id, new_permission_list, 'fespinos@cern.ch');
-
-    res.json(new_permission);
-};
-
-exports.addPermissionToEgroup = async (req, res) => {
-    const permission = await Permission.findOne({
-        where: {
-            pog: req.body.pog
-        }
-    });
-    permission.dataValues.actions.push(req.body.action);
-
-    const new_permission = await generateNewItem(Permission, {
-        ...permission.dataValues
-    });
-
-    const new_permission_list = await generateNewList(PermissionList);
-
-    const current_permission_entries = await getCurrentEntries(
-        PermissionEntries,
-        id
-    );
-    const new_permission_entries = generateNewEntries(
-        current_permission_entries,
-        new_permission_list,
-        id
-    );
-
-    // If the permission is edited, we don't want it duplicated, since we just saved the edited one, the previous permission (identified by the one we find first) is the one we don't want to duplicate
-    new_permission_entries.filter(
-        permission => +permission.dataValues.id !== permission.id
-    );
-    new_permission_entries.push({
-        [id]: new_permission_list.id,
-        id: new_permission.id
-    });
-    await Permission.bulkCreate(new_permission_entries);
-    await generateNewSettings(id, new_permission_list, 'fespinos@cern.ch');
 
     res.json(new_permission);
 };
 
 exports.deleteEgroup = async (req, res) => {
-    const deleted_egroup = await Classifier.findByPk(req.params.egroup_id);
-    const new_permission_list = await generateNewList(PermissionList);
-
-    const current_permission_entries = await getCurrentEntries(
+    const { egroup_id } = req.params;
+    const deleted_egroup = await deleteItem(
+        PermissionList,
         PermissionEntries,
-        id
+        Permission,
+        id,
+        egroup_id,
+        req.get('email')
     );
-    const new_permission_entries = generateNewEntries(
-        current_permission_entries,
-        new_permission_list,
-        id
-    );
-    // If the classifier is deleted, we don't want it to be added to the next set of entries
-    new_permission_entries.filter(
-        permission => +req.params.egroup_id !== permission.id
-    );
-    await Entries.bulkCreate(new_permission_entries);
-    await generateNewSettings(id, new_permission_list, 'fespinos@cern.ch');
+
     res.json(deleted_egroup);
 };
 
+exports.addPermissionToEgroup = async (req, res) => {
+    const permission = await findOneItem(PermissionList, Permission, {
+        where: { egroup: req.body.egroup }
+    });
+    permission.dataValues.routes.push(req.body.action);
+
+    const edited_permission = await editItem(
+        PermissionList,
+        PermissionEntries,
+        Permission,
+        id,
+        permission.dataValues,
+        permission.dataValues.id,
+        req.get('email')
+    );
+
+    res.json(edited_permission);
+};
 exports.deletePermissionToEgroup = async (req, res) => {
-    const permission = await Permission.findOne({
-        where: {
-            pog: req.body.egroup
-        }
+    const permission = await findOneItem(PermissionList, Permission, {
+        where: { egroup: req.body.egroup }
     });
-    permission.actions = permission.actions.filter(action => {
-        return action !== req.body.action;
+
+    permission.dataValues.routes = permission.routes.filter(route => {
+        return route !== req.body.route;
     });
-    const updated_permission = await permission.update(permission);
+
+    const updated_permission = await editItem(
+        PermissionList,
+        PermissionEntries,
+        Permission,
+        id,
+        permission.dataValues,
+        permission.dataValues.id,
+        req.get('email')
+    );
+
     res.json(updated_permission);
 };

@@ -1,48 +1,76 @@
+const DatasetsAccepted = require('../models').DatasetsAccepted;
+const DatasetsAcceptedEntries = require('../models').DatasetsAcceptedEntries;
+const DatasetsAcceptedList = require('../models').DatasetsAcceptedList;
+const {
+    findAllItems,
+    findAllItemsFiltered,
+    generateNewItem,
+    generateNewList,
+    getCurrentEntries,
+    generateNewEntries,
+    generateNewSettings
+} = require('./version_tracking_helpers');
+
 // Still missing to be changed to versioned items
 const getMaxIdPlusOne = require('../utils/model_tools').getMaxIdPlusOne;
-const DatasetsAccepted = require('../models').DatasetsAccepted;
+
+const id = 'DAL_id';
 
 exports.getAll = async (req, res) => {
-    const datasets_accepted = await DatasetsAccepted.findAll();
+    const datasets_accepted = await findAllItems(
+        DatasetsAcceptedList,
+        DatasetsAccepted
+    );
     res.json(datasets_accepted);
 };
 
 exports.getAllByClass = async (req, res) => {
-    const datasets = await DatasetsAccepted.findAll({
-        where: {
-            class: req.params.class
+    const datasets_accepted_by_class = await findAllItemsFiltered(
+        DatasetsAcceptedList,
+        DatasetsAccepted,
+        {
+            where: { class: req.params.class }
         }
-    });
-    res.json(datasets);
+    );
+    res.json(datasets_accepted_by_class);
 };
 
 exports.new = async (req, res) => {
-    const dataset_accepted = DatasetsAccepted.build({
-        ...req.body,
-        id: await getMaxIdPlusOne(DatasetsAccepted),
-        last_changed_by: req.get('email')
-    });
-    const saved_dataset_criteria = await dataset_accepted.save();
-    res.json(saved_dataset_criteria);
-};
-exports.edit = async (req, res) => {
-    const dataset_accepted = await DatasetsAccepted.findByPk(
-        req.params.id_dataset_accepted
+    const new_datasets_accepted_data = req.body;
+    const new_datasets_accepted = await saveNewItem(
+        DatasetsAcceptedList,
+        DatasetsAcceptedEntries,
+        DatasetsAccepted,
+        id,
+        new_datasets_accepted_data,
+        req.get('email')
     );
-    if (dataset_accepted === null) {
-        throw 'Criteria not found';
-    }
-    const updated_criteria = await dataset_accepted.update({
-        ...req.body,
-        last_changed_by: req.get('email')
-    });
-    res.json(updated_criteria);
+    res.json(new_datasets_accepted);
+};
+
+exports.edit = async (req, res) => {
+    const new_datasets_accepted_data = req.body;
+    const edited_datasets_accepted = await editItem(
+        DatasetsAcceptedList,
+        DatasetsAcceptedEntries,
+        DatasetsAccepted,
+        id,
+        new_datasets_accepted_data,
+        id_dataset_accepted,
+        req.get('email')
+    );
+    res.json(edited_datasets_accepted);
 };
 exports.delete = async (req, res) => {
     const { id_dataset_accepted } = req.params;
-    const dataset_accepted = await DatasetsAccepted.findByPk(
-        id_dataset_accepted
+    const deleted_dataset_accepted = await deleteItem(
+        DatasetsAcceptedList,
+        DatasetsAcceptedEntries,
+        DatasetsAccepted,
+        id,
+        id_dataset_accepted,
+        req.get('email')
     );
-    await dataset_accepted.destroy();
-    res.json(dataset_accepted);
+
+    res.json(deleted_dataset_accepted);
 };
