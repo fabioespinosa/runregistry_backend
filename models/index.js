@@ -73,7 +73,7 @@ Object.keys(db).forEach(function(modelName) {
             console.log('Settings Table was empty');
         }
     } catch (err) {
-        console.log('Error assigning permissions or initializing data');
+        console.log('Error initializing schema');
         if (err.message === 'relation "Settings" does not exist');
         {
             console.log(

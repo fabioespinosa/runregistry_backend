@@ -51,7 +51,10 @@ exports.get50 = async (req, res) => {
 exports.new = async (req, res) => {
     // TODO: make it into a transaction
     // TODO: validate run attributes
-
+    const run = await Run.findByPk(req.body.oms_attributes.run_number);
+    if (run !== null) {
+        throw 'Run already exists';
+    }
     const event = await Event.build({
         by: req.get('email'),
         comment: req.get('comment') || 'run creation - appeared in OMS'
