@@ -23,7 +23,7 @@ const { save_runs, update_runs } = require('./2.save_or_update_runs');
 
 let headers = {
     Cookie:
-        '_shibsession_64656661756c7468747470733a2f2f636d736f6d732e6365726e2e63682f53686962626f6c6574682e73736f2f41444653=_43d62519f85553627613c6f8e16be277'
+        ' _saml_idp=aHR0cHM6Ly9jZXJuLmNoL2xvZ2lu; _shibsession_64656661756c7468747470733a2f2f636d736f6d732e6365726e2e63682f53686962626f6c6574682e73736f2f41444653=_1052ca037ce4fe37c692c01e388fdfea'
 };
 
 // Will call itself recursively if all runs are new

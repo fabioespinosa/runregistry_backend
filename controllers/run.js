@@ -48,6 +48,26 @@ exports.get50 = async (req, res) => {
     res.json(runs);
 };
 
+exports.getRunWithHistory = async (req, res) => {
+    let run_events = await RunEvent.findAll({
+        where: {
+            run_number: req.params.run_number
+        },
+        order: [['version', 'ASC']],
+        include: [{ model: Event }]
+    });
+    run_events = run_events.map(
+        ({ oms_metadata, rr_metadata, run_number, version, Event }) => ({
+            ...oms_metadata,
+            ...rr_metadata,
+            run_number,
+            version,
+            ...Event.dataValues
+        })
+    );
+    res.json(run_events);
+};
+
 exports.new = async (req, res) => {
     // TODO: make it into a transaction
     // TODO: validate run attributes
@@ -93,6 +113,20 @@ exports.edit = async (req, res) => {
         req.body.rr_attributes
     );
 
+    // Validate that all rr_attributes which changed the triplets contain comment, status and cause:
+    for (const [key, val] of Object.entries(new_rr_attributes)) {
+        if (key.includes('_triplet')) {
+            const { status, comment, cause } = new_rr_attributes[key];
+            if (
+                typeof status === 'undefined' ||
+                typeof comment === 'undefined' ||
+                typeof cause === 'undefined'
+            ) {
+                throw 'Neither State, Comment or Cause can be undefined';
+            }
+        }
+    }
+
     let comment = '';
     if (Object.keys(new_oms_attributes).length > 0) {
         comment = 'automatic update from OMS';
@@ -126,37 +160,43 @@ exports.edit = async (req, res) => {
 };
 
 exports.markSignificant = async (req, res) => {
+    const { run_number } = req.body.original_run;
     const event = await Event.build({
         by: req.get('email'),
         comment: req.get('comment')
     }).save();
     const runEvent = await RunEvent.build({
-        run_number: +req.body.original_run.run_number,
+        run_number: +run_number,
         oms_metadata: {},
         rr_metadata: { significant: true },
         version: event.version
     }).save();
-    req.params.id_run = req.body.original_run.run_number;
-
-    await exports.refreshRunClassAndComponents(req, res);
+    const run = await Run.findByPk(run_number);
+    res.json(run);
+    req.params.run_number = +run_number;
+    try {
+        await exports.refreshRunClassAndComponents(req, res);
+    } catch (e) {
+        // We refresh the run automatically after making a run significant, it will mark an error because it will try to setheadrs of a request which is already sent
+    }
 };
 
 exports.refreshRunClassAndComponents = async (req, res) => {
-    const { id_run } = req.params;
+    const { run_number } = req.params;
     const email = `auto - refresh by ${req.get('email')}`;
-    const previously_saved_run = await Run.findByPk(id_run);
+    const previously_saved_run = await Run.findByPk(run_number);
     if (previously_saved_run.rr_attributes.state !== 'OPEN') {
         throw 'Run must be in state OPEN to be refreshed';
     }
     const {
         data: { data: fetched_run }
-    } = await axios.get(`${OMS_URL}/${OMS_SPECIFIC_RUN(id_run)}`);
+    } = await axios.get(`${OMS_URL}/${OMS_SPECIFIC_RUN(run_number)}`);
     await update_runs([fetched_run[0].attributes], email, true);
-    const saved_run = await Run.findByPk(id_run);
+    const saved_run = await Run.findByPk(run_number);
     res.json(saved_run);
 };
 
-// TODO:
+// TODO: finish moveRun creation of dataset
 
 exports.moveRun = async (req, res) => {
     const { to_state } = req.params;

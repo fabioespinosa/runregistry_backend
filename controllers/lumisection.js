@@ -11,7 +11,9 @@ const { changeHistory } = require('./history_utils');
 exports.getLumisectionsForRun = async (req, res) => {
     let {
         data: { data: lumisections }
-    } = await axios.get(`${OMS_URL}/${OMS_LUMISECTIONS(req.params.id_run)}`);
+    } = await axios.get(
+        `${OMS_URL}/${OMS_LUMISECTIONS(req.params.run_number)}`
+    );
     lumisections = lumisections.map(({ attributes }) =>
         getAttributesSpecifiedFromArray(attributes, lumisection_attributes)
     );
@@ -25,7 +27,7 @@ exports.getLumisectionsForDatasetWorkspace = async (req, res) => {
     // If a user has previously edited the lumisections, they will be in the lumisection column:
     const dataset = await Dataset.findByPk(id_dataset);
     if (dataset[`${workspace}_lumisections`].value.length === 0) {
-        req.params.id_run = dataset.run_number;
+        req.params.run_number = dataset.run_number;
         exports.getLumisectionsForRun(req, res);
     } else {
         const ls_ranges = exports.getLumisectionRanges(

@@ -28,10 +28,12 @@ process.on('unhandledRejection', (reason, p) => {
 });
 
 models.sequelize.sync({}).then(() => {
+    // Initialize DB data
+    require('./initialization/initialize');
     app.listen(port, () => {
         console.log(`server listening in port ${port}`);
 
-        const cron = require('./cron/1.get_runs');
+        // const cron = require('./cron/1.get_runs');
         // const dbs_pinging = require('./cron_datasets/2.ping_dbs');
         // const dqm_gui_pinging = require('./cron_datasets/2.ping_dqm_gui');
     });

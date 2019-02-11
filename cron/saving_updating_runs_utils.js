@@ -40,7 +40,12 @@ exports.getLumisectionAttributes = handleErrors(async oms_attributes => {
     let {
         data: { data: lumisections }
     } = await axios
-        .get(`${OMS_URL}/${OMS_LUMISECTIONS(oms_attributes.run_number)}`)
+        .get(`${OMS_URL}/${OMS_LUMISECTIONS(oms_attributes.run_number)}`, {
+            headers: {
+                Cookie:
+                    '_shibsession_64656661756c7468747470733a2f2f636d736f6d732e6365726e2e63682f53686962626f6c6574682e73736f2f41444653=_1052ca037ce4fe37c692c01e388fdfea'
+            }
+        })
         .catch(err => {
             console.log(
                 `Error getting lumisections from OMS for run ${

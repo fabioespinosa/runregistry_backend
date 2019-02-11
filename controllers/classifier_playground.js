@@ -7,11 +7,11 @@ const { OMS_URL, OMS_SPECIFIC_RUN } = require('../config/config')[
 const { setupRun } = require('../cron/saving_updating_runs_utils');
 
 exports.testClassifier = async (req, res) => {
-    const id_run = req.body.run.id;
-    const previously_saved_run = await Run.findByPk(id_run);
+    const run_number = req.body.run.id;
+    const previously_saved_run = await Run.findByPk(run_number);
     const {
         data: { data: fetched_run }
-    } = await axios.get(`${OMS_URL}/${OMS_SPECIFIC_RUN(id_run)}`);
+    } = await axios.get(`${OMS_URL}/${OMS_SPECIFIC_RUN(run_number)}`);
     let combined_attributes_run = {
         ...previously_saved_run.dataValues,
         ...fetched_run[0].attributes
