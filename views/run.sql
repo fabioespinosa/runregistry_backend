@@ -1,12 +1,14 @@
-DROP VIEW IF EXISTS "Run";
-DROP AGGREGATE IF EXISTS oms_attributes
-(jsonb);
-DROP AGGREGATE IF EXISTS rr_attributes
-(jsonb);
+BEGIN;
+    DROP VIEW IF EXISTS "RunView";
+    DROP AGGREGATE IF EXISTS oms_attributes
+    (jsonb);
+    DROP AGGREGATE IF EXISTS rr_attributes
+    (jsonb);
 
 
-CREATE OR REPLACE FUNCTION
-merge(jsonb, jsonb) RETURNS jsonb
+
+    CREATE OR REPLACE FUNCTION
+    merge(jsonb, jsonb) RETURNS jsonb
 AS 'SELECT $1 || $2;'
 LANGUAGE SQL                                   
     IMMUTABLE
@@ -20,7 +22,8 @@ CREATE AGGREGATE rr_attributes(jsonb)
 (sfunc =
 merge, stype = jsonb, initcond = '{}');
 
-CREATE OR REPLACE VIEW "Run" as 
+
+CREATE OR REPLACE VIEW "RunView" as 
 SELECT "RunEvent"."run_number", 
 oms_attributes("RunEvent"."oms_metadata" 
 ORDER BY "RunEvent"."version" ), 
@@ -29,3 +32,4 @@ ORDER BY "RunEvent"."version")
 FROM "RunEvent" INNER JOIN "Event" ON "Event"."version" = "RunEvent"."version"
 GROUP BY "RunEvent"."run_number";
 
+COMMIT;

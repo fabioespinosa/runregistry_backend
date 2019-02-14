@@ -2,7 +2,7 @@ module.exports = {
     development: {
         username: 'hackathon',
         password: '',
-        database: 'hackathon',
+        database: 'hackathon2',
         host: '127.0.0.1',
         logging: false,
         dialect: 'postgres',
@@ -11,14 +11,20 @@ module.exports = {
             // Make sequelize not pluralize the name of tables:
             freezeTableName: true
         },
+        pool: {
+            max: 5,
+            min: 0,
+            idle: 20000,
+            acquire: 20000
+        },
         API_URL: 'http://localhost:9500',
-        OMS_URL: `https://cmsoms.cern.ch/agg/api/v1`,
+        OMS_URL: `http://cmsomsapidev.cern.ch:8080/api/v1`,
         OMS_RUNS: (number_of_runs = 10) =>
             `runs?sort=-run_number&page%5Blimit%5D=${number_of_runs}`,
         OMS_SPECIFIC_RUN: run_number => `runs?filter[run_number]=${run_number}`,
         OMS_LUMISECTIONS: run_number =>
             `lumisections?filter[run_number]=${run_number}&page[limit]=5000`,
-        RUNS_PER_API_CALL: 10,
+        RUNS_PER_API_CALL: 20,
         SECONDS_PER_API_CALL: 30,
         DBS_URL: 'https://cmsweb.cern.ch/dbs/prod/global',
         DBS_DATASETS: run_number => `DBSReader/datasets?run_num=${run_number}`,

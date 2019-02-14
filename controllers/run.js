@@ -3,11 +3,83 @@ const getObjectWithAttributesThatChanged = require('get-object-with-attributes-t
 const changeNameOfAllKeys = require('change-name-of-all-keys');
 
 const Sequelize = require('../models').Sequelize;
+const sequelize = require('../models').sequelize;
 const { OMS_URL, OMS_SPECIFIC_RUN } = require('../config/config')[
     process.env.ENV || 'development'
 ];
 const { update_runs } = require('../cron/2.save_or_update_runs');
 const { Run, Event, RunEvent } = require('../models');
+
+const update_or_create_run = async (
+    run_number,
+    oms_metadata,
+    rr_metadata,
+    req
+) => {
+    run_number = +run_number;
+    const by = req.get('email');
+    const comment = req.get('comment');
+    if (!by) {
+        throw "The email of the author's action should be stated in request's header 'email'";
+    }
+    // Start transaction:
+    let transaction;
+    try {
+        transaction = await sequelize.transaction();
+        const event = await Event.create(
+            {
+                by,
+                comment
+            },
+            { transaction }
+        );
+
+        const runEvent = await RunEvent.create(
+            {
+                run_number,
+                oms_metadata,
+                rr_metadata,
+                version: event.version
+            },
+            { transaction }
+        );
+        // update the Run table
+        await sequelize.query(
+            `
+                BEGIN;
+                CREATE TEMPORARY TABLE updated_runnumbers as SELECT DISTINCT "run_number" from "RunEvent" where "RunEvent"."version" > (SELECT COALESCE((SELECT MAX("version") from "Run"), 0));
+                CREATE TEMPORARY TABLE updated_runs as SELECT * FROM "RunEvent"
+                WHERE "RunEvent"."run_number" IN (
+                    SELECT * from updated_runnumbers
+                );
+
+                INSERT INTO "Run" (run_number, rr_attributes, oms_attributes, "version")
+                SELECT run_number,
+                        mergejsonb(rr_metadata ORDER BY version),
+                        mergejsonb(oms_metadata ORDER BY version),
+                        (SELECT max(version) FROM "RunEvent" ) AS "version"
+                FROM updated_runs
+                GROUP BY run_number
+                ON CONFLICT (run_number) DO UPDATE SET "rr_attributes" = EXCLUDED."rr_attributes", "oms_attributes" = EXCLUDED."oms_attributes", version = EXCLUDED.version;
+            
+                DROP TABLE updated_runnumbers;
+                DROP TABLE updated_runs;
+            
+                COMMIT;
+        `,
+            { transaction }
+        );
+        await transaction.commit();
+        return runEvent;
+    } catch (err) {
+        // Rollback transaction if any errors were encountered
+        console.log(err);
+        await transaction.rollback();
+        throw {
+            err: `Error updating/saving run ${run_number}, ${err.message}`
+        };
+    }
+};
 
 const { Op } = Sequelize;
 const conversion_operator = {
@@ -71,27 +143,26 @@ exports.getRunWithHistory = async (req, res) => {
 exports.new = async (req, res) => {
     // TODO: make it into a transaction
     // TODO: validate run attributes
-    const run = await Run.findByPk(req.body.oms_attributes.run_number);
+    const { oms_attributes, rr_attributes } = req.body;
+    const { run_number } = oms_attributes;
+    const run = await Run.findByPk(run_number);
     if (run !== null) {
         throw 'Run already exists';
     }
-    const event = await Event.build({
-        by: req.get('email'),
-        comment: req.get('comment') || 'run creation - appeared in OMS'
-    }).save();
-    const runEvent = await RunEvent.build({
-        run_number: +req.body.oms_attributes.run_number,
-        oms_metadata: req.body.oms_attributes || {},
-        rr_metadata: req.body.rr_attributes || {},
-        version: event.version
-    }).save();
+    const runEvent = await update_or_create_run(
+        run_number,
+        oms_attributes,
+        rr_attributes,
+        req
+    );
     res.json(runEvent);
 };
 
 // This edits or updates the run
 // The new_attributes are a collection of the attributes that changed with respect to the run
 exports.edit = async (req, res) => {
-    const run = await Run.findByPk(req.params.run_number);
+    const { run_number } = req.params;
+    const run = await Run.findByPk(run_number);
     if (run === null) {
         throw 'Run not found';
     }
@@ -127,50 +198,41 @@ exports.edit = async (req, res) => {
         }
     }
 
-    let comment = '';
-    if (Object.keys(new_oms_attributes).length > 0) {
-        comment = 'automatic update from OMS';
-    }
-
     const attributes_updated_from_oms = Object.keys(new_oms_attributes).length;
     const attributes_updated_from_rr_attributes = Object.keys(new_rr_attributes)
         .length;
     // If there was actually something to update:
+
     if (
         attributes_updated_from_oms + attributes_updated_from_rr_attributes >
         0
     ) {
-        const event = await Event.build({
-            by: req.get('email'),
-            comment: req.get('comment') || comment
-        }).save();
-        const runEvent = await RunEvent.build({
-            run_number: +req.params.run_number,
-            oms_metadata: new_oms_attributes || {},
-            rr_metadata: new_rr_attributes || {},
-            version: event.version
-        }).save();
-        res.json(runEvent);
+        const runEvent = await update_or_create_run(
+            run_number,
+            attributes_updated_from_oms,
+            attributes_updated_from_rr_attributes,
+            req
+        );
+        const { oms_metadata, rr_metadata } = runEvent;
+        run.dataValues.oms_attributes = { ...oms_attributes, ...oms_metadata };
+        run.dataValues.rr_attributes = { ...rr_attributes, ...rr_metadata };
+        res.json(run.dataValues);
     } else {
-        res.status(400);
-        res.json({
-            err: 'Nothing to update'
-        });
+        throw 'Nothing to update, the attributes sent are the same as those in the run already stored';
     }
 };
 
 exports.markSignificant = async (req, res) => {
     const { run_number } = req.body.original_run;
-    const event = await Event.build({
-        by: req.get('email'),
-        comment: req.get('comment')
-    }).save();
-    const runEvent = await RunEvent.build({
-        run_number: +run_number,
-        oms_metadata: {},
-        rr_metadata: { significant: true },
-        version: event.version
-    }).save();
+
+    const oms_metadata = {};
+    const rr_metadata = { significant: true };
+    const runEvent = await update_or_create_run(
+        run_number,
+        oms_metadata,
+        rr_metadata,
+        req
+    );
     const run = await Run.findByPk(run_number);
     res.json(run);
     req.params.run_number = +run_number;
@@ -200,12 +262,16 @@ exports.refreshRunClassAndComponents = async (req, res) => {
 
 exports.moveRun = async (req, res) => {
     const { to_state } = req.params;
-    if (!['SIGNOFF', 'OPEN', 'COMPLETED'].includes(to_state)) {
-        throw 'The final state state must be SIGNOFF, OPEN OR COMPLETED';
-    }
     const { run_number } = req.body.original_run;
     const run = await Run.findByPk(run_number);
-    // Check if triplets are empty quotes:
+    // Validation
+    if (!['SIGNOFF', 'OPEN', 'COMPLETED'].includes(to_state)) {
+        throw 'The final state must be SIGNOFF, OPEN OR COMPLETED, no other option is valid';
+    }
+    if (run.rr_attributes.state === to_state) {
+        throw `Run's state is already in state ${to_state}`;
+    }
+    //      Check if triplets are empty quotes:
     for (const [run_property, value] of Object.entries(
         run.dataValues.rr_attributes
     )) {
@@ -220,22 +286,14 @@ exports.moveRun = async (req, res) => {
             }
         }
     }
-    // Check if run class is empty:
+    //      Check if run class is empty:
     if (run.dataValues.rr_attributes.class === '') {
         throw 'The class of run must not be empty ';
     }
-
-    const event = await Event.build({
-        by: req.get('email'),
-        comment: req.get('comment')
-    }).save();
-    const runEvent = await RunEvent.build({
-        run_number: +run_number,
-        oms_metadata: {},
-        rr_metadata: { state: to_state },
-        version: event.version
-    }).save();
-
+    // End validation
+    const oms_metadata = {};
+    const rr_metadata = { state: to_state };
+    await update_or_create_run(run_number, oms_metadata, rr_metadata, req);
     const saved_run = await Run.findByPk(run_number);
     res.json(saved_run.dataValues);
 
@@ -251,7 +309,7 @@ exports.getFilteredOrdered = async (req, res) => {
     const { sortings, page_size } = req.body;
     let filter = changeNameOfAllKeys(req.body.filter, conversion_operator);
     const { page } = req.params;
-    const { count } = await Run.findAndCountAll({ where: filter });
+    const count = await Run.count({ where: filter });
     let pages = Math.ceil(count / page_size);
     let offset = page_size * page;
     const runs = await Run.findAll({
@@ -271,7 +329,7 @@ exports.significantRunsFilteredOrdered = async (req, res) => {
     let { sortings } = req.body;
     const { page_size } = req.body;
     const { page } = req.params;
-    const { count } = await Run.findAndCountAll({
+    const count = await Run.count({
         where: filter
     });
     let pages = Math.ceil(count / page_size);

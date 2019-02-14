@@ -21,7 +21,10 @@ module.exports = (sequelize, DataTypes) => {
             }
         },
         {
-            timestamps: false
+            timestamps: false,
+            indexes: [
+                { name: 'RunEvent_runNumber_index', fields: ['run_number'] }
+            ]
         }
     );
     RunEvent.associate = function(models) {

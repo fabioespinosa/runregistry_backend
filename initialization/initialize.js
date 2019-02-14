@@ -53,12 +53,15 @@ const config = require('../config/config')[process.env.ENV || 'development'];
             console.log('Settings Table was empty, just entered the first row');
         }
     } catch (err) {
-        console.log(err);
-        console.log('Error initializing schema');
         if (err.message === 'relation "Settings" does not exist') {
             console.log(
                 'ERROR: Try running again, table Settings was not created yet, it should be created by now, and running it again should show no errors'
             );
+        } else if (err.message === 'tuple concurrently updated') {
+            console.log('tuple concurrently updated');
+        } else {
+            console.log('Error initializing schema');
+            console.log(err);
         }
     }
 })();

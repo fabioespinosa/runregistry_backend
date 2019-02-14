@@ -12,7 +12,7 @@ const { API_URL, OMS_URL, OMS_LUMISECTIONS } = require('../config/config')[
 
 const { online_components } = require('../config/config');
 
-exports.setupRRAttributes = async (oms_attributes, now) => {
+exports.setupRRAttributes = async oms_attributes => {
     const components_included = await exports.setComponentsIncludedBooleans(
         oms_attributes
     );
@@ -37,9 +37,7 @@ exports.setComponentsIncludedBooleans = handleErrors(async oms_attributes => {
 // Along with a whole new attribute 'beams_present_and_stable' which will only be true if there is at least 1 LS with all other true
 exports.getLumisectionAttributes = handleErrors(async oms_attributes => {
     // Get lumisections:
-    let {
-        data: { data: lumisections }
-    } = await axios
+    const lumisection_response = await axios
         .get(`${OMS_URL}/${OMS_LUMISECTIONS(oms_attributes.run_number)}`, {
             headers: {
                 Cookie:
@@ -54,9 +52,13 @@ exports.getLumisectionAttributes = handleErrors(async oms_attributes => {
             );
         });
 
-    if (typeof lumisections === 'undefined') {
-        throw new 'invalid OMS LUMISECTION request'();
+    if (
+        typeof lumisection_response === 'undefined' ||
+        typeof lumisection_response.data === 'undefined'
+    ) {
+        throw `unable to get lumisections for run ${oms_attributes.run_number}`;
     }
+    let lumisections = lumisection_response.data.data;
 
     const ls_duration = lumisections.length;
     // Deconstruct attributes inside lumisections:

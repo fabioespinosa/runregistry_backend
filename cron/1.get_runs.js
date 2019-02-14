@@ -77,7 +77,8 @@ const fetch_runs = async (
         );
         if (runs_to_be_saved.length > 0) {
             console.log(`saving: ${runs_to_be_saved.length} runs`);
-            await save_runs(runs_to_be_saved);
+            // The 0 in the second argument is to indicate is this the first time we try to save the runs (save_runs is recursive if it errors out on any run)
+            await save_runs(runs_to_be_saved, 0);
         }
     }
 

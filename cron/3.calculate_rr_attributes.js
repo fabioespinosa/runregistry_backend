@@ -8,10 +8,9 @@ const {
 
 exports.calculate_rr_attributes = async (
     oms_attributes,
-    now,
     manually_significant
 ) => {
-    let rr_attributes = await setupRRAttributes(oms_attributes, now);
+    let rr_attributes = await setupRRAttributes(oms_attributes);
     // Significant starts being false, stop_reason is a shifter value (so it starts as empty), class is to be determined later, state starts OPEN:
     rr_attributes.significant = false;
     rr_attributes.stop_reason = '';

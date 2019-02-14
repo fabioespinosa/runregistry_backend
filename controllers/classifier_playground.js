@@ -4,20 +4,24 @@ const Run = require('../models').Run;
 const { OMS_URL, OMS_SPECIFIC_RUN } = require('../config/config')[
     process.env.ENV || 'development'
 ];
-const { setupRun } = require('../cron/saving_updating_runs_utils');
+const {
+    calculate_rr_attributes
+} = require('../cron/saving_updating_runs_utils');
 
 exports.testClassifier = async (req, res) => {
     const run_number = req.body.run.id;
     const previously_saved_run = await Run.findByPk(run_number);
+
     const {
         data: { data: fetched_run }
     } = await axios.get(`${OMS_URL}/${OMS_SPECIFIC_RUN(run_number)}`);
     let combined_attributes_run = {
-        ...previously_saved_run.dataValues,
+        ...previously_saved_run.dataValues.oms_attributes,
         ...fetched_run[0].attributes
     };
-    const now = Date.now();
-    combined_attributes_run = await setupRun(combined_attributes_run, now);
+    combined_attributes_run = await calculate_rr_attributes(
+        combined_attributes_run
+    );
     const classifier = JSON.parse(req.body.classifier);
     const result = return_classifier_evaluated_tuple(
         combined_attributes_run,
