@@ -4,6 +4,8 @@ BEGIN;
     (jsonb);
     DROP AGGREGATE IF EXISTS rr_attributes
     (jsonb);
+    DROP AGGREGATE IF EXISTS mergejsonb
+    (jsonb);
 
 
 
