@@ -15,8 +15,13 @@ LANGUAGE SQL
     IMMUTABLE
     RETURNS NULL ON NULL INPUT;
 
-    CREATE AGGREGATE oms_attributes(jsonb)
+    CREATE AGGREGATE mergejsonb(jsonb)
     (sfunc =
+mergejsonb, stype = jsonb, initcond = '{}');
+
+
+CREATE AGGREGATE oms_attributes(jsonb)
+(sfunc =
 mergejsonb, stype = jsonb, initcond = '{}');
 
 CREATE AGGREGATE rr_attributes(jsonb)
