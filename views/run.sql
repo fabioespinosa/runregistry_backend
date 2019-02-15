@@ -8,7 +8,7 @@ BEGIN;
 
 
     CREATE OR REPLACE FUNCTION
-    merge_jsonb
+    mergejsonb
     (jsonb, jsonb) RETURNS jsonb
 AS 'SELECT $1 || $2;'
 LANGUAGE SQL                                   
@@ -17,11 +17,11 @@ LANGUAGE SQL
 
     CREATE AGGREGATE oms_attributes(jsonb)
     (sfunc =
-merge_jsonb, stype = jsonb, initcond = '{}');
+mergejsonb, stype = jsonb, initcond = '{}');
 
 CREATE AGGREGATE rr_attributes(jsonb)
 (sfunc =
-merge_jsonb, stype = jsonb, initcond = '{}');
+mergejsonb, stype = jsonb, initcond = '{}');
 
 
 CREATE OR REPLACE VIEW "RunView" as
