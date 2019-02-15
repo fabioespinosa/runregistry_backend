@@ -64,7 +64,6 @@ const update_or_create_run = async (
             
                 DROP TABLE updated_runnumbers;
                 DROP TABLE updated_runs;
-            
                 COMMIT;
         `,
             { transaction }
@@ -198,19 +197,15 @@ exports.edit = async (req, res) => {
         }
     }
 
-    const attributes_updated_from_oms = Object.keys(new_oms_attributes).length;
-    const attributes_updated_from_rr_attributes = Object.keys(new_rr_attributes)
-        .length;
+    const new_oms_attributes_length = Object.keys(new_oms_attributes).length;
+    const new_rr_attributes_length = Object.keys(new_rr_attributes).length;
     // If there was actually something to update:
 
-    if (
-        attributes_updated_from_oms + attributes_updated_from_rr_attributes >
-        0
-    ) {
+    if (new_oms_attributes_length + new_rr_attributes_length > 0) {
         const runEvent = await update_or_create_run(
             run_number,
-            attributes_updated_from_oms,
-            attributes_updated_from_rr_attributes,
+            new_oms_attributes,
+            new_rr_attributes,
             req
         );
         const { oms_metadata, rr_metadata } = runEvent;
@@ -224,16 +219,14 @@ exports.edit = async (req, res) => {
 
 exports.markSignificant = async (req, res) => {
     const { run_number } = req.body.original_run;
+    const run = await Run.findByPk(run_number);
+    if (run.rr_attributes.significant === true) {
+        throw 'Run is already significant';
+    }
 
     const oms_metadata = {};
     const rr_metadata = { significant: true };
-    const runEvent = await update_or_create_run(
-        run_number,
-        oms_metadata,
-        rr_metadata,
-        req
-    );
-    const run = await Run.findByPk(run_number);
+    await update_or_create_run(run_number, oms_metadata, rr_metadata, req);
     res.json(run);
     req.params.run_number = +run_number;
     try {
