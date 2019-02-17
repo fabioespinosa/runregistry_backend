@@ -5,9 +5,9 @@ const config = require('../config/config')[process.env.ENV || 'development'];
 (async () => {
     try {
         await sequelize.query(
-            `GRANT SELECT, INSERT ON ALL TABLES IN SCHEMA "public" to "${
+            `BEGIN; GRANT SELECT, INSERT ON ALL TABLES IN SCHEMA "public" to "${
                 config.username
-            }"`
+            }"; COMMIT;`
         );
         console.log(
             `Permissions granted on all tables to SELECT and INSERT to user ${
@@ -25,9 +25,7 @@ const config = require('../config/config')[process.env.ENV || 'development'];
             'INSERT INTO "DatasetsAcceptedList" ("id") VALUES (1) ON CONFLICT DO NOTHING;'
         ];
         const insert_1_into_lists_promises = insert_1_into_lists.map(query => {
-            return sequelize.query(query).catch(err => {
-                // It is normal that an error exists since the value most likely exists, so we catch it and don't throw it.
-            });
+            return sequelize.query(`BEGIN; ${query}; COMMIT;`);
         });
         await Promise.all(insert_1_into_lists_promises);
 
@@ -36,6 +34,7 @@ const config = require('../config/config')[process.env.ENV || 'development'];
         if (settings.length === 0) {
             // If Settings are empty, we need to fill them with highest id in all tables:
             await sequelize.query(`
+                BEGIN;
                 INSERT INTO "Settings" (id, metadata, "createdAt","CCL_id", "CPCL_id", "DCL_id","ODCL_id", "PL_id", "DAL_id")
                 VALUES 
                 (
@@ -49,6 +48,7 @@ const config = require('../config/config')[process.env.ENV || 'development'];
                 (SELECT MAX("id") FROM "PermissionList"),
                 (SELECT MAX("id") FROM "DatasetsAcceptedList")
                 );
+                COMMIT;
                 `);
             console.log('Settings Table was empty, just entered the first row');
         }

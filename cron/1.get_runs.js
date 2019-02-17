@@ -6,8 +6,6 @@ const axios = require('axios').create({
         rejectUnauthorized: false
     })
 });
-const { deepEqual } = require('assert');
-const getAttributesSpecifiedFromArray = require('get-attributes-specified-from-array');
 const getObjectWithAttributesThatChanged = require('get-object-with-attributes-that-changed');
 const { handleErrors } = require('../utils/error_handlers');
 const config = require('../config/config');

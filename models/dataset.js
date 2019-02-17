@@ -1,17 +1,19 @@
 module.exports = (sequelize, DataTypes) => {
-    const Cycle = sequelize.define(
-        'Cycle',
+    const Dataset = sequelize.define(
+        'Dataset',
         {
-            id_cycle: { type: DataTypes.INTEGER, primaryKey: true },
-            // TODO: should we put a foreign key to table RUN
-            run_attributes: { type: DataTypes.JSONB },
-            cycle_attributes: { type: DataTypes.JSONB },
+            run_number: { type: DataTypes.INTEGER, primaryKey: true },
+            name: { type: DataTypes.TEXT, primaryKey: true },
+            dataset_attributes: { type: DataTypes.JSONB },
             version: { type: DataTypes.INTEGER }
         },
         {
             timestamps: false,
-            indexes: [{ name: 'Cycle_version_index', fields: ['version'] }]
+            indexes: [{ name: 'Dataset_version_index', fields: ['version'] }]
         }
     );
-    return Cycle;
+    Dataset.associate = function(models) {
+        Dataset.belongsTo(models.Run, { foreignKey: 'run_number' });
+    };
+    return Dataset;
 };

@@ -46,7 +46,6 @@ const update_or_create_run = async (
         // update the Run table
         await sequelize.query(
             `
-                BEGIN;
                 CREATE TEMPORARY TABLE updated_runnumbers as SELECT DISTINCT "run_number" from "RunEvent" where "RunEvent"."version" > (SELECT COALESCE((SELECT MAX("version") from "Run"), 0));
                 CREATE TEMPORARY TABLE updated_runs as SELECT * FROM "RunEvent"
                 WHERE "RunEvent"."run_number" IN (
@@ -64,7 +63,6 @@ const update_or_create_run = async (
             
                 DROP TABLE updated_runnumbers;
                 DROP TABLE updated_runs;
-                COMMIT;
         `,
             { transaction }
         );
@@ -302,9 +300,9 @@ exports.getFilteredOrdered = async (req, res) => {
     const { sortings, page_size } = req.body;
     let filter = changeNameOfAllKeys(req.body.filter, conversion_operator);
     const { page } = req.params;
+    let offset = page_size * page;
     const count = await Run.count({ where: filter });
     let pages = Math.ceil(count / page_size);
-    let offset = page_size * page;
     const runs = await Run.findAll({
         where: filter,
         order: sortings.length > 0 ? sortings : [['run_number', 'DESC']],

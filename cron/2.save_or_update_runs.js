@@ -23,23 +23,16 @@ exports.save_runs = async (new_runs, number_of_tries) => {
 
             const rr_attributes = await calculate_rr_attributes(oms_attributes);
 
-            await axios
-                .post(
-                    `${API_URL}/runs`,
-                    { oms_attributes, rr_attributes },
-                    {
-                        headers: {
-                            email: 'auto@auto',
-                            comment: 'run creation - appeared in OMS'
-                        }
+            await axios.post(
+                `${API_URL}/runs`,
+                { oms_attributes, rr_attributes },
+                {
+                    headers: {
+                        email: 'auto@auto',
+                        comment: 'run creation - appeared in OMS'
                     }
-                )
-                .catch(err => {
-                    if (err.response.data.err === 'ResourceRequest timed out') {
-                        throw 'ResourceRequest timed out';
-                    }
-                    throw err;
-                });
+                }
+            );
             saved_runs += 1;
         } catch (e) {
             runs_not_saved.push(run);
