@@ -1,18 +1,50 @@
 const sequelize = require('../models').sequelize;
 const config = require('../config/config')[process.env.ENV || 'development'];
 
-// Self invoking function for initialization
+// Self invoking function for initialization.
+
+// It will add roles to INSERT to the user configured in settings
+// It will make sure there is at least 1 value in all "Lists"
+// It will make sure there is at least 1 Setting referencing the maximum list value
 (async () => {
+    let transaction;
     try {
+        transaction = await sequelize.transaction();
+
+        // await sequelize.query(
+        //     `GRANT SELECT, INSERT ON ALL TABLES IN SCHEMA "public" to "${
+        //         config.username
+        //     }"`,
+        //     { transaction }
+        // );
+        // console.log(
+        //     `Permissions granted on all tables to SELECT and INSERT to user ${
+        //         config.username
+        //     }. DELETE and UPDATE are not permited (this is intended behavior of RR)`
+        // );
+
+        // Insert compound foreign keys, see  https://github.com/sequelize/sequelize/issues/311
+
         await sequelize.query(
-            `BEGIN; GRANT SELECT, INSERT ON ALL TABLES IN SCHEMA "public" to "${
-                config.username
-            }"; COMMIT;`
+            `
+            ALTER TABLE IF EXISTS "LumisectionEvent" DROP CONSTRAINT IF EXISTS "LumisectionEvent_datasetReference_fkey";
+            ALTER TABLE IF EXISTS "LumisectionEvent"
+            ADD CONSTRAINT "LumisectionEvent_datasetReference_fkey"
+            FOREIGN KEY (run_number, name)
+            REFERENCES "Dataset" ON UPDATE CASCADE;
+        `,
+            { transaction }
         );
-        console.log(
-            `Permissions granted on all tables to SELECT and INSERT to user ${
-                config.username
-            }. DELETE and UPDATE are not permited (this is intended behavior of RR)`
+
+        await sequelize.query(
+            `
+            ALTER TABLE IF EXISTS "DatasetTripletCache" DROP CONSTRAINT IF EXISTS "DatasetTripletCache_datasetReference_fkey";
+            ALTER TABLE IF EXISTS "DatasetTripletCache"
+            ADD CONSTRAINT "DatasetTripletCache_datasetReference_fkey"
+            FOREIGN KEY (run_number, name)
+            REFERENCES "Dataset" ON UPDATE CASCADE;
+        `,
+            { transaction }
         );
 
         // Initialize data:
@@ -25,16 +57,18 @@ const config = require('../config/config')[process.env.ENV || 'development'];
             'INSERT INTO "DatasetsAcceptedList" ("id") VALUES (1) ON CONFLICT DO NOTHING;'
         ];
         const insert_1_into_lists_promises = insert_1_into_lists.map(query => {
-            return sequelize.query(`BEGIN; ${query}; COMMIT;`);
+            return sequelize.query(query, { transaction });
         });
         await Promise.all(insert_1_into_lists_promises);
 
-        const result = await sequelize.query('SELECT * FROM "Settings"');
+        const result = await sequelize.query('SELECT * FROM "Settings"', {
+            transaction
+        });
         const settings = result[0];
         if (settings.length === 0) {
             // If Settings are empty, we need to fill them with highest id in all tables:
-            await sequelize.query(`
-                BEGIN;
+            await sequelize.query(
+                `
                 INSERT INTO "Settings" (id, metadata, "createdAt","CCL_id", "CPCL_id", "DCL_id","ODCL_id", "PL_id", "DAL_id")
                 VALUES 
                 (
@@ -48,17 +82,20 @@ const config = require('../config/config')[process.env.ENV || 'development'];
                 (SELECT MAX("id") FROM "PermissionList"),
                 (SELECT MAX("id") FROM "DatasetsAcceptedList")
                 );
-                COMMIT;
-                `);
-            console.log('Settings Table was empty, just entered the first row');
+                `,
+                { transaction }
+            );
+            console.log(
+                'Settings Table was empty, first row was entered automatically'
+            );
         }
+        await transaction.commit();
     } catch (err) {
+        await transaction.rollback();
         if (err.message === 'relation "Settings" does not exist') {
             console.log(
                 'ERROR: Try running again, table Settings was not created yet, it should be created by now, and running it again should show no errors'
             );
-        } else if (err.message === 'tuple concurrently updated') {
-            console.log('tuple concurrently updated');
         } else {
             console.log('Error initializing schema');
             console.log(err);

@@ -39,7 +39,8 @@ const update_or_create_run = async (
                 run_number,
                 oms_metadata,
                 rr_metadata,
-                version: event.version
+                version: event.version,
+                deleted: false
             },
             { transaction }
         );
@@ -52,14 +53,15 @@ const update_or_create_run = async (
                     SELECT * from updated_runnumbers
                 );
 
-                INSERT INTO "Run" (run_number, rr_attributes, oms_attributes, "version")
+                INSERT INTO "Run" (run_number, rr_attributes, oms_attributes, deleted, "version")
                 SELECT run_number,
                         mergejsonb(rr_metadata ORDER BY version),
                         mergejsonb(oms_metadata ORDER BY version),
+                        (SELECT deleted from "RunEvent" WHERE "version" = (SELECT max(version) FROM updated_runs)) AS "deleted",
                         (SELECT max(version) FROM "RunEvent" ) AS "version"
                 FROM updated_runs
                 GROUP BY run_number
-                ON CONFLICT (run_number) DO UPDATE SET "rr_attributes" = EXCLUDED."rr_attributes", "oms_attributes" = EXCLUDED."oms_attributes", version = EXCLUDED.version;
+                ON CONFLICT (run_number) DO UPDATE SET "rr_attributes" = EXCLUDED."rr_attributes", "oms_attributes" = EXCLUDED."oms_attributes", "deleted" = EXCLUDED."deleted", "version" = EXCLUDED.version;
             
                 DROP TABLE updated_runnumbers;
                 DROP TABLE updated_runs;
@@ -72,9 +74,7 @@ const update_or_create_run = async (
         // Rollback transaction if any errors were encountered
         console.log(err);
         await transaction.rollback();
-        throw {
-            err: `Error updating/saving run ${run_number}, ${err.message}`
-        };
+        throw `Error updating/saving run ${run_number}, ${err.message}`;
     }
 };
 
@@ -298,7 +298,10 @@ exports.moveRun = async (req, res) => {
 
 exports.getFilteredOrdered = async (req, res) => {
     const { sortings, page_size } = req.body;
-    let filter = changeNameOfAllKeys(req.body.filter, conversion_operator);
+    let filter = {
+        ...changeNameOfAllKeys(req.body.filter, conversion_operator),
+        deleted: false
+    };
     const { page } = req.params;
     let offset = page_size * page;
     const count = await Run.count({ where: filter });
@@ -315,7 +318,8 @@ exports.getFilteredOrdered = async (req, res) => {
 exports.significantRunsFilteredOrdered = async (req, res) => {
     let filter = {
         ...changeNameOfAllKeys(req.body.filter, conversion_operator),
-        'rr_attributes.significant': true
+        'rr_attributes.significant': true,
+        deleted: false
     };
     let { sortings } = req.body;
     const { page_size } = req.body;

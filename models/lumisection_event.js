@@ -1,6 +1,6 @@
 module.exports = (sequelize, DataTypes) => {
-    const DatasetEvent = sequelize.define(
-        'DatasetEvent',
+    const LumisectionEvent = sequelize.define(
+        'LumisectionEvent',
         {
             version: {
                 primaryKey: true,
@@ -15,12 +15,8 @@ module.exports = (sequelize, DataTypes) => {
                 type: DataTypes.TEXT,
                 allowNull: false
             },
-            dataset_metadata: {
+            lumisection_metadata: {
                 type: DataTypes.JSONB,
-                allowNull: false
-            },
-            deleted: {
-                type: DataTypes.BOOLEAN,
                 allowNull: false
             }
         },
@@ -28,20 +24,22 @@ module.exports = (sequelize, DataTypes) => {
             timestamps: false,
             indexes: [
                 {
-                    name: 'DatasetEvent_datasetId_index',
+                    name: 'LumisectionEvent_datasetReference_index',
                     fields: ['run_number', 'name']
                 }
             ]
         }
     );
-    DatasetEvent.associate = function(models) {
-        DatasetEvent.belongsTo(models.Event, { foreignKey: 'version' });
-        DatasetEvent.belongsTo(models.Run, { foreignKey: 'run_number' });
+    LumisectionEvent.associate = function(models) {
+        LumisectionEvent.belongsTo(models.Event, { foreignKey: 'version' });
+        LumisectionEvent.hasMany(models.LumisectionEventAssignation, {
+            foreignKey: 'version'
+        });
         // THE FOLLOWING 3 LINES ARE NOT YET SUPPORTED IN SEQUELIZE, WE HAVE TO INITIALIZE THE COMPOUND FOREIGN KEY TO DATASET IN initialization/initialize.js file
-        // DatasetEvent.belongsTo(models.Dataset, {
+        // LumisectionEvent.belongsTo(models.Dataset, {
         //     foreignKey: ['run_number','name']
         // })
     };
 
-    return DatasetEvent;
+    return LumisectionEvent;
 };

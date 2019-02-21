@@ -54,7 +54,6 @@ const ClassifierTypes = {
 };
 
 exports.getClassifiers = async (req, res) => {
-    // Get max in settings:
     const { category } = req.params;
     const { Classifier, List } = ClassifierTypes[category];
 

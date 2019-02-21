@@ -1,5 +1,4 @@
 const fs = require('fs');
-const Sequelize = require('sequelize');
 const path = require('path');
 
 module.exports = (sequelize, DataTypes) => {

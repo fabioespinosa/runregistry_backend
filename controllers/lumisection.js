@@ -1,25 +1,165 @@
 const axios = require('axios');
+const sequelize = require('../models').sequelize;
 const Dataset = require('../models').Dataset;
-const { lumisection_attributes } = require('../config/config');
+const {
+    Event,
+    LumisectionEvent,
+    LumisectionEventAssignation
+} = require('../models');
+// const { lumisection_attributes } = require('../config/config');
 const { OMS_URL, OMS_LUMISECTIONS } = require('../config/config')[
     process.env.ENV || 'development'
 ];
 const getAttributesSpecifiedFromArray = require('get-attributes-specified-from-array');
 const { deepEqual } = require('assert');
-const { changeHistory } = require('./history_utils');
 
-exports.getLumisectionsForRun = async (req, res) => {
-    let {
-        data: { data: lumisections }
-    } = await axios.get(
-        `${OMS_URL}/${OMS_LUMISECTIONS(req.params.run_number)}`
-    );
-    lumisections = lumisections.map(({ attributes }) =>
-        getAttributesSpecifiedFromArray(attributes, lumisection_attributes)
-    );
-    const ls_ranges = exports.getLumisectionRanges(lumisections);
-    res.json(ls_ranges);
+const lumisection_attributes = [
+    'dt_triplet',
+    'es_triplet',
+    'cms_triplet',
+    'csc_triplet',
+    'hlt_triplet',
+    'l1t_triplet',
+    'pix_triplet',
+    'rpc_triplet',
+    'ecal_triplet',
+    'hcal_triplet',
+    'lumi_triplet',
+    'ctpps_triplet',
+    'l1tmu_triplet',
+    'strip_triplet',
+    'l1tcalo_triplet '
+];
+
+//// blockhain
+// It contains start_lumisection, it doesn't contain end_lumisection
+const update_or_create_lumisection = async (
+    id_dataset,
+    lumisection_metadata,
+    start_lumisection,
+    end_lumisection,
+    req
+) => {
+    const by = req.get('email');
+    const comment = req.get('comment');
+    if (!by) {
+        throw "The email of the author's action should be stated in request's header 'email'";
+    }
+    // Start transaction:
+    let transaction;
+    try {
+        transaction = await sequelize.transaction();
+        const event = await Event.create(
+            {
+                by,
+                comment
+            },
+            { transaction }
+        );
+
+        const lumisectionEvent = await LumisectionEvent.create(
+            {
+                id_dataset,
+                lumisection_metadata,
+                version: event.version
+            },
+            { transaction }
+        );
+        const lumisection_entries = [];
+        for (let i = start_lumisection; i < end_lumisection; i++) {
+            lumisection_entries.push({
+                version: event.version,
+                lumisection_number: i
+            });
+        }
+        await LumisectionEventAssignation.bulkCreate(lumisection_entries);
+        await transaction.commit();
+        return lumisectionEvent;
+    } catch (e) {
+        await transaction.rollback();
+        throw `Error updating/saving dataset ${id_dataset} lumisections`;
+    }
 };
+
+/// blockchain
+
+// Get lumisections:
+
+exports.getLumisectionsForDataset = async (req, res) => {
+    const { id_dataset } = req.params;
+    let lumisections = await sequelize.query(
+        `
+            SELECT id_dataset, lumisection_number, mergejsonb(lumisection_metadata ORDER BY version ) as "lumisection_attributes"
+            FROM(
+            SELECT "LumisectionEvent"."version", id_dataset, lumisection_metadata, lumisection_number from "LumisectionEvent"  inner join "LumisectionEventAssignation" 
+                on "LumisectionEvent"."version" = "LumisectionEventAssignation"."version" 
+            WHERE "LumisectionEvent"."id_dataset" = :id_dataset
+            ) AS "updated_lumisectionEvents"
+            GROUP BY id_dataset, lumisection_number;`,
+        {
+            type: sequelize.QueryTypes.SELECT,
+            replacements: {
+                id_dataset
+            }
+        }
+    );
+    lumisections = lumisections.map(
+        ({ lumisection_attributes }) => lumisection_attributes
+    );
+
+    lumisections = exports.getLumisectionRanges(lumisections);
+
+    res.json(lumisections);
+};
+
+// Returns LS ranges in format: [{start:0, end: 23, ...values}, {start: 24, end: 90, ...values}]
+exports.getLumisectionRanges = lumisections => {
+    const ls_ranges = [];
+    ls_ranges.push({ ...lumisections[0], start: 1 });
+
+    for (let i = 1; i < lumisections.length; i++) {
+        const previous_range = ls_ranges[ls_ranges.length - 1];
+        try {
+            deepEqual(
+                getAttributesSpecifiedFromArray(
+                    previous_range,
+                    lumisection_attributes
+                ),
+                getAttributesSpecifiedFromArray(
+                    lumisections[i],
+                    lumisection_attributes
+                )
+            );
+        } catch (e) {
+            // This means that there is a LS break in the range (exception thrown), not equal
+            ls_ranges[ls_ranges.length - 1] = {
+                ...previous_range,
+                end: i
+            };
+            ls_ranges.push({ ...lumisections[i], start: i + 1 });
+        }
+    }
+
+    // Set the end of final range:
+    ls_ranges[ls_ranges.length - 1] = {
+        ...ls_ranges[ls_ranges.length - 1],
+        end: lumisections.length
+    };
+    return ls_ranges;
+};
+
+// exports.getLumisectionsForRun = async (req, res) => {
+//     let {
+//         data: { data: lumisections }
+//     } = await axios.get(
+//         `${OMS_URL}/${OMS_LUMISECTIONS(req.params.run_number)}`
+//     );
+//     lumisections = lumisections.map(({ attributes }) =>
+//         getAttributesSpecifiedFromArray(attributes, lumisection_attributes)
+//     );
+//     const ls_ranges = exports.getLumisectionRanges(lumisections);
+//     res.json(ls_ranges);
+// };
 
 exports.getLumisectionsForDatasetWorkspace = async (req, res) => {
     const { workspace } = req.params;
@@ -104,41 +244,7 @@ exports.getLumisectionsForDatasetWorkspace = async (req, res) => {
 //res.json(edited_dataset);
 //};
 //
-//// Returns LS ranges in format: [{start:0, end: 23, ...values}, {start: 24, end: 90, ...values}]
-//exports.getLumisectionRanges = lumisections => {
-//const ls_ranges = [];
-//ls_ranges.push({ ...lumisections[0], start: 1 });
-//
-//for (let i = 1; i < lumisections.length; i++) {
-//const previous_range = ls_ranges[ls_ranges.length - 1];
-//try {
-//deepEqual(
-//getAttributesSpecifiedFromArray(
-//previous_range,
-//lumisection_attributes
-//),
-//getAttributesSpecifiedFromArray(
-//lumisections[i],
-//lumisection_attributes
-//)
-//);
-//} catch (e) {
-//// This means that there is a LS break in the range (exception thrown), not equal
-//ls_ranges[ls_ranges.length - 1] = {
-//...previous_range,
-//end: i
-//};
-//ls_ranges.push({ ...lumisections[i], start: i + 1 });
-//}
-//}
-//
-//// Set the end of final range:
-//ls_ranges[ls_ranges.length - 1] = {
-//...ls_ranges[ls_ranges.length - 1],
-//end: lumisections.length
-//};
-//return ls_ranges;
-//};
+
 //
 //// workspace can be either global as in global_lumisections or as in any other workspace like csc_lumisections
 //exports.saveLumisections = async (
@@ -157,3 +263,20 @@ exports.getLumisectionsForDatasetWorkspace = async (req, res) => {
 //);
 //return await dataset.update(dataset.dataValues);
 //};
+
+// --compressed:
+// SELECT id_dataset, lumisection_number, mergejsonb(lumisection_metadata ORDER BY version)
+// FROM(
+//     SELECT "LumisectionEvent"."version", id_dataset, lumisection_metadata, lumisection_number from "LumisectionEvent"  inner join "LumisectionEventAssignation"
+// 	on "LumisectionEvent"."version" = "LumisectionEventAssignation"."version"
+// WHERE "LumisectionEvent"."id_dataset" = 251357
+// ) AS "updated_lumisectionEvents"
+// GROUP BY id_dataset, lumisection_number;
+
+// -- with history:
+// SELECT id_dataset, lumisection_number, lumisection_metadata, "version"
+// FROM(
+//     SELECT "LumisectionEvent"."version", id_dataset, lumisection_metadata, lumisection_number from "LumisectionEvent"  inner join "LumisectionEventAssignation"
+// 	on "LumisectionEvent"."version" = "LumisectionEventAssignation"."version"
+// WHERE "LumisectionEvent"."id_dataset" = 177793
+// ) AS "updated_lumisectionEvents";

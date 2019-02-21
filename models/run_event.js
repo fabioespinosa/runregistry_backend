@@ -18,6 +18,10 @@ module.exports = (sequelize, DataTypes) => {
             rr_metadata: {
                 type: DataTypes.JSONB,
                 allowNull: false
+            },
+            deleted: {
+                type: DataTypes.BOOLEAN,
+                allowNull: false
             }
         },
         {

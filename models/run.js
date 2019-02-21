@@ -3,9 +3,10 @@ module.exports = (sequelize, DataTypes) => {
         'Run',
         {
             run_number: { type: DataTypes.INTEGER, primaryKey: true },
-            oms_attributes: { type: DataTypes.JSONB },
-            rr_attributes: { type: DataTypes.JSONB },
-            version: { type: DataTypes.INTEGER }
+            oms_attributes: { type: DataTypes.JSONB, allowNull: false },
+            rr_attributes: { type: DataTypes.JSONB, allowNull: false },
+            version: { type: DataTypes.INTEGER, allowNull: false },
+            deleted: { type: DataTypes.BOOLEAN, allowNull: false }
         },
         {
             timestamps: false,
