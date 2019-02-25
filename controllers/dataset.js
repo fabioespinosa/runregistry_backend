@@ -13,6 +13,7 @@ const {
     OfflineDatasetClassifier,
     Run
 } = require('../models');
+const { goOverDatasets } = require('./dataset_triplet_cache');
 
 const { Op } = Sequelize;
 const conversion_operator = {
@@ -32,6 +33,7 @@ const conversion_operator = {
     LIKE: Op.iLike,
     NOTLIKE: Op.notLike
 };
+// goOverDatasets();
 
 const update_or_create_dataset = async (
     dataset_name,

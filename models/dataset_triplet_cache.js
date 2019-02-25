@@ -19,7 +19,11 @@ module.exports = (sequelize, DataTypes) => {
                     name: 'DatasetTripleCache_version_index',
                     fields: ['version']
                 }
-            ]
+            ],
+            name: {
+                singular: 'DatasetTripletCache',
+                plural: 'DatasetTripletCache'
+            }
         }
     );
     DatasetTripletCache.associate = function(models) {

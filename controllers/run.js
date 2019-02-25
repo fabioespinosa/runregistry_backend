@@ -8,7 +8,13 @@ const { OMS_URL, OMS_SPECIFIC_RUN } = require('../config/config')[
     process.env.ENV || 'development'
 ];
 const { update_runs } = require('../cron/2.save_or_update_runs');
-const { Run, Event, RunEvent } = require('../models');
+const {
+    Run,
+    Dataset,
+    DatasetTripletCache,
+    Event,
+    RunEvent
+} = require('../models');
 
 const update_or_create_run = async (
     run_number,
@@ -159,7 +165,17 @@ exports.new = async (req, res) => {
 // The new_attributes are a collection of the attributes that changed with respect to the run
 exports.edit = async (req, res) => {
     const { run_number } = req.params;
-    const run = await Run.findByPk(run_number);
+    const run = await Run.findByPk(run_number, {
+        include: [
+            {
+                model: DatasetTripletCache,
+                where: {
+                    name: 'online'
+                },
+                attributes: ['triplet_summary']
+            }
+        ]
+    });
     if (run === null) {
         throw 'Run not found';
     }
@@ -296,6 +312,7 @@ exports.moveRun = async (req, res) => {
     //}
 };
 
+// Separate filtering and count will make the UX much faster.
 exports.getFilteredOrdered = async (req, res) => {
     const { sortings, page_size } = req.body;
     let filter = {
@@ -304,14 +321,25 @@ exports.getFilteredOrdered = async (req, res) => {
     };
     const { page } = req.params;
     let offset = page_size * page;
+    // findAndCountAll is slower than doing separate count, and filtering
     const count = await Run.count({ where: filter });
     let pages = Math.ceil(count / page_size);
-    const runs = await Run.findAll({
+    let runs = await Run.findAll({
         where: filter,
         order: sortings.length > 0 ? sortings : [['run_number', 'DESC']],
         limit: page_size,
-        offset
+        offset,
+        include: [
+            {
+                model: DatasetTripletCache,
+                where: {
+                    name: 'online'
+                },
+                attributes: ['triplet_summary']
+            }
+        ]
     });
+
     res.json({ runs, pages });
 };
 

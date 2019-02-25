@@ -14,17 +14,20 @@ module.exports = (sequelize, DataTypes) => {
         },
         {
             timestamps: false,
-            indexes: [{ name: 'Dataset_version_index', fields: ['version'] }]
+            indexes: [
+                { name: 'Dataset_version_index', fields: ['version'] },
+                { name: 'Dataset_deleted_index', fields: ['deleted'] }
+            ]
         }
     );
     Dataset.associate = function(models) {
         Dataset.belongsTo(models.Run, { foreignKey: 'run_number' });
-        Dataset.hasOne(models.DatasetTripletCache, {
-            constraints: false,
-            foreignKey: 'run_number',
-            sourceKey: 'run_number',
-            scope: { name: 'DatasetTripletCache.name' }
-        });
+        // Dataset.hasOne(models.DatasetTripletCache, {
+        //     constraints: false,
+        //     foreignKey: 'run_number',
+        //     sourceKey: 'run_number',
+        //     scope: { name: 'DatasetTripletCache.name' }
+        // });
     };
     return Dataset;
 };

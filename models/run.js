@@ -10,8 +10,16 @@ module.exports = (sequelize, DataTypes) => {
         },
         {
             timestamps: false,
-            indexes: [{ name: 'Run_version_index', fields: ['version'] }]
+            indexes: [
+                { name: 'Run_version_index', fields: ['version'] },
+                { name: 'Run_deleted_index', fields: ['deleted'] }
+            ]
         }
     );
+    Run.associate = function(models) {
+        // A run has many datasets, but it only has 1 corresponding to the data that came form online, this one has a 'name' of 'online
+        Run.hasMany(models.Dataset, { foreignKey: 'run_number' });
+        Run.hasOne(models.DatasetTripletCache, { foreignKey: 'run_number' });
+    };
     return Run;
 };

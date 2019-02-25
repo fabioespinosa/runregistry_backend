@@ -1,33 +1,56 @@
+const queue = require('async').queue;
 const sequelize = require('../models').sequelize;
 const Sequelize = require('../models').Sequelize;
 const { DatasetTripletCache, Dataset } = require('../models');
 const { Op } = Sequelize;
+const number_of_datasets_per_batch = 400;
 
-exports.fillDatasetTripletCache = async version => {
+exports.goOverDatasets = async () => {
+    const max_version = (await DatasetTripletCache.max('version')) || 0;
+    const count = await Dataset.count({
+        where: {
+            version: {
+                [Op.gt]: max_version
+            }
+        }
+    });
+
+    const number_of_batches = Math.ceil(count / number_of_datasets_per_batch);
+    const async_functions = [];
+    let number_of_processed_datasets = 0;
+    for (let i = 0; i < number_of_batches; i++) {
+        async_functions.push(async () => {
+            const dataset_batch = await Dataset.findAll({
+                where: {
+                    version: {
+                        [Op.gt]: max_version
+                    }
+                },
+                order: [['version', 'ASC'], ['run_number', 'ASC']],
+                limit: number_of_datasets_per_batch,
+                offset: i * number_of_datasets_per_batch
+            });
+            const processed_datasets = await exports.processDatasets(
+                dataset_batch
+            );
+            number_of_processed_datasets += processed_datasets.length;
+        });
+    }
+    const asyncQueue = queue(async dataset_batch => await dataset_batch(), 1);
+    asyncQueue.drain = async () => {
+        console.log('finished');
+    };
+    asyncQueue.error = err => {
+        console.log('Error: ');
+        console.log(err);
+    };
+    await asyncQueue.push(async_functions);
+    console.log(`${number_of_processed_datasets} datasets processed`);
+};
+
+exports.processDatasets = async dataset_batch => {
     try {
-        const max_version = (await DatasetTripletCache.max('version')) || 0;
-        const count = await Dataset.count({
-            where: {
-                version: {
-                    [Op.gt]: max_version
-                },
-                run_number: {
-                    [Op.lte]: 2000
-                }
-            }
-        });
-        const selected_datasets = await Dataset.findAll({
-            where: {
-                version: {
-                    [Op.lt]: await DatasetTripletCache.max('version')
-                },
-                run_number: {
-                    [Op.lte]: 2000
-                }
-            }
-        });
-
-        selected_datasets.forEach(async dataset => {
+        const processed_datasets = dataset_batch.map(async dataset => {
             const merged_lumisections = await sequelize.query(
                 `
                 SELECT run_number, "name", lumisection_number, mergejsonb(lumisection_metadata ORDER BY version ) as "triplets", (SELECT max(version) FROM "LumisectionEvent" ) AS "version"
@@ -38,7 +61,8 @@ exports.fillDatasetTripletCache = async version => {
                     dataset.name
                 }' AND "LumisectionEvent"."run_number" = '${dataset.run_number}'
                 ) AS "updated_lumisectionEvents"
-                GROUP BY "run_number", "name", lumisection_number ORDER BY lumisection_number;
+                GROUP BY "run_number", "name", lumisection_number 
+                ORDER BY lumisection_number;
             `,
                 {
                     type: sequelize.QueryTypes.SELECT
@@ -131,6 +155,7 @@ exports.fillDatasetTripletCache = async version => {
                 triplet_summary
             });
         });
+        return processed_datasets;
     } catch (e) {
         console.log(e);
     }
