@@ -55,8 +55,8 @@ exports.processDatasets = async dataset_batch => {
                 `
                 SELECT run_number, "name", lumisection_number, mergejsonb(lumisection_metadata ORDER BY version ) as "triplets", (SELECT max(version) FROM "LumisectionEvent" ) AS "version"
                 FROM(
-                SELECT "LumisectionEvent"."version", run_number, "name", lumisection_metadata, lumisection_number from "LumisectionEvent"  inner join "LumisectionEventAssignation" 
-                    on "LumisectionEvent"."version" = "LumisectionEventAssignation"."version" 
+                SELECT "LumisectionEvent"."version", run_number, "name",jsonb as "lumisection_metadata", lumisection_number  FROM "LumisectionEvent"  INNER JOIN "LumisectionEventAssignation" 
+                on "LumisectionEvent"."version" = "LumisectionEventAssignation"."version" inner join "JSONBDeduplication" on "lumisection_metadata_id" = "id"
                 WHERE "LumisectionEvent"."name" = '${
                     dataset.name
                 }' AND "LumisectionEvent"."run_number" = '${dataset.run_number}'

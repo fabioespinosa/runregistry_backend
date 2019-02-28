@@ -10,10 +10,12 @@ const {
 const { OMS_URL, OMS_LUMISECTIONS } = require('../config/config')[
     process.env.ENV || 'development'
 ];
+const { oms_lumisection_whitelist } = require('../config/config');
 const getAttributesSpecifiedFromArray = require('get-attributes-specified-from-array');
 const { deepEqual } = require('assert');
+const { findOrCreateJSONB } = require('./JSONBDeduplication');
 
-const lumisection_attributes = [
+const rr_lumisection_whitelist = [
     'dt_triplet',
     'es_triplet',
     'cms_triplet',
@@ -32,13 +34,15 @@ const lumisection_attributes = [
 ];
 
 //// blockhain
-// It contains start_lumisection, it doesn't contain end_lumisection
+// Its a range, contains start_lumisection AND it contains end_lumisection
 const update_or_create_lumisection = async (
-    id_dataset,
+    run_number,
+    dataset_name,
     lumisection_metadata,
     start_lumisection,
     end_lumisection,
-    req
+    req,
+    transaction
 ) => {
     const by = req.get('email');
     const comment = req.get('comment');
@@ -46,9 +50,12 @@ const update_or_create_lumisection = async (
         throw "The email of the author's action should be stated in request's header 'email'";
     }
     // Start transaction:
-    let transaction;
+    let local_transaction = false;
     try {
-        transaction = await sequelize.transaction();
+        if (typeof transaction === 'undefined') {
+            local_transaction = true;
+            transaction = await sequelize.transaction();
+        }
         const event = await Event.create(
             {
                 by,
@@ -56,29 +63,92 @@ const update_or_create_lumisection = async (
             },
             { transaction }
         );
+        const deduplicated_jsonb = await findOrCreateJSONB(
+            lumisection_metadata
+        );
 
         const lumisectionEvent = await LumisectionEvent.create(
             {
-                id_dataset,
-                lumisection_metadata,
+                run_number,
+                name: dataset_name,
+                lumisection_metadata_id: deduplicated_jsonb.id,
                 version: event.version
             },
             { transaction }
         );
         const lumisection_entries = [];
-        for (let i = start_lumisection; i < end_lumisection; i++) {
+        for (let i = start_lumisection; i <= end_lumisection; i++) {
             lumisection_entries.push({
                 version: event.version,
                 lumisection_number: i
             });
         }
-        await LumisectionEventAssignation.bulkCreate(lumisection_entries);
-        await transaction.commit();
+        await LumisectionEventAssignation.bulkCreate(lumisection_entries, {
+            transaction
+        });
+        if (local_transaction) {
+            await transaction.commit();
+        }
         return lumisectionEvent;
-    } catch (e) {
-        await transaction.rollback();
-        throw `Error updating/saving dataset ${id_dataset} lumisections`;
+    } catch (err) {
+        console.log(err);
+        if (local_transaction) {
+            await transaction.rollback();
+        }
+        throw `Error updating/saving dataset ${dataset_name} of run ${run_number} lumisections`;
     }
+};
+
+exports.create_lumisections = async (
+    run_number,
+    dataset_name,
+    oms_lumisections,
+    rr_lumisections,
+    req,
+    transaction
+) => {
+    // const oms_lumisection_ranges = exports.getLumisectionRanges(
+    //     oms_lumisections,
+    //     oms_lumisection_whitelist
+    // );
+    const rr_lumisections_ranges = await exports.getLumisectionRanges(
+        rr_lumisections,
+        rr_lumisection_whitelist
+    );
+
+    // oms_lumisection_ranges.forEach(lumisection_range => {
+    //     const { start, end } = lumisection_range;
+    //     const lumisection_range_values = { ...lumisection_range };
+    //     delete lumisection_range_values.start;
+    //     delete lumisection_range_values.end;
+    //     update_or_create_lumisection(
+    //         run_number,
+    //         dataset_name,
+    //         lumisection_range_values,
+    //         start,
+    //         end
+    //     );
+    // });
+
+    const rr_lumisection_ranges = rr_lumisections_ranges.map(
+        async lumisection_range => {
+            const { start, end } = lumisection_range;
+            const lumisection_range_values = { ...lumisection_range };
+            delete lumisection_range_values.start;
+            delete lumisection_range_values.end;
+            const lumisection_event = await update_or_create_lumisection(
+                run_number,
+                dataset_name,
+                lumisection_range_values,
+                start,
+                end,
+                req,
+                transaction
+            );
+        }
+    );
+    await Promise.all(rr_lumisection_ranges);
+    return rr_lumisection_ranges;
 };
 
 /// blockchain
@@ -113,7 +183,7 @@ exports.getLumisectionsForDataset = async (req, res) => {
 };
 
 // Returns LS ranges in format: [{start:0, end: 23, ...values}, {start: 24, end: 90, ...values}]
-exports.getLumisectionRanges = lumisections => {
+exports.getLumisectionRanges = (lumisections, lumisection_attributes) => {
     const ls_ranges = [];
     ls_ranges.push({ ...lumisections[0], start: 1 });
 

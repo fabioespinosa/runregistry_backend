@@ -7,6 +7,8 @@ const sequelize = require('../models').sequelize;
 const { OMS_URL, OMS_SPECIFIC_RUN } = require('../config/config')[
     process.env.ENV || 'development'
 ];
+const { create_lumisections } = require('./lumisection');
+const { update_or_create_dataset } = require('./dataset');
 const { update_runs } = require('../cron/2.save_or_update_runs');
 const {
     Run,
@@ -20,7 +22,8 @@ const update_or_create_run = async (
     run_number,
     oms_metadata,
     rr_metadata,
-    req
+    req,
+    transaction
 ) => {
     run_number = +run_number;
     const by = req.get('email');
@@ -29,9 +32,12 @@ const update_or_create_run = async (
         throw "The email of the author's action should be stated in request's header 'email'";
     }
     // Start transaction:
-    let transaction;
+    let local_transaction = false;
     try {
-        transaction = await sequelize.transaction();
+        if (typeof transaction === 'undefined') {
+            local_transaction = true;
+            transaction = await sequelize.transaction();
+        }
         const event = await Event.create(
             {
                 by,
@@ -50,7 +56,7 @@ const update_or_create_run = async (
             },
             { transaction }
         );
-        // update the Run table
+        // update the Run table, we are creating temporary tables to prevent the postgres optimizer to do unnecessary scans of whole table
         await sequelize.query(
             `
                 CREATE TEMPORARY TABLE updated_runnumbers as SELECT DISTINCT "run_number" from "RunEvent" where "RunEvent"."version" > (SELECT COALESCE((SELECT MAX("version") from "Run"), 0));
@@ -74,12 +80,16 @@ const update_or_create_run = async (
         `,
             { transaction }
         );
-        await transaction.commit();
+        if (local_transaction) {
+            await transaction.commit();
+        }
         return runEvent;
     } catch (err) {
         // Rollback transaction if any errors were encountered
         console.log(err);
-        await transaction.rollback();
+        if (local_transaction) {
+            await transaction.rollback();
+        }
         throw `Error updating/saving run ${run_number}, ${err.message}`;
     }
 };
@@ -144,21 +154,52 @@ exports.getRunWithHistory = async (req, res) => {
 };
 
 exports.new = async (req, res) => {
-    // TODO: make it into a transaction
     // TODO: validate run attributes
-    const { oms_attributes, rr_attributes } = req.body;
+    const {
+        oms_attributes,
+        rr_attributes,
+        oms_lumisections,
+        rr_lumisections
+    } = req.body;
     const { run_number } = oms_attributes;
     const run = await Run.findByPk(run_number);
     if (run !== null) {
         throw 'Run already exists';
     }
-    const runEvent = await update_or_create_run(
-        run_number,
-        oms_attributes,
-        rr_attributes,
-        req
-    );
-    res.json(runEvent);
+    let transaction;
+    try {
+        const transaction = await sequelize.transaction();
+        const runEvent = await update_or_create_run(
+            run_number,
+            oms_attributes,
+            rr_attributes,
+            req,
+            transaction
+        );
+        const datasetEvent = await update_or_create_dataset(
+            'online',
+            run_number,
+            {},
+            req,
+            transaction
+        );
+        if (rr_lumisections.length > 0) {
+            const lumisections = await create_lumisections(
+                run_number,
+                'online',
+                oms_lumisections,
+                rr_lumisections,
+                req,
+                transaction
+            );
+        }
+        await transaction.commit();
+        res.json(runEvent);
+    } catch (err) {
+        console.log(err);
+        await transaction.rollback();
+        throw `Error saving run ${run_number}`;
+    }
 };
 
 // This edits or updates the run
@@ -361,7 +402,16 @@ exports.significantRunsFilteredOrdered = async (req, res) => {
         where: filter,
         order: sortings.length > 0 ? sortings : [['run_number', 'DESC']],
         limit: page_size,
-        offset
+        offset,
+        include: [
+            {
+                model: DatasetTripletCache,
+                where: {
+                    name: 'online'
+                },
+                attributes: ['triplet_summary']
+            }
+        ]
     });
     res.json({ runs, pages });
 };

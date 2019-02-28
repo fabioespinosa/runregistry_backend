@@ -62,7 +62,7 @@ const fetch_runs = async (
     // Therefore, it is good to call recursively until at least some run that is fetched was previously fetched and saved, and then save them all.
     if (
         new_runs.length === fetched_runs.length &&
-        all_fetched_runs.length < 600
+        all_fetched_runs.length < 500
     ) {
         console.log(
             `All fetched runs are new, fetching ${fetch_amount * 2} runs...`
@@ -129,7 +129,7 @@ const calculate_new_runs = (fetched_runs, last_saved_runs) => {
     return new_runs;
 };
 
-// Calculates runs which have been updated in any of the OMS attributes
+// If a Run has an attribute which changed from OMS, it will run every classifier, and will update the run
 const calculate_runs_to_update = (fetched_runs, last_saved_runs) => {
     const runs_to_update = [];
     fetched_runs.forEach(fetched_run => {

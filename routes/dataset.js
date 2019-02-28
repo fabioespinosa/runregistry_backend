@@ -30,4 +30,8 @@ module.exports = app => {
         auth,
         catchAPI(Dataset.moveDataset)
     );
+    app.post(
+        '/datasets_get_lumisection_bar',
+        catchAPI(Dataset.getLumisectionBar)
+    );
 };

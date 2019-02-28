@@ -1,16 +1,28 @@
 const appendToAllAttributes = require('append-to-all-attributes');
 const {
-    setupRRAttributes,
+    getComponentsIncludedBooleans,
+    get_beam_present_and_stable,
     assign_run_class,
     is_run_significant,
-    assign_component_status
-} = require('./saving_updating_runs_utils');
+    assign_lumisection_component_status
+} = require('./saving_updating_runs_lumisections_utils');
 
-exports.calculate_rr_attributes = async (
-    oms_attributes,
-    manually_significant
-) => {
-    let rr_attributes = await setupRRAttributes(oms_attributes);
+exports.calculate_oms_attributes = async (run, lumisections) => {
+    const components_included_in_run = getComponentsIncludedBooleans(run);
+    const oms_attributes = {
+        ...run,
+        ...components_included_in_run
+    };
+    // 'beams_present_and_stable'  will only be true if there is at least 1 LS with all other true
+    oms_attributes.beams_present_and_stable = get_beam_present_and_stable(
+        lumisections
+    );
+    oms_attributes.ls_duration = lumisections.length;
+    return oms_attributes;
+};
+
+exports.calculate_rr_attributes = async (oms_attributes, oms_lumisections) => {
+    let rr_attributes = {};
     // Significant starts being false, stop_reason is a shifter value (so it starts as empty), class is to be determined later, state starts OPEN:
     rr_attributes.significant = false;
     rr_attributes.stop_reason = '';
@@ -21,28 +33,34 @@ exports.calculate_rr_attributes = async (
     if (oms_attributes.hlt_key !== null) {
         rr_attributes.class = await assign_run_class(
             oms_attributes,
-            rr_attributes
+            rr_attributes,
+            oms_lumisections
         );
     }
-
-    const run_is_significant = await is_run_significant(
+    rr_attributes.significant = await is_run_significant(
         oms_attributes,
-        rr_attributes
+        rr_attributes,
+        oms_lumisections
     );
-    if (manually_significant || run_is_significant) {
-        const components_status = await assign_component_status(
-            oms_attributes,
-            rr_attributes
-        );
-        const components_status_renamed = appendToAllAttributes(
-            components_status,
-            '_triplet'
-        );
-        rr_attributes = {
-            ...rr_attributes,
-            ...components_status_renamed,
-            significant: true
-        };
-    }
+
     return rr_attributes;
+};
+
+exports.calculate_rr_lumisections = async (
+    oms_attributes,
+    rr_attributes,
+    oms_lumisections
+) => {
+    const rr_lumisections = await assign_lumisection_component_status(
+        oms_attributes,
+        rr_attributes,
+        oms_lumisections
+    );
+    // Add the string "_triplet" to the end of each lumisection component
+    const lumisection_components_status_renamed = appendToAllAttributes(
+        rr_lumisections,
+        '_triplet'
+    );
+
+    return lumisection_components_status_renamed;
 };

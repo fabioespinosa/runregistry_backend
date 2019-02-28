@@ -9,6 +9,8 @@ const {
     LumisectionEvent,
     LumisectionEventAssignation,
     Dataset,
+    DatasetEvent,
+    Event,
     Workspace,
     OfflineDatasetClassifier,
     Run
@@ -33,13 +35,14 @@ const conversion_operator = {
     LIKE: Op.iLike,
     NOTLIKE: Op.notLike
 };
-// goOverDatasets();
+goOverDatasets();
 
-const update_or_create_dataset = async (
+exports.update_or_create_dataset = async (
     dataset_name,
     run_number,
     dataset_metadata,
-    req
+    req,
+    transaction
 ) => {
     run_number = +run_number;
     const by = req.get('email');
@@ -48,9 +51,12 @@ const update_or_create_dataset = async (
         throw "The email of the author's action should be stated in request's header 'email'";
     }
     // Start transaction:
-    let transaction;
+    let local_transaction = false;
     try {
-        transaction = await sequelize.transaction();
+        if (typeof transaction === 'undefined') {
+            local_transaction = true;
+            transaction = await sequelize.transaction();
+        }
         const event = await Event.create(
             {
                 by,
@@ -61,7 +67,6 @@ const update_or_create_dataset = async (
 
         const datasetEvent = await DatasetEvent.create(
             {
-                id_dataset,
                 name: dataset_name,
                 run_number,
                 dataset_metadata,
@@ -93,13 +98,19 @@ const update_or_create_dataset = async (
         `,
             { transaction }
         );
-        await transaction.commit();
+        if (local_transaction) {
+            await transaction.commit();
+        }
         return datasetEvent;
     } catch (err) {
         // Rollback transaction if any errors were encountered
         console.log(err);
-        await transaction.rollback();
-        throw `Error updating/saving run ${run_number}, ${err.message}`;
+        if (local_transaction) {
+            await transaction.rollback();
+        }
+        throw `Error updating/saving dataset ${dataset_name} of run: ${run_number}, ${
+            err.message
+        }`;
     }
 };
 
@@ -135,17 +146,17 @@ exports.getDatasetsWaitingDBS = async (req, res) => {
     res.json(datasets);
 };
 
-exports.add = async (req, res) => {
-    const dataset = Dataset.build(req.body);
-    const saved_dataset = await dataset.save();
-    res.json(saved_dataset);
-};
+// exports.add = async (req, res) => {
+//     const dataset = Dataset.build(req.body);
+//     const saved_dataset = await dataset.save();
+//     res.json(saved_dataset);
+// };
 
-exports.delete = async (req, res) => {
-    const dataset = Dataset.findByPk(req.body.id_dataset);
-    const deleted_dataset = await dataset.destroy();
-    res.json(deleted_dataset);
-};
+// exports.delete = async (req, res) => {
+//     const dataset = Dataset.findByPk(req.body.id_dataset);
+//     const deleted_dataset = await dataset.destroy();
+//     res.json(deleted_dataset);
+// };
 
 exports.getSpecificWorkspace = async (req, res) => {
     const columns = await Workspace.findAll({
@@ -418,4 +429,73 @@ exports.edit = async (req, res) => {
 
     const updated_dataset = await dataset.update(dataValues);
     res.json(updated_dataset.dataValues);
+};
+
+// visualization on popover
+
+exports.getLumisectionBar = async (req, res) => {
+    const { run_number, name, component } = req.body;
+    const merged_lumisections = await sequelize.query(
+        `
+        SELECT run_number, "name", lumisection_number, mergejsonb(lumisection_metadata ORDER BY version ) as "triplets"
+        FROM(
+        SELECT "LumisectionEvent"."version", run_number, "name", jsonb AS "lumisection_metadata", lumisection_number  FROM "LumisectionEvent" INNER JOIN "LumisectionEventAssignation" 
+        ON "LumisectionEvent"."version" = "LumisectionEventAssignation"."version" INNER JOIN "JSONBDeduplication" ON "lumisection_metadata_id" = "id"
+        WHERE "LumisectionEvent"."name" = :name AND "LumisectionEvent"."run_number" = :run_number
+        ) AS "updated_lumisectionEvents"
+        GROUP BY "run_number", "name", lumisection_number 
+        ORDER BY lumisection_number;
+    `,
+        {
+            type: sequelize.QueryTypes.SELECT,
+            replacements: {
+                run_number,
+                name
+            }
+        }
+    );
+    // // Put all the components present in the dataset
+    // const components_present_in_dataset = [];
+    // merged_lumisections.forEach(({ triplets }) => {
+    //     for (const [component, val] of Object.entries(triplets)) {
+    //         if (!components_present_in_dataset.includes(component)) {
+    //             components_present_in_dataset.push(component);
+    //         }
+    //     }
+    // });
+
+    const lumisections_with_empty_wholes = [];
+
+    if (merged_lumisections.length > 0) {
+        const last_lumisection_number =
+            merged_lumisections[merged_lumisections.length - 1]
+                .lumisection_number;
+        let current_merged_lumisection_element = 0;
+        for (let i = 0; i < last_lumisection_number; i++) {
+            const { triplets, lumisection_number } = merged_lumisections[
+                current_merged_lumisection_element
+            ];
+            if (i + 1 === lumisection_number && triplets[component]) {
+                const component_triplet = triplets[component];
+                lumisections_with_empty_wholes.push(component_triplet);
+                current_merged_lumisection_element += 1;
+            } else {
+                // it is just a space between lumisections. where there are some lumisections above and some below, it just means its an empty lumisection
+                const empty_triplets = {};
+                // components_present_in_dataset.forEach(component => {
+                empty_triplets[component] = {
+                    status: 'EMPTY',
+                    comment: '',
+                    cause: ''
+                };
+                // });
+                lumisections_with_empty_wholes.push({
+                    status: 'EMPTY',
+                    comment: '',
+                    cause: ''
+                });
+            }
+        }
+    }
+    res.json(lumisections_with_empty_wholes);
 };
