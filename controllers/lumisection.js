@@ -64,7 +64,8 @@ const update_or_create_lumisection = async (
             { transaction }
         );
         const deduplicated_jsonb = await findOrCreateJSONB(
-            lumisection_metadata
+            lumisection_metadata,
+            transaction
         );
 
         const lumisectionEvent = await LumisectionEvent.create(
