@@ -9,7 +9,11 @@ const { OMS_URL, OMS_SPECIFIC_RUN } = require('../config/config')[
 ];
 const { create_lumisections } = require('./lumisection');
 const { update_or_create_dataset } = require('./dataset');
+const { fill_dataset_triplet_cache } = require('./dataset_triplet_cache');
 const { update_runs } = require('../cron/2.save_or_update_runs');
+const {
+    create_offline_waiting_datasets
+} = require('../cron_datasets/1.create_datasets');
 const {
     Run,
     Dataset,
@@ -26,8 +30,8 @@ const update_or_create_run = async (
     transaction
 ) => {
     run_number = +run_number;
-    const by = req.get('email');
-    const comment = req.get('comment');
+    const by = req.email || req.get('email');
+    const comment = req.comment || req.get('comment');
     if (!by) {
         throw "The email of the author's action should be stated in request's header 'email'";
     }
@@ -193,6 +197,7 @@ exports.new = async (req, res) => {
                 transaction
             );
         }
+        await fill_dataset_triplet_cache();
         await transaction.commit();
         res.json(runEvent);
     } catch (err) {
@@ -288,6 +293,7 @@ exports.markSignificant = async (req, res) => {
         await exports.refreshRunClassAndComponents(req, res);
     } catch (e) {
         // We refresh the run automatically after making a run significant, it will mark an error because it will try to setheadrs of a request which is already sent
+        // We do this to make sure the LUMISECTIONS classification are there
     }
 };
 
@@ -341,16 +347,36 @@ exports.moveRun = async (req, res) => {
     // End validation
     const oms_metadata = {};
     const rr_metadata = { state: to_state };
-    await update_or_create_run(run_number, oms_metadata, rr_metadata, req);
-    const saved_run = await Run.findByPk(run_number);
-    res.json(saved_run.dataValues);
+    let transaction;
+    try {
+        transaction = await sequelize.transaction();
+        await update_or_create_run(
+            run_number,
+            oms_metadata,
+            rr_metadata,
+            req,
+            transaction
+        );
 
-    // TODO TODO TODO
-    // PUT DATASET IN WAITING LIST IS NOT YET DONE IN BLOCKCHAIN RR
-    // MOVE IT TO OFFLINE WAITING LIST: (create the waiting run )
-    //if (to_state === 'SIGNOFF' || to_state === 'COMPLETED') {
-    //    create_offline_waiting_dataset(moved_run.dataValues);
-    //}
+        if (to_state === 'SIGNOFF' || to_state === 'COMPLETED') {
+            await create_offline_waiting_datasets(run.dataValues, transaction);
+        }
+        await transaction.commit();
+        await fill_dataset_triplet_cache();
+        const saved_run = await Run.findByPk(run_number, {
+            include: [
+                {
+                    model: DatasetTripletCache,
+                    attributes: ['triplet_summary']
+                }
+            ]
+        });
+        res.json(saved_run.dataValues);
+    } catch (e) {
+        console.log(e);
+        await transaction.rollback();
+        throw `Error SIGNING OFF run, creating the datasets from run in OFFLINE`;
+    }
 };
 
 // Separate filtering and count will make the UX much faster.
@@ -373,9 +399,6 @@ exports.getFilteredOrdered = async (req, res) => {
         include: [
             {
                 model: DatasetTripletCache,
-                where: {
-                    name: 'online'
-                },
                 attributes: ['triplet_summary']
             }
         ]
@@ -406,9 +429,6 @@ exports.significantRunsFilteredOrdered = async (req, res) => {
         include: [
             {
                 model: DatasetTripletCache,
-                where: {
-                    name: 'online'
-                },
                 attributes: ['triplet_summary']
             }
         ]

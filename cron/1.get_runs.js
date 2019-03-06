@@ -62,7 +62,7 @@ const fetch_runs = async (
     // Therefore, it is good to call recursively until at least some run that is fetched was previously fetched and saved, and then save them all.
     if (
         new_runs.length === fetched_runs.length &&
-        all_fetched_runs.length < 800
+        all_fetched_runs.length < 600
     ) {
         console.log(
             `All fetched runs are new, fetching ${fetch_amount * 2} runs...`

@@ -3,9 +3,9 @@ const sequelize = require('../models').sequelize;
 const Sequelize = require('../models').Sequelize;
 const { DatasetTripletCache, Dataset } = require('../models');
 const { Op } = Sequelize;
-const number_of_datasets_per_batch = 400;
+const number_of_datasets_per_batch = 100;
 
-exports.goOverDatasets = async () => {
+exports.fill_dataset_triplet_cache = async transaction => {
     const max_version = (await DatasetTripletCache.max('version')) || 0;
     const count = await Dataset.count({
         where: {
@@ -31,24 +31,41 @@ exports.goOverDatasets = async () => {
                 offset: i * number_of_datasets_per_batch
             });
             const processed_datasets = await exports.processDatasets(
-                dataset_batch
+                dataset_batch,
+                transaction
             );
             number_of_processed_datasets += processed_datasets.length;
         });
     }
-    const asyncQueue = queue(async dataset_batch => await dataset_batch(), 1);
-    asyncQueue.drain = async () => {
-        console.log('finished');
-    };
-    asyncQueue.error = err => {
-        console.log('Error: ');
-        console.log(err);
-    };
-    await asyncQueue.push(async_functions);
-    console.log(`${number_of_processed_datasets} datasets processed`);
+    if (number_of_batches < 10) {
+        await Promise.all(async_functions.map(async => async()));
+        console.log(
+            `Cache generated for ${number_of_processed_datasets} datasets`
+        );
+    } else {
+        const asyncQueue = queue(
+            async dataset_batch => await dataset_batch(),
+            1
+        );
+        asyncQueue.drain = async () => {
+            console.log(
+                `Cache generated for ${number_of_processed_datasets} datasets`
+            );
+        };
+        asyncQueue.error = err => {
+            console.log('Error: ');
+            console.log(err);
+            throw err;
+        };
+        await asyncQueue.push(async_functions);
+    }
 };
 
-exports.processDatasets = async dataset_batch => {
+exports.processDatasets = async (dataset_batch, transaction) => {
+    const options = {};
+    if (transaction) {
+        options.transaction = transaction;
+    }
     try {
         const processed_datasets = dataset_batch.map(async dataset => {
             const merged_lumisections = await sequelize.query(
@@ -148,12 +165,15 @@ exports.processDatasets = async dataset_batch => {
                     }
                 }
             }
-            await DatasetTripletCache.upsert({
-                name: dataset.name,
-                run_number: dataset.run_number,
-                version: dataset.version,
-                triplet_summary
-            });
+            await DatasetTripletCache.upsert(
+                {
+                    name: dataset.name,
+                    run_number: dataset.run_number,
+                    version: dataset.version,
+                    triplet_summary
+                },
+                options
+            );
         });
         return processed_datasets;
     } catch (e) {

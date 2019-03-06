@@ -22,7 +22,11 @@ const {
 
     OfflineDatasetClassifier,
     OfflineDatasetClassifierEntries,
-    OfflineDatasetClassifierList
+    OfflineDatasetClassifierList,
+
+    OfflineComponentClassifier,
+    OfflineComponentClassifierEntries,
+    OfflineComponentClassifierList
 } = require('../models');
 
 // Allows us to set the Classifier dynamically
@@ -50,6 +54,12 @@ const ClassifierTypes = {
         Entries: OfflineDatasetClassifierEntries,
         List: OfflineDatasetClassifierList,
         id: 'ODCL_id'
+    },
+    offline_component: {
+        Classifier: OfflineComponentClassifier,
+        Entries: OfflineComponentClassifierEntries,
+        List: OfflineComponentClassifierList,
+        id: 'OCPCL_id'
     }
 };
 

@@ -27,9 +27,9 @@ process.on('unhandledRejection', (reason, p) => {
     console.log('Unhandled Promise Rejection at:', p, 'reason:', reason);
 });
 
-models.sequelize.sync({}).then(() => {
+models.sequelize.sync({}).then(async () => {
     // Initialize DB data
-    require('./initialization/initialize');
+    await require('./initialization/initialize');
     app.listen(port, () => {
         console.log(`server listening in port ${port}`);
 

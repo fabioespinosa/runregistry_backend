@@ -22,12 +22,18 @@ module.exports = (sequelize, DataTypes) => {
     );
     Dataset.associate = function(models) {
         Dataset.belongsTo(models.Run, { foreignKey: 'run_number' });
-        // Dataset.hasOne(models.DatasetTripletCache, {
-        //     constraints: false,
-        //     foreignKey: 'run_number',
-        //     sourceKey: 'run_number',
-        //     scope: { name: 'DatasetTripletCache.name' }
-        // });
+        Dataset.hasOne(models.DatasetTripletCache, {
+            constraints: false,
+            foreignKey: 'run_number',
+            sourceKey: 'run_number',
+            scope: {
+                name: sequelize.where(
+                    sequelize.col('Dataset.name'),
+                    '=',
+                    sequelize.col('DatasetTripletCache.name')
+                )
+            }
+        });
     };
     return Dataset;
 };

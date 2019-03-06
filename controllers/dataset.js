@@ -35,7 +35,6 @@ const conversion_operator = {
     LIKE: Op.iLike,
     NOTLIKE: Op.notLike
 };
-goOverDatasets();
 
 exports.update_or_create_dataset = async (
     dataset_name,
@@ -45,8 +44,8 @@ exports.update_or_create_dataset = async (
     transaction
 ) => {
     run_number = +run_number;
-    const by = req.get('email');
-    const comment = req.get('comment');
+    const by = req.email || req.get('email');
+    const comment = req.comment || req.get('comment');
     if (!by) {
         throw "The email of the author's action should be stated in request's header 'email'";
     }
@@ -115,8 +114,8 @@ exports.update_or_create_dataset = async (
 };
 
 exports.getDatasets = async (req, res) => {
-    const datasets = await Dataset.findAll();
-    res.json(datasets);
+    // const datasets = await Dataset.findAll();
+    // res.json(datasets);
 };
 
 exports.getDataset = async (req, res) => {
@@ -145,18 +144,6 @@ exports.getDatasetsWaitingDBS = async (req, res) => {
     });
     res.json(datasets);
 };
-
-// exports.add = async (req, res) => {
-//     const dataset = Dataset.build(req.body);
-//     const saved_dataset = await dataset.save();
-//     res.json(saved_dataset);
-// };
-
-// exports.delete = async (req, res) => {
-//     const dataset = Dataset.findByPk(req.body.id_dataset);
-//     const deleted_dataset = await dataset.destroy();
-//     res.json(deleted_dataset);
-// };
 
 exports.getSpecificWorkspace = async (req, res) => {
     const columns = await Workspace.findAll({
@@ -240,7 +227,9 @@ exports.getFilteredOrdered = async (req, res) => {
     const { sortings, page_size } = req.body;
     let filter = changeNameOfAllKeys(
         {
-            [`${workspace}_state.value`]: {
+            // Online is the dataset we show in Online RR, we don't want to show it here:
+            name: { '<>': 'online' },
+            [`dataset_attributes.${workspace}_state`]: {
                 and: [
                     { '<>': 'OPEN' },
                     { '<>': 'SIGNOFF' },
@@ -255,15 +244,18 @@ exports.getFilteredOrdered = async (req, res) => {
     let include = [
         {
             model: Run,
-            as: 'run',
-            attributes: ['class', 'state', 'significant', 'stop_reason']
+            attributes: ['rr_attributes']
+        },
+        {
+            model: DatasetTripletCache,
+            attributes: ['triplet_summary']
         }
     ];
-    if (typeof filter['class.value'] !== 'undefined') {
-        include[0].where = { 'class.value': filter['class.value'] };
-        delete filter['class.value'];
+    if (typeof filter['class'] !== 'undefined') {
+        include[0].where = { 'rr_attributes.class': filter['class'] };
+        delete filter['class'];
     }
-    const { count } = await Dataset.findAndCountAll({
+    const count = await Dataset.count({
         where: filter,
         include
     });
@@ -284,8 +276,9 @@ exports.getFilteredOrderedSignificant = async (req, res) => {
     const { sortings, page_size } = req.body;
     let filter = changeNameOfAllKeys(
         {
-            // ONLY THOSE OPEN SIGNIFICANT OR COMPLETED ARE SIGNIFICANT
-            [`${workspace}_state.value`]: {
+            name: { '<>': 'online' },
+            // ONLY THOSE OPEN SIGNOFF OR COMPLETED ARE SHOWN IN EDITABLE
+            [`dataset_attributes.${workspace}_state`]: {
                 or: [{ '=': 'OPEN' }, { '=': 'SIGNOFF' }, { '=': 'COMPLETED' }]
             },
             ...req.body.filter
@@ -296,13 +289,16 @@ exports.getFilteredOrderedSignificant = async (req, res) => {
     let include = [
         {
             model: Run,
-            as: 'run',
-            attributes: ['class', 'state', 'significant', 'stop_reason']
+            attributes: ['rr_attributes']
+        },
+        {
+            model: DatasetTripletCache,
+            attributes: ['triplet_summary']
         }
     ];
-    if (typeof filter['class.value'] !== 'undefined') {
-        include[0].where = { 'class.value': filter['class.value'] };
-        delete filter['class.value'];
+    if (typeof filter['class'] !== 'undefined') {
+        include[0].where = { 'rr_attributes.class': filter['class'] };
+        delete filter['class'];
     }
     const { count } = await Dataset.findAndCountAll({
         where: filter,
@@ -481,18 +477,84 @@ exports.getLumisectionBar = async (req, res) => {
                 current_merged_lumisection_element += 1;
             } else {
                 // it is just a space between lumisections. where there are some lumisections above and some below, it just means its an empty lumisection
-                const empty_triplets = {};
-                // components_present_in_dataset.forEach(component => {
-                empty_triplets[component] = {
-                    status: 'EMPTY',
-                    comment: '',
-                    cause: ''
-                };
-                // });
                 lumisections_with_empty_wholes.push({
                     status: 'EMPTY',
                     comment: '',
                     cause: ''
+                });
+            }
+        }
+    }
+    res.json(lumisections_with_empty_wholes);
+};
+
+// Get all component lumisections:
+exports.get_lumisections = async (req, res) => {
+    const { run_number, name } = req.body;
+    const merged_lumisections = await sequelize.query(
+        `
+        SELECT run_number, "name", lumisection_number, mergejsonb(lumisection_metadata ORDER BY version ) as "triplets"
+        FROM(
+        SELECT "LumisectionEvent"."version", run_number, "name", jsonb AS "lumisection_metadata", lumisection_number  FROM "LumisectionEvent" INNER JOIN "LumisectionEventAssignation" 
+        ON "LumisectionEvent"."version" = "LumisectionEventAssignation"."version" INNER JOIN "JSONBDeduplication" ON "lumisection_metadata_id" = "id"
+        WHERE "LumisectionEvent"."name" = :name AND "LumisectionEvent"."run_number" = :run_number
+        ) AS "updated_lumisectionEvents"
+        GROUP BY "run_number", "name", lumisection_number 
+        ORDER BY lumisection_number;
+    `,
+        {
+            type: sequelize.QueryTypes.SELECT,
+            replacements: {
+                run_number,
+                name
+            }
+        }
+    );
+    // Put all the components present in the dataset
+    const components_present_in_dataset = [];
+    merged_lumisections.forEach(({ triplets }) => {
+        for (const [component, val] of Object.entries(triplets)) {
+            if (!components_present_in_dataset.includes(component)) {
+                components_present_in_dataset.push(component);
+            }
+        }
+    });
+
+    const lumisections_with_empty_wholes = [];
+    // Insert data:
+    if (merged_lumisections.length > 0) {
+        const last_lumisection_number =
+            merged_lumisections[merged_lumisections.length - 1]
+                .lumisection_number;
+        let current_merged_lumisection_element = 0;
+        for (let i = 0; i < last_lumisection_number; i++) {
+            const { triplets, lumisection_number } = merged_lumisections[
+                current_merged_lumisection_element
+            ];
+            lumisections_with_empty_wholes[i] = {};
+            if (i + 1 === lumisection_number) {
+                current_merged_lumisection_element += 1;
+                components_present_in_dataset.forEach(component => {
+                    if (typeof triplets[component] === 'object') {
+                        lumisections_with_empty_wholes[i][component] =
+                            triplets[component];
+                    } else {
+                        // If the triplet for this particular change is not in there, it was empty, so we add an empty triplet
+                        lumisections_with_empty_wholes[i][component] = {
+                            status: 'EMPTY',
+                            comment: '',
+                            cause: ''
+                        };
+                    }
+                });
+            } else {
+                // it is just a space between lumisections. where there are some lumisections above and some below, it just means its an empty lumisection
+                components_present_in_dataset.forEach(component => {
+                    lumisections_with_empty_wholes[i][component] = {
+                        status: 'EMPTY',
+                        comment: '',
+                        cause: ''
+                    };
                 });
             }
         }

@@ -20,6 +20,14 @@ module.exports = (sequelize, DataTypes) => {
         // A run has many datasets, but it only has 1 corresponding to the data that came form online, this one has a 'name' of 'online
         Run.hasMany(models.Dataset, { foreignKey: 'run_number' });
         Run.hasOne(models.DatasetTripletCache, { foreignKey: 'run_number' });
+        Run.hasOne(models.DatasetTripletCache, {
+            constraints: false,
+            foreignKey: 'run_number',
+            sourceKey: 'run_number',
+            scope: {
+                name: 'online'
+            }
+        });
     };
     return Run;
 };

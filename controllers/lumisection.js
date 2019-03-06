@@ -44,8 +44,8 @@ const update_or_create_lumisection = async (
     req,
     transaction
 ) => {
-    const by = req.get('email');
-    const comment = req.get('comment');
+    const by = req.email || req.get('email');
+    const comment = req.comment || req.get('comment');
     if (!by) {
         throw "The email of the author's action should be stated in request's header 'email'";
     }

@@ -67,7 +67,7 @@ exports.save_runs = async (new_runs, number_of_tries) => {
     });
 
     // We use 3 workers to save it in first try, if errors, then we want to go slower, just 1:
-    const number_of_workers = number_of_tries === 0 ? 3 : 1;
+    const number_of_workers = number_of_tries === 0 ? 1 : 1;
     const asyncQueue = queue(async run => await run(), number_of_workers);
 
     // When runs finished saving:

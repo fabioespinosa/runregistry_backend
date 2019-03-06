@@ -6,7 +6,7 @@ const config = require('../config/config')[process.env.ENV || 'development'];
 // It will add roles to INSERT to the user configured in settings
 // It will make sure there is at least 1 value in all "Lists"
 // It will make sure there is at least 1 Setting referencing the maximum list value
-(async () => {
+module.exports = async () => {
     let transaction;
     try {
         transaction = await sequelize.transaction();
@@ -54,7 +54,9 @@ const config = require('../config/config')[process.env.ENV || 'development'];
             'INSERT INTO "DatasetClassifierList" ("id") VALUES (1) ON CONFLICT DO NOTHING;',
             'INSERT INTO "OfflineDatasetClassifierList" ("id") VALUES (1) ON CONFLICT DO NOTHING;',
             'INSERT INTO "PermissionList" ("id") VALUES (1) ON CONFLICT DO NOTHING;',
-            'INSERT INTO "DatasetsAcceptedList" ("id") VALUES (1) ON CONFLICT DO NOTHING;'
+            'INSERT INTO "DatasetsAcceptedList" ("id") VALUES (1) ON CONFLICT DO NOTHING;',
+            'INSERT INTO "WorkspaceList" ("id") VALUES (1) ON CONFLICT DO NOTHING;',
+            'INSERT INTO "OfflineComponentClassifierList" ("id") VALUES (1) ON CONFLICT DO NOTHING;'
         ];
         const insert_1_into_lists_promises = insert_1_into_lists.map(query => {
             return sequelize.query(query, { transaction });
@@ -69,7 +71,7 @@ const config = require('../config/config')[process.env.ENV || 'development'];
             // If Settings are empty, we need to fill them with highest id in all tables:
             await sequelize.query(
                 `
-                INSERT INTO "Settings" (id, metadata, "createdAt","CCL_id", "CPCL_id", "DCL_id","ODCL_id", "PL_id", "DAL_id")
+                INSERT INTO "Settings" (id, metadata, "createdAt","CCL_id", "CPCL_id", "DCL_id","ODCL_id", "PL_id", "DAL_id", "WL_id", "OCPCL_id")
                 VALUES 
                 (
                 (SELECT COALESCE((SELECT MAX("id") from "Settings"), 0)+1),
@@ -80,7 +82,9 @@ const config = require('../config/config')[process.env.ENV || 'development'];
                 (SELECT MAX("id") FROM "DatasetClassifierList"),
                 (SELECT MAX("id") FROM "OfflineDatasetClassifierList"),
                 (SELECT MAX("id") FROM "PermissionList"),
-                (SELECT MAX("id") FROM "DatasetsAcceptedList")
+                (SELECT MAX("id") FROM "DatasetsAcceptedList"),
+                (SELECT MAX("id") FROM "WorkspaceList"),
+                (SELECT MAX("id") FROM "OfflineComponentClassifierList")
                 );
                 `,
                 { transaction }
@@ -101,4 +105,4 @@ const config = require('../config/config')[process.env.ENV || 'development'];
             console.log(err);
         }
     }
-})();
+};

@@ -28,6 +28,13 @@ module.exports = (sequelize, DataTypes) => {
     );
     DatasetTripletCache.associate = function(models) {
         DatasetTripletCache.belongsTo(models.Run, { foreignKey: 'run_number' });
+        // DatasetTripletCache.belongsTo(models.Dataset, {
+        //     constraints: false,
+        //     foreignKey: 'run_number',
+        //     sourceKey: 'run_number',
+        //     foreignKey: 'run_number',
+        //     scope: { name: 'DatasetTripletCache.name' }
+        // });
     };
     return DatasetTripletCache;
 };
