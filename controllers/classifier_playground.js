@@ -1,35 +1,29 @@
 const axios = require('axios');
 const json_logic = require('json-logic-js');
 const Run = require('../models').Run;
-const { OMS_URL, OMS_SPECIFIC_RUN } = require('../config/config')[
-    process.env.ENV || 'development'
-];
 const {
-    calculate_rr_attributes
-} = require('../cron/saving_updating_runs_utils');
+    OMS_URL,
+    OMS_SPECIFIC_RUN,
+    OMS_LUMISECTIONS
+} = require('../config/config')[process.env.ENV || 'development'];
+const {
+    calculate_oms_attributes
+} = require('../cron/3.calculate_rr_attributes');
 
 exports.testClassifier = async (req, res) => {
-    const run_number = req.body.run.id;
+    const run_number = req.body.run.run_number;
     const previously_saved_run = await Run.findByPk(run_number);
 
-    const {
-        data: { data: fetched_run }
-    } = await axios.get(`${OMS_URL}/${OMS_SPECIFIC_RUN(run_number)}`);
-    let combined_attributes_run = {
-        ...previously_saved_run.dataValues.oms_attributes,
-        ...fetched_run[0].attributes
-    };
-    combined_attributes_run = await calculate_rr_attributes(
-        combined_attributes_run
-    );
+    const { oms_attributes } = previously_saved_run.dataValues;
+
     const classifier = JSON.parse(req.body.classifier);
     const result = return_classifier_evaluated_tuple(
-        combined_attributes_run,
+        oms_attributes,
         classifier.if
     );
     res.json({
         result,
-        run_data: combined_attributes_run
+        run_data: oms_attributes
     });
 };
 

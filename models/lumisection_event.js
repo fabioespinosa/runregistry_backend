@@ -18,6 +18,10 @@ module.exports = (sequelize, DataTypes) => {
             lumisection_metadata_id: {
                 type: DataTypes.INTEGER,
                 allowNull: false
+            },
+            lumisection_oms_id: {
+                type: DataTypes.INTEGER,
+                allowNull: false
             }
         },
         {
@@ -34,6 +38,9 @@ module.exports = (sequelize, DataTypes) => {
         LumisectionEvent.belongsTo(models.Event, { foreignKey: 'version' });
         LumisectionEvent.belongsTo(models.JSONBDeduplication, {
             foreignKey: 'lumisection_metadata_id'
+        });
+        LumisectionEvent.belongsTo(models.JSONBDeduplication, {
+            foreignKey: 'lumisection_oms_id'
         });
         LumisectionEvent.hasMany(models.LumisectionEventAssignation, {
             foreignKey: 'version'

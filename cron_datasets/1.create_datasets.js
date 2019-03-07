@@ -147,8 +147,8 @@ const save_individual_dataset = async (
         const saved_lumisections = await create_lumisections(
             run_number,
             dataset_name,
-            [],
             lumisections,
+            [],
             event_info,
             transaction
         );

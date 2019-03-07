@@ -153,5 +153,22 @@ module.exports = {
         'hbhec_ready',
         'beam2_stable',
         'beam2_present'
+    ],
+    rr_lumisection_whitelist: [
+        'dt_triplet',
+        'es_triplet',
+        'cms_triplet',
+        'csc_triplet',
+        'hlt_triplet',
+        'l1t_triplet',
+        'pix_triplet',
+        'rpc_triplet',
+        'ecal_triplet',
+        'hcal_triplet',
+        'lumi_triplet',
+        'ctpps_triplet',
+        'l1tmu_triplet',
+        'strip_triplet',
+        'l1tcalo_triplet '
     ]
 };

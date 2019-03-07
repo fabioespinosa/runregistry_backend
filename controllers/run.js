@@ -4,6 +4,10 @@ const changeNameOfAllKeys = require('change-name-of-all-keys');
 
 const Sequelize = require('../models').Sequelize;
 const sequelize = require('../models').sequelize;
+const {
+    oms_lumisection_whitelist,
+    rr_lumisection_whitelist
+} = require('../config/config');
 const { OMS_URL, OMS_SPECIFIC_RUN } = require('../config/config')[
     process.env.ENV || 'development'
 ];
@@ -188,11 +192,20 @@ exports.new = async (req, res) => {
             transaction
         );
         if (rr_lumisections.length > 0) {
-            const lumisections = await create_lumisections(
+            const saved_oms_lumisections = await create_lumisections(
                 run_number,
                 'online',
                 oms_lumisections,
+                oms_lumisection_whitelist,
+                req,
+                transaction
+            );
+
+            const saved_rr_lumisections = await create_lumisections(
+                run_number,
+                'online',
                 rr_lumisections,
+                rr_lumisection_whitelist,
                 req,
                 transaction
             );

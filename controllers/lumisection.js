@@ -10,28 +10,10 @@ const {
 const { OMS_URL, OMS_LUMISECTIONS } = require('../config/config')[
     process.env.ENV || 'development'
 ];
-const { oms_lumisection_whitelist } = require('../config/config');
+
 const getAttributesSpecifiedFromArray = require('get-attributes-specified-from-array');
 const { deepEqual } = require('assert');
 const { findOrCreateJSONB } = require('./JSONBDeduplication');
-
-const rr_lumisection_whitelist = [
-    'dt_triplet',
-    'es_triplet',
-    'cms_triplet',
-    'csc_triplet',
-    'hlt_triplet',
-    'l1t_triplet',
-    'pix_triplet',
-    'rpc_triplet',
-    'ecal_triplet',
-    'hcal_triplet',
-    'lumi_triplet',
-    'ctpps_triplet',
-    'l1tmu_triplet',
-    'strip_triplet',
-    'l1tcalo_triplet '
-];
 
 //// blockhain
 // Its a range, contains start_lumisection AND it contains end_lumisection
@@ -103,56 +85,34 @@ const update_or_create_lumisection = async (
 exports.create_lumisections = async (
     run_number,
     dataset_name,
-    oms_lumisections,
-    rr_lumisections,
+    lumisections,
+    whitelist,
     req,
     transaction
 ) => {
-    // const oms_lumisection_ranges = exports.getLumisectionRanges(
-    //     oms_lumisections,
-    //     oms_lumisection_whitelist
-    // );
-    const rr_lumisections_ranges = await exports.getLumisectionRanges(
-        rr_lumisections,
-        rr_lumisection_whitelist
+    const lumisection_ranges = await exports.getLumisectionRanges(
+        lumisections,
+        whitelist
     );
 
-    // oms_lumisection_ranges.forEach(lumisection_range => {
-    //     const { start, end } = lumisection_range;
-    //     const lumisection_range_values = { ...lumisection_range };
-    //     delete lumisection_range_values.start;
-    //     delete lumisection_range_values.end;
-    //     update_or_create_lumisection(
-    //         run_number,
-    //         dataset_name,
-    //         lumisection_range_values,
-    //         start,
-    //         end
-    //     );
-    // });
-
-    const rr_lumisection_ranges = rr_lumisections_ranges.map(
-        async lumisection_range => {
-            const { start, end } = lumisection_range;
-            const lumisection_range_values = { ...lumisection_range };
-            delete lumisection_range_values.start;
-            delete lumisection_range_values.end;
-            const lumisection_event = await update_or_create_lumisection(
-                run_number,
-                dataset_name,
-                lumisection_range_values,
-                start,
-                end,
-                req,
-                transaction
-            );
-        }
-    );
-    await Promise.all(rr_lumisection_ranges);
-    return rr_lumisection_ranges;
+    const saved_ranges = lumisection_ranges.map(async lumisection_range => {
+        const { start, end } = lumisection_range;
+        const lumisection_range_values = { ...lumisection_range };
+        delete lumisection_range_values.start;
+        delete lumisection_range_values.end;
+        return await update_or_create_lumisection(
+            run_number,
+            dataset_name,
+            lumisection_range_values,
+            start,
+            end,
+            req,
+            transaction
+        );
+    });
+    await Promise.all(saved_ranges);
+    return saved_ranges;
 };
-
-/// blockchain
 
 // Get lumisections:
 
@@ -185,24 +145,21 @@ exports.getLumisectionsForDataset = async (req, res) => {
 
 // Returns LS ranges in format: [{start:0, end: 23, ...values}, {start: 24, end: 90, ...values}]
 exports.getLumisectionRanges = (lumisections, lumisection_attributes) => {
+    // We whitelist the attributes we want:
+    lumisections = lumisections.map(lumisection =>
+        getAttributesSpecifiedFromArray(lumisection, lumisection_attributes)
+    );
+
     const ls_ranges = [];
     ls_ranges.push({ ...lumisections[0], start: 1 });
 
     for (let i = 1; i < lumisections.length; i++) {
         const previous_range = ls_ranges[ls_ranges.length - 1];
+        const current_range = lumisections[i];
         try {
-            deepEqual(
-                getAttributesSpecifiedFromArray(
-                    previous_range,
-                    lumisection_attributes
-                ),
-                getAttributesSpecifiedFromArray(
-                    lumisections[i],
-                    lumisection_attributes
-                )
-            );
+            deepEqual(previous_range, current_range);
         } catch (e) {
-            // This means that there is a LS break in the range (exception thrown), not equal
+            // This means that there is a LS break in the range (exception thrown), not equal, therefore we create a break in the ranges array:
             ls_ranges[ls_ranges.length - 1] = {
                 ...previous_range,
                 end: i
@@ -216,6 +173,7 @@ exports.getLumisectionRanges = (lumisections, lumisection_attributes) => {
         ...ls_ranges[ls_ranges.length - 1],
         end: lumisections.length
     };
+
     return ls_ranges;
 };
 
