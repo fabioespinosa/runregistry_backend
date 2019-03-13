@@ -62,7 +62,7 @@ const fetch_runs = async (
     // Therefore, it is good to call recursively until at least some run that is fetched was previously fetched and saved, and then save them all.
     if (
         new_runs.length === fetched_runs.length &&
-        all_fetched_runs.length < 600
+        all_fetched_runs.length < 400
     ) {
         console.log(
             `All fetched runs are new, fetching ${fetch_amount * 2} runs...`
@@ -80,14 +80,14 @@ const fetch_runs = async (
         }
     }
 
-    // Check for runs to update (only on first time):
+    // Check for runs to update (only on first time of the cron cycle):
     if (first_time) {
         const runs_to_update = calculate_runs_to_update(
             fetched_runs,
             last_saved_runs
         );
         if (runs_to_update.length > 0) {
-            update_runs(runs_to_update);
+            update_runs(runs_to_update, 0, {});
         }
     }
 };
@@ -141,7 +141,7 @@ const calculate_runs_to_update = (fetched_runs, last_saved_runs) => {
                     existing_run.oms_attributes,
                     fetched_run
                 );
-                // If the object has one or more properties:
+                // If the object has one or more properties, it means it changed:
                 if (Object.keys(new_attributes).length > 0) {
                     runs_to_update.push(fetched_run);
                 }

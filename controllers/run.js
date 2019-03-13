@@ -11,10 +11,13 @@ const {
 const { OMS_URL, OMS_SPECIFIC_RUN } = require('../config/config')[
     process.env.ENV || 'development'
 ];
-const { create_lumisections } = require('./lumisection');
+const {
+    create_oms_lumisections,
+    create_rr_lumisections
+} = require('./lumisection');
 const { update_or_create_dataset } = require('./dataset');
 const { fill_dataset_triplet_cache } = require('./dataset_triplet_cache');
-const { update_runs } = require('../cron/2.save_or_update_runs');
+const { manually_update_a_run } = require('../cron/2.save_or_update_runs');
 const {
     create_offline_waiting_datasets
 } = require('../cron_datasets/1.create_datasets');
@@ -192,20 +195,18 @@ exports.new = async (req, res) => {
             transaction
         );
         if (rr_lumisections.length > 0) {
-            const saved_oms_lumisections = await create_lumisections(
+            const saved_oms_lumisections = await create_oms_lumisections(
                 run_number,
                 'online',
                 oms_lumisections,
-                oms_lumisection_whitelist,
                 req,
                 transaction
             );
 
-            const saved_rr_lumisections = await create_lumisections(
+            const saved_rr_lumisections = await create_rr_lumisections(
                 run_number,
                 'online',
                 rr_lumisections,
-                rr_lumisection_whitelist,
                 req,
                 transaction
             );
@@ -224,17 +225,8 @@ exports.new = async (req, res) => {
 // The new_attributes are a collection of the attributes that changed with respect to the run
 exports.edit = async (req, res) => {
     const { run_number } = req.params;
-    const run = await Run.findByPk(run_number, {
-        include: [
-            {
-                model: DatasetTripletCache,
-                where: {
-                    name: 'online'
-                },
-                attributes: ['triplet_summary']
-            }
-        ]
-    });
+
+    const run = await Run.findByPk(run_number);
     if (run === null) {
         throw 'Run not found';
     }
@@ -242,10 +234,6 @@ exports.edit = async (req, res) => {
     if (rr_attributes.state !== 'OPEN') {
         throw 'Run must be in state OPEN to be edited';
     }
-
-    // Significant and state are attributes that are to be moved manually in either markSignificant or moveRun
-    delete req.body.rr_attributes.significant;
-    delete req.body.rr_attributes.state;
 
     const new_oms_attributes = getObjectWithAttributesThatChanged(
         oms_attributes,
@@ -256,35 +244,51 @@ exports.edit = async (req, res) => {
         req.body.rr_attributes
     );
 
-    // Validate that all rr_attributes which changed the triplets contain comment, status and cause:
-    for (const [key, val] of Object.entries(new_rr_attributes)) {
-        if (key.includes('_triplet')) {
-            const { status, comment, cause } = new_rr_attributes[key];
-            if (
-                typeof status === 'undefined' ||
-                typeof comment === 'undefined' ||
-                typeof cause === 'undefined'
-            ) {
-                throw 'Neither State, Comment or Cause can be undefined';
-            }
-        }
-    }
+    // // Validate that all rr_attributes which changed the triplets contain comment, status and cause:
+    // for (const [key, val] of Object.entries(new_rr_attributes)) {
+    //     if (key.includes('_triplet')) {
+    //         const { status, comment, cause } = new_rr_attributes[key];
+    //         if (
+    //             typeof status === 'undefined' ||
+    //             typeof comment === 'undefined' ||
+    //             typeof cause === 'undefined'
+    //         ) {
+    //             throw 'Neither State, Comment or Cause can be undefined';
+    //         }
+    //     }
+    // }
 
     const new_oms_attributes_length = Object.keys(new_oms_attributes).length;
     const new_rr_attributes_length = Object.keys(new_rr_attributes).length;
-    // If there was actually something to update:
-
-    if (new_oms_attributes_length + new_rr_attributes_length > 0) {
-        const runEvent = await update_or_create_run(
-            run_number,
-            new_oms_attributes,
-            new_rr_attributes,
-            req
-        );
-        const { oms_metadata, rr_metadata } = runEvent;
-        run.dataValues.oms_attributes = { ...oms_attributes, ...oms_metadata };
-        run.dataValues.rr_attributes = { ...rr_attributes, ...rr_metadata };
-        res.json(run.dataValues);
+    // TODO: If there was a change in the lumisections, we also update the run, and the dataset triplet cache
+    // If there was actually something to update in the RR attributes, we update it, if it was a change in oms_attributes, we don't update it (since it doesn't affect RR attributes)
+    if (new_rr_attributes_length > 0) {
+        let transaction;
+        try {
+            transaction = await sequelize.transaction();
+            const runEvent = await update_or_create_run(
+                run_number,
+                new_oms_attributes,
+                new_rr_attributes,
+                req,
+                transaction
+            );
+            // const {oms_lumisections, rr_lumisections} = req.body;
+            // TODO: compare lumisections, see if there was a change with regards to the RR triplets, if so, save them, or if there was a change with regards to the Run attributes (class, state, significant then save as well the different lumisections)
+            // await update_dataset... (which will be the same method to update dataset from OFFLINE)
+            const { oms_metadata, rr_metadata } = runEvent;
+            run.dataValues.oms_attributes = {
+                ...oms_attributes,
+                ...oms_metadata
+            };
+            run.dataValues.rr_attributes = { ...rr_attributes, ...rr_metadata };
+            await transaction.commit();
+            res.json(run.dataValues);
+        } catch (err) {
+            console.log(err);
+            await transaction.rollback();
+            throw `Error updating run ${run_number}`;
+        }
     } else {
         throw 'Nothing to update, the attributes sent are the same as those in the run already stored';
     }
@@ -293,6 +297,12 @@ exports.edit = async (req, res) => {
 exports.markSignificant = async (req, res) => {
     const { run_number } = req.body.original_run;
     const run = await Run.findByPk(run_number);
+    if (run === null) {
+        throw 'Run not found';
+    }
+    if (run.rr_attributes.state !== 'OPEN') {
+        throw 'Run must be in state OPEN to be marked significant';
+    }
     if (run.rr_attributes.significant === true) {
         throw 'Run is already significant';
     }
@@ -300,14 +310,13 @@ exports.markSignificant = async (req, res) => {
     const oms_metadata = {};
     const rr_metadata = { significant: true };
     await update_or_create_run(run_number, oms_metadata, rr_metadata, req);
+    // We do this to make sure the LUMISECTIONS classification are there
+    await manually_update_a_run(run_number, {
+        email,
+        manually_significant: true,
+        comment: `${email} marked run significant, component statuses refreshed`
+    });
     res.json(run);
-    req.params.run_number = +run_number;
-    try {
-        await exports.refreshRunClassAndComponents(req, res);
-    } catch (e) {
-        // We refresh the run automatically after making a run significant, it will mark an error because it will try to setheadrs of a request which is already sent
-        // We do this to make sure the LUMISECTIONS classification are there
-    }
 };
 
 exports.refreshRunClassAndComponents = async (req, res) => {
@@ -317,10 +326,11 @@ exports.refreshRunClassAndComponents = async (req, res) => {
     if (previously_saved_run.rr_attributes.state !== 'OPEN') {
         throw 'Run must be in state OPEN to be refreshed';
     }
-    const {
-        data: { data: fetched_run }
-    } = await axios.get(`${OMS_URL}/${OMS_SPECIFIC_RUN(run_number)}`);
-    await update_runs([fetched_run[0].attributes], email, true);
+
+    await manually_update_a_run([fetched_run[0].attributes], {
+        email,
+        comment: `${email} requested refresh from OMS`
+    });
     const saved_run = await Run.findByPk(run_number);
     res.json(saved_run);
 };

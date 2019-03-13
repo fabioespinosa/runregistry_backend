@@ -2,7 +2,7 @@ module.exports = {
     development: {
         username: 'hackathon',
         password: '',
-        database: 'hackathon2',
+        database: 'hackathon3',
         host: '127.0.0.1',
         logging: false,
         dialect: 'postgres',
@@ -132,7 +132,6 @@ module.exports = {
         'rpc_ready',
         'rp_sect_56_ready',
         'castor_ready',
-        'init_lumi',
         'esp_ready',
         'eep_ready',
         'hbhea_ready',

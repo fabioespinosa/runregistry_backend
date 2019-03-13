@@ -1,14 +1,5 @@
-const axios = require('axios');
 const json_logic = require('json-logic-js');
 const Run = require('../models').Run;
-const {
-    OMS_URL,
-    OMS_SPECIFIC_RUN,
-    OMS_LUMISECTIONS
-} = require('../config/config')[process.env.ENV || 'development'];
-const {
-    calculate_oms_attributes
-} = require('../cron/3.calculate_rr_attributes');
 
 exports.testClassifier = async (req, res) => {
     const run_number = req.body.run.run_number;

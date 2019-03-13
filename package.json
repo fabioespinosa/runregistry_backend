@@ -5,7 +5,8 @@
     "main": "index.js",
     "scripts": {
         "dev": "export NODE_ENV=development && nodemon app.js",
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "test": "NODE_ENV=development nodemon --exec 'mocha -R min'",
+        "test_once": "NODE_ENV=development node --exec 'mocha -R min'"
     },
     "keywords": [],
     "author": "",
@@ -24,6 +25,7 @@
         "get-object-with-attributes-that-changed": "^1.0.1",
         "json-logic-js": "^1.2.2",
         "lodash": "^4.17.11",
+        "mocha": "^6.0.2",
         "morgan": "^1.9.1",
         "pg": "^7.8.0",
         "pg-hstore": "^2.3.2",

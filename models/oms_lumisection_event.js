@@ -1,6 +1,6 @@
 module.exports = (sequelize, DataTypes) => {
-    const LumisectionEvent = sequelize.define(
-        'LumisectionEvent',
+    const OMSLumisectionEvent = sequelize.define(
+        'OMSLumisectionEvent',
         {
             version: {
                 primaryKey: true,
@@ -19,37 +19,30 @@ module.exports = (sequelize, DataTypes) => {
                 type: DataTypes.INTEGER,
                 allowNull: false
             }
-            // lumisection_oms_id: {
-            //     type: DataTypes.INTEGER,
-            //     allowNull: false
-            // }
         },
         {
             timestamps: false,
             indexes: [
                 {
-                    name: 'LumisectionEvent_datasetReference_index',
+                    name: 'OMSLumisectionEvent_datasetReference_index',
                     fields: ['run_number', 'name']
                 }
             ]
         }
     );
-    LumisectionEvent.associate = function(models) {
-        LumisectionEvent.belongsTo(models.Event, { foreignKey: 'version' });
-        LumisectionEvent.belongsTo(models.JSONBDeduplication, {
+    OMSLumisectionEvent.associate = function(models) {
+        OMSLumisectionEvent.belongsTo(models.Event, { foreignKey: 'version' });
+        OMSLumisectionEvent.belongsTo(models.JSONBDeduplication, {
             foreignKey: 'lumisection_metadata_id'
         });
-        // LumisectionEvent.belongsTo(models.JSONBDeduplication, {
-        //     foreignKey: 'lumisection_oms_id'
-        // });
-        LumisectionEvent.hasMany(models.LumisectionEventAssignation, {
+        OMSLumisectionEvent.hasMany(models.OMSLumisectionEventAssignation, {
             foreignKey: 'version'
         });
         // THE FOLLOWING 3 LINES ARE NOT YET SUPPORTED IN SEQUELIZE, WE HAVE TO INITIALIZE THE COMPOUND FOREIGN KEY TO DATASET IN initialization/initialize.js file
-        // LumisectionEvent.belongsTo(models.Dataset, {
+        // OMSLumisectionEvent.belongsTo(models.Dataset, {
         //     foreignKey: ['run_number','name']
         // })
     };
 
-    return LumisectionEvent;
+    return OMSLumisectionEvent;
 };

@@ -29,7 +29,7 @@ process.on('unhandledRejection', (reason, p) => {
 
 models.sequelize.sync({}).then(async () => {
     // Initialize DB data
-    await require('./initialization/initialize');
+    await require('./initialization/initialize')();
     app.listen(port, () => {
         console.log(`server listening in port ${port}`);
 

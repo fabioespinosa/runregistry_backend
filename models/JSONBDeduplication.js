@@ -15,6 +15,14 @@ module.exports = (sequelize, DataTypes) => {
         },
         {
             timestamps: false
+        },
+        {
+            indexes: [
+                {
+                    name: 'JSONBDeduplication_jsonb_index',
+                    fields: ['jsonb']
+                }
+            ]
         }
     );
     return JSONBDeduplication;

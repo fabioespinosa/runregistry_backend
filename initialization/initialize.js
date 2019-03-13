@@ -38,6 +38,17 @@ module.exports = async () => {
 
         await sequelize.query(
             `
+            ALTER TABLE IF EXISTS "OMSLumisectionEvent" DROP CONSTRAINT IF EXISTS "OMSLumisectionEvent_datasetReference_fkey";
+            ALTER TABLE IF EXISTS "OMSLumisectionEvent"
+            ADD CONSTRAINT "OMSLumisectionEvent_datasetReference_fkey"
+            FOREIGN KEY (run_number, name)
+            REFERENCES "Dataset" ON UPDATE CASCADE;
+        `,
+            { transaction }
+        );
+
+        await sequelize.query(
+            `
             ALTER TABLE IF EXISTS "DatasetTripletCache" DROP CONSTRAINT IF EXISTS "DatasetTripletCache_datasetReference_fkey";
             ALTER TABLE IF EXISTS "DatasetTripletCache"
             ADD CONSTRAINT "DatasetTripletCache_datasetReference_fkey"

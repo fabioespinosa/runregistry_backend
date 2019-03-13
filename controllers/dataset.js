@@ -16,6 +16,7 @@ const {
     Run
 } = require('../models');
 const { goOverDatasets } = require('./dataset_triplet_cache');
+const { get_lumisections_for_dataset } = require('./lumisection');
 
 const { Op } = Sequelize;
 const conversion_operator = {
@@ -74,7 +75,7 @@ exports.update_or_create_dataset = async (
             },
             { transaction }
         );
-        // update the Run table
+        // update the Dataset table
         await sequelize.query(
             `
                 CREATE TEMPORARY TABLE updated_dataset_references as SELECT DISTINCT run_number, name from "DatasetEvent" where "DatasetEvent"."version" > (SELECT COALESCE((SELECT MAX("version") from "Dataset"), 0));
@@ -197,7 +198,7 @@ exports.appearedInDQMGUI = async (req, res) => {
         },
         author_dqm_gui_trigger
     );
-    // TODAY: Check classifier if the run needs to  see if a run passes to certification:
+    // TODO: Check classifier if the run needs to  see if a run passes to certification:
     const dataset_classifiers = await OfflineDatasetClassifier.findAll();
     dataset_classifiers.forEach(dataset_classifier => {
         const classifier = dataset_classifier.dataValues.classifier;
@@ -491,73 +492,51 @@ exports.getLumisectionBar = async (req, res) => {
 // Get all component lumisections:
 exports.get_lumisections = async (req, res) => {
     const { run_number, name } = req.body;
-    const merged_lumisections = await sequelize.query(
-        `
-        SELECT run_number, "name", lumisection_number, mergejsonb(lumisection_metadata ORDER BY version ) as "triplets"
-        FROM(
-        SELECT "LumisectionEvent"."version", run_number, "name", jsonb AS "lumisection_metadata", lumisection_number  FROM "LumisectionEvent" INNER JOIN "LumisectionEventAssignation" 
-        ON "LumisectionEvent"."version" = "LumisectionEventAssignation"."version" INNER JOIN "JSONBDeduplication" ON "lumisection_metadata_id" = "id"
-        WHERE "LumisectionEvent"."name" = :name AND "LumisectionEvent"."run_number" = :run_number
-        ) AS "updated_lumisectionEvents"
-        GROUP BY "run_number", "name", lumisection_number 
-        ORDER BY lumisection_number;
-    `,
-        {
-            type: sequelize.QueryTypes.SELECT,
-            replacements: {
-                run_number,
-                name
-            }
-        }
+    const lumisections_with_empty_wholes = await get_lumisections_for_dataset(
+        run_number,
+        name
     );
-    // Put all the components present in the dataset
-    const components_present_in_dataset = [];
-    merged_lumisections.forEach(({ triplets }) => {
-        for (const [component, val] of Object.entries(triplets)) {
-            if (!components_present_in_dataset.includes(component)) {
-                components_present_in_dataset.push(component);
-            }
+    res.json(lumisections_with_empty_wholes);
+};
+
+exports.edit = async (req, res) => {
+    const { run_number, name } = req.body;
+    const dataset = await Dataset.findOne({
+        where: {
+            run_number,
+            name
         }
     });
-
-    const lumisections_with_empty_wholes = [];
-    // Insert data:
-    if (merged_lumisections.length > 0) {
-        const last_lumisection_number =
-            merged_lumisections[merged_lumisections.length - 1]
-                .lumisection_number;
-        let current_merged_lumisection_element = 0;
-        for (let i = 0; i < last_lumisection_number; i++) {
-            const { triplets, lumisection_number } = merged_lumisections[
-                current_merged_lumisection_element
-            ];
-            lumisections_with_empty_wholes[i] = {};
-            if (i + 1 === lumisection_number) {
-                current_merged_lumisection_element += 1;
-                components_present_in_dataset.forEach(component => {
-                    if (typeof triplets[component] === 'object') {
-                        lumisections_with_empty_wholes[i][component] =
-                            triplets[component];
-                    } else {
-                        // If the triplet for this particular change is not in there, it was empty, so we add an empty triplet
-                        lumisections_with_empty_wholes[i][component] = {
-                            status: 'EMPTY',
-                            comment: '',
-                            cause: ''
-                        };
-                    }
-                });
-            } else {
-                // it is just a space between lumisections. where there are some lumisections above and some below, it just means its an empty lumisection
-                components_present_in_dataset.forEach(component => {
-                    lumisections_with_empty_wholes[i][component] = {
-                        status: 'EMPTY',
-                        comment: '',
-                        cause: ''
-                    };
-                });
-            }
-        }
+    if (dataset === null) {
+        throw 'Dataset not found';
     }
-    res.json(lumisections_with_empty_wholes);
+    const { dataset_attributes } = dataset.dataValues;
+    const new_dataset_attributes = getObjectWithAttributesThatChanged(
+        dataset_attributes,
+        req.body.dataset_attributes
+    );
+
+    const new_dataset_attributes_length = Object.keys(new_dataset_attributes)
+        .length;
+
+    if (new_dataset_attributes_length > 0) {
+        let transaction;
+        try {
+            transaction = await sequelize.transaction();
+            const datasetEvent = await update_or_create_dataset(
+                name,
+                run_number,
+                new_dataset_attributes,
+                req,
+                transaction
+            );
+            await transaction.commit();
+        } catch (err) {
+            console.log(err);
+            await transaction.rollback();
+            throw `Error updating dataset ${name} of run ${run_number}`;
+        }
+    } else {
+        throw 'Nothing to update, the attributes sent are the same as those in the dataset already stored';
+    }
 };

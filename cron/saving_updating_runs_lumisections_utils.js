@@ -164,18 +164,6 @@ exports.is_run_significant = handleErrors(
     'Error determining if run is significant'
 );
 
-exports.fill_component_triplets = () => {
-    const triplet_names = {};
-    online_components.forEach(component => {
-        triplet_names[`${component}_triplet`] = {
-            status: '',
-            comment: '',
-            cause: ''
-        };
-    });
-    return triplet_names;
-};
-
 // Given the same oms_attributes, rr_attributes, oms_lumisections and classifiers this function will always return the same lumisections with their respective components
 exports.assign_lumisection_component_status = handleErrors(
     async (oms_attributes, rr_attributes, oms_lumisections) => {
@@ -183,71 +171,27 @@ exports.assign_lumisection_component_status = handleErrors(
         // Since we are treating at a lumisection level, we don't need beams1_present_and_stable:
         delete run.beams_present_and_stable;
         // We fetch all classifiers and then filter them for each component
-        const { data: classifiers_array } = await axios.get(
+        const { data: classifiers } = await axios.get(
             `${API_URL}/classifiers/component`
         );
         const rr_lumisections = [];
         oms_lumisections.forEach(oms_lumisection => {
+            // We join the attributes from the run AND the lumisection to produce a per lumisection result:
+            const run_and_lumisection_attributes = {
+                ...run,
+                ...oms_lumisection
+            };
             const lumisection_components = {};
 
             // For each online component:
             online_components.forEach(component => {
-                // Filter the classifiers of this component:
-                const component_classifiers = classifiers_array.filter(
-                    classifier => classifier.component === component
+                lumisection_components[
+                    component
+                ] = exports.classify_component_per_lumisection(
+                    run_and_lumisection_attributes,
+                    classifiers,
+                    component
                 );
-
-                // Setup a hash of the classifier of this specific component by status (so that it can be accessed later)
-                const component_classifiers_indexed_by_status = {};
-                component_classifiers.forEach(classifier => {
-                    component_classifiers_indexed_by_status[
-                        classifier.status
-                    ] = classifier;
-                });
-
-                // We start with the worst possible priority status (NO VALUE FOUND) once it finds a higher priority status, then we change it
-                lumisection_components[component] = {
-                    status: 'NO VALUE FOUND',
-                    comment: '',
-                    cause: ''
-                };
-
-                // And then for each classifier inside the component, we find its priority and check if its superior then the actual one
-                component_classifiers.forEach(classifier => {
-                    const classifier_json = JSON.parse(classifier.classifier);
-                    // We join the attributes from the run AND the lumisection to produce a per lumisection result:
-                    const run_and_lumisection_attributes = {
-                        ...run,
-                        ...oms_lumisection
-                    };
-                    // If it passes the classifier test for this lumisection:
-                    if (
-                        json_logic.apply(
-                            classifier_json,
-                            run_and_lumisection_attributes
-                        )
-                    ) {
-                        const assigned_status = classifier.status;
-                        // We have to compare priorities to the previous one assigned
-                        const previous_status =
-                            lumisection_components[component].status;
-                        // In priority the less, the more priority, priority 1 is more important than priority 2:
-                        // If the newly calculated status has higher priority than the previous one, then assigned it to the triplet (the classifier by default returns NO VALUE FOUND if it does not pass the test)
-                        if (
-                            previous_status === 'NO VALUE FOUND' ||
-                            component_classifiers_indexed_by_status[
-                                assigned_status
-                            ].priority <
-                                component_classifiers_indexed_by_status[
-                                    previous_status
-                                ].priority
-                        ) {
-                            lumisection_components[
-                                component
-                            ].status = assigned_status;
-                        }
-                    }
-                });
             });
             rr_lumisections.push(lumisection_components);
         });
@@ -255,3 +199,52 @@ exports.assign_lumisection_component_status = handleErrors(
     },
     'Error assigning component status in dataset'
 );
+
+// This method is also used when a dataset is signed off to classify datasets into component classifiers.
+exports.classify_component_per_lumisection = (
+    run_and_lumisection_attributes,
+    classifiers,
+    component_name
+) => {
+    // Filter the classifiers of this component:
+    const component_classifiers = classifiers.filter(
+        classifier => classifier.component === component_name
+    );
+
+    // Setup a hash of the classifier of this specific component by status (so that it can be accessed later)
+    const component_classifiers_indexed_by_status = {};
+    component_classifiers.forEach(classifier => {
+        component_classifiers_indexed_by_status[classifier.status] = classifier;
+    });
+
+    // We start with the worst possible priority status (NO VALUE FOUND) once it finds a higher priority status, then we change it
+    const calculated_triplet = {
+        status: 'NO VALUE FOUND',
+        comment: '',
+        cause: ''
+    };
+
+    // And then for each classifier inside the component, we find its priority and check if its superior then the actual one
+    component_classifiers.forEach(classifier => {
+        const classifier_json = JSON.parse(classifier.classifier);
+
+        // If it passes the classifier test for this lumisection:
+        if (json_logic.apply(classifier_json, run_and_lumisection_attributes)) {
+            const assigned_status = classifier.status;
+            // We have to compare priorities to the previous one assigned
+            const previous_status = calculated_triplet.status;
+            // In priority the less, the more priority, priority 1 is more important than priority 2:
+            // If the newly calculated status has higher priority than the previous one, then assigned it to the triplet (the classifier by default returns NO VALUE FOUND if it does not pass the test)
+            if (
+                previous_status === 'NO VALUE FOUND' ||
+                component_classifiers_indexed_by_status[assigned_status]
+                    .priority <
+                    component_classifiers_indexed_by_status[previous_status]
+                        .priority
+            ) {
+                calculated_triplet.status = assigned_status;
+            }
+        }
+    });
+    return calculated_triplet;
+};

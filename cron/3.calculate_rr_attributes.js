@@ -21,13 +21,22 @@ exports.calculate_oms_attributes = async (run, lumisections) => {
     return oms_attributes;
 };
 
-exports.calculate_rr_attributes = async (oms_attributes, oms_lumisections) => {
+exports.calculate_rr_attributes = async (
+    oms_attributes,
+    oms_lumisections,
+    previous_rr_attributes
+) => {
     let rr_attributes = {};
     // Significant starts being false, stop_reason is a shifter value (so it starts as empty), class is to be determined later, state starts OPEN:
     rr_attributes.significant = false;
     rr_attributes.stop_reason = '';
     rr_attributes.class = '';
     rr_attributes.state = 'OPEN';
+
+    // However, if it is a refersh ('update_runs' from 2.save_or_update_runs), we want to preserver the previous values of the run and only recalculate the class and if the run was significant:
+    if (previous_rr_attributes) {
+        rr_attributes = previous_rr_attributes;
+    }
 
     // hlt_key is determinant to calculate the run's class, so if its not ready, we rather wait to classify a run
     if (oms_attributes.hlt_key !== null) {
