@@ -161,7 +161,7 @@ exports.update_runs = async (
     });
     if (runs_to_update.length < 10) {
         // If it is less than 10 runs we are refreshing, no need to do a queue
-        await Promise.all(promises);
+        await Promise.all(promises.map(async promise => await promise()));
     } else {
         // We use 3 workers to save it in first try, if errors, then we want to go slower, just 1:
         const number_of_workers = 1;

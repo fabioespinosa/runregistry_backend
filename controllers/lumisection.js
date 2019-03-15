@@ -10,15 +10,20 @@ const {
 } = require('../models');
 const {
     oms_lumisection_whitelist,
-    rr_lumisection_whitelist
+    online_components
 } = require('../config/config');
 const { OMS_URL, OMS_LUMISECTIONS } = require('../config/config')[
     process.env.ENV || 'development'
 ];
 
 const getAttributesSpecifiedFromArray = require('get-attributes-specified-from-array');
+const getObjectWithAttributesThatChanged = require('get-object-with-attributes-that-changed');
 const { deepEqual } = require('assert');
 const { findOrCreateJSONB } = require('./JSONBDeduplication');
+
+const rr_lumisection_whitelist = online_components.map(
+    component => `${component}_triplet`
+);
 
 // Its a range, contains start_lumisection AND it contains end_lumisection
 const update_or_create_lumisection = async (
@@ -127,42 +132,15 @@ exports.create_rr_lumisections = async (
     req,
     transaction
 ) => {
+    let local_whitelist;
+    if (dataset_name !== 'online') {
+        // If we are not dealing with online, we do not want to whitelist
+        local_whitelist = ['*'];
+    }
+
     const lumisection_ranges = await exports.getLumisectionRanges(
         lumisections,
-        rr_lumisection_whitelist
-    );
-
-    const saved_ranges = lumisection_ranges.map(async lumisection_range => {
-        const { start, end } = lumisection_range;
-        const lumisection_range_values = { ...lumisection_range };
-        delete lumisection_range_values.start;
-        delete lumisection_range_values.end;
-        return await update_or_create_lumisection(
-            run_number,
-            dataset_name,
-            lumisection_range_values,
-            start,
-            end,
-            req,
-            LumisectionEvent,
-            LumisectionEventAssignation,
-            transaction
-        );
-    });
-    await Promise.all(saved_ranges);
-    return saved_ranges;
-};
-
-exports.create_signed_off_dataset_lumisections = async (
-    run_number,
-    dataset_name,
-    lumisections,
-    req,
-    transaction
-) => {
-    const lumisection_ranges = await exports.getLumisectionRanges(
-        lumisections,
-        ['*']
+        local_whitelist || rr_lumisection_whitelist
     );
 
     const saved_ranges = lumisection_ranges.map(async lumisection_range => {
@@ -188,19 +166,24 @@ exports.create_signed_off_dataset_lumisections = async (
 
 exports.update_rr_lumisections = async (
     run_number,
-    name,
-    previous_lumisections,
+    dataset_name,
     new_lumisections,
+    req,
     transaction
 ) => {
-    const previous_lumisections = await get_lumisections_for_dataset(
+    const previous_lumisections = await exports.get_rr_lumisections_for_dataset(
         run_number,
-        name
+        dataset_name
     );
+    let local_whitelist;
+    if (dataset_name !== 'online') {
+        // If we are not dealing with online, we do not want to whitelist
+        local_whitelist = ['*'];
+    }
     const new_ls_ranges = exports.getNewLumisectionRanges(
         previous_lumisections,
         new_lumisections,
-        rr_lumisection_whitelist
+        local_whitelist || rr_lumisection_whitelist
     );
     const saved_ranges = new_ls_ranges.map(async lumisection_range => {
         const { start, end } = lumisection_range;
@@ -209,7 +192,7 @@ exports.update_rr_lumisections = async (
         delete lumisection_range_values.end;
         return await update_or_create_lumisection(
             run_number,
-            name,
+            dataset_name,
             lumisection_range_values,
             start,
             end,
@@ -222,8 +205,45 @@ exports.update_rr_lumisections = async (
     await Promise.all(saved_ranges);
     return saved_ranges;
 };
+exports.update_oms_lumisections = async (
+    run_number,
+    dataset_name,
+    new_lumisections,
+    req,
+    transaction
+) => {
+    const previous_lumisections = await exports.get_oms_lumisections_for_dataset(
+        run_number,
+        dataset_name
+    );
+    const new_ls_ranges = exports.getNewLumisectionRanges(
+        previous_lumisections,
+        new_lumisections,
+        oms_lumisection_whitelist
+    );
+    const saved_ranges = new_ls_ranges.map(async lumisection_range => {
+        const { start, end } = lumisection_range;
+        const lumisection_range_values = { ...lumisection_range };
+        delete lumisection_range_values.start;
+        delete lumisection_range_values.end;
+        return await update_or_create_lumisection(
+            run_number,
+            dataset_name,
+            lumisection_range_values,
+            start,
+            end,
+            req,
+            OMSLumisectionEvent,
+            OMSLumisectionEventAssignation,
+            transaction
+        );
+    });
+    await Promise.all(saved_ranges);
+    return saved_ranges;
+};
 
 // This method is used when someone/cron automatically updates the values of the lumisections. We try to preserve the lumisection ranges which still apply, and calculate the minimum amount of new LS ranges necessary to fulfill the change
+// Returns the newLSRanges if there were any
 exports.getNewLumisectionRanges = (
     previous_lumisections,
     new_lumisections,
@@ -235,16 +255,20 @@ exports.getNewLumisectionRanges = (
     const new_ls_ranges = [];
     if (new_lumisections.length === previous_lumisections.length) {
         for (let i = 0; i < new_lumisections.length; i++) {
-            const current_previous_lumisection = getAttributesSpecifiedFromArray(
-                previous_lumisections[i],
-                lumisection_whitelist
-            );
-            const current_new_lumisection = getAttributesSpecifiedFromArray(
-                new_lumisections[i],
-                lumisection_whitelist
-            );
+            let current_previous_lumisection = previous_lumisections[i];
+            let current_new_lumisection = new_lumisections[i];
+            if (lumisection_whitelist[0] !== '*') {
+                current_previous_lumisection = getAttributesSpecifiedFromArray(
+                    current_previous_lumisection,
+                    lumisection_whitelist
+                );
+                current_new_lumisection = getAttributesSpecifiedFromArray(
+                    current_new_lumisection,
+                    lumisection_whitelist
+                );
+            }
 
-            // We will check it the lumisections are equal one by one
+            // We will check if the lumisections are equal one by one
             try {
                 deepEqual(
                     current_previous_lumisection,
@@ -264,26 +288,42 @@ exports.getNewLumisectionRanges = (
 
                 // Lumisection changed, therefore we need to create a new range
                 if (new_ls_ranges.length === 0) {
+                    // getObjectWithAttributesThatChanged does not take into account new attributes
+                    const new_lumisection_attributes = getObjectWithAttributesThatChanged(
+                        current_previous_lumisection,
+                        current_new_lumisection
+                    );
                     new_ls_ranges.push({
-                        ...current_new_lumisection,
+                        ...new_lumisection_attributes,
                         start: 1
                     });
                 } else {
                     const previous_range =
                         new_ls_ranges[new_ls_ranges.length - 1];
                     const previous_range_copy = { ...previous_range };
+                    const potentially_new_lumisection_attributes = getObjectWithAttributesThatChanged(
+                        current_previous_lumisection,
+                        current_new_lumisection
+                    );
                     // We delete start and end from previous range so that it doesn't interfere with deepEqual
                     delete previous_range_copy.start;
                     delete previous_range_copy.end;
                     try {
-                        deepEqual(previous_range_copy, current_new_lumisection);
+                        deepEqual(
+                            previous_range_copy,
+                            potentially_new_lumisection_attributes
+                        );
                     } catch (e) {
                         new_ls_ranges[new_ls_ranges.length - 1] = {
                             ...previous_range,
                             end: i
                         };
+                        const new_lumisection_attributes = getObjectWithAttributesThatChanged(
+                            current_previous_lumisection,
+                            current_new_lumisection
+                        );
                         new_ls_ranges.push({
-                            ...current_new_lumisection,
+                            ...new_lumisection_attributes,
                             start: i + 1
                         });
                     }
@@ -297,20 +337,21 @@ exports.getNewLumisectionRanges = (
             };
         }
         return new_ls_ranges;
+    } else {
+        // Todo fix when new lumisections come (add new range)
+        throw 'Mismatch of LS length';
     }
 };
 
-// Get lumisections:
-
 // Get all component lumisections:
-exports.get_lumisections_for_dataset = async (run_number, name) => {
+exports.get_rr_lumisections_for_dataset = async (run_number, dataset_name) => {
     const merged_lumisections = await sequelize.query(
         `
         SELECT run_number, "name", lumisection_number, mergejsonb(lumisection_metadata ORDER BY version ) as "triplets"
         FROM(
         SELECT "LumisectionEvent"."version", run_number, "name", jsonb AS "lumisection_metadata", lumisection_number  FROM "LumisectionEvent" INNER JOIN "LumisectionEventAssignation" 
         ON "LumisectionEvent"."version" = "LumisectionEventAssignation"."version" INNER JOIN "JSONBDeduplication" ON "lumisection_metadata_id" = "id"
-        WHERE "LumisectionEvent"."name" = :name AND "LumisectionEvent"."run_number" = :run_number
+        WHERE "LumisectionEvent"."name" = :dataset_name AND "LumisectionEvent"."run_number" = :run_number
         ) AS "updated_lumisectionEvents"
         GROUP BY "run_number", "name", lumisection_number 
         ORDER BY lumisection_number;
@@ -319,7 +360,7 @@ exports.get_lumisections_for_dataset = async (run_number, name) => {
             type: sequelize.QueryTypes.SELECT,
             replacements: {
                 run_number,
-                name
+                dataset_name
             }
         }
     );
@@ -375,21 +416,69 @@ exports.get_lumisections_for_dataset = async (run_number, name) => {
     return lumisections_with_empty_wholes;
 };
 
+exports.get_oms_lumisections_for_dataset = async (run_number, dataset_name) => {
+    const merged_lumisections = await sequelize.query(
+        `
+        SELECT run_number, "name", lumisection_number, mergejsonb(lumisection_metadata ORDER BY version ) as "oms_json_blob"
+        FROM(
+        SELECT "OMSLumisectionEvent"."version", run_number, "name", jsonb AS "lumisection_metadata", lumisection_number  FROM "OMSLumisectionEvent" INNER JOIN "OMSLumisectionEventAssignation" 
+        ON "OMSLumisectionEvent"."version" = "OMSLumisectionEventAssignation"."version" INNER JOIN "JSONBDeduplication" ON "lumisection_metadata_id" = "id"
+        WHERE "OMSLumisectionEvent"."name" = :dataset_name AND "OMSLumisectionEvent"."run_number" = :run_number
+        ) AS "updated_lumisectionEvents"
+        GROUP BY "run_number", "name", lumisection_number 
+        ORDER BY lumisection_number;
+    `,
+        {
+            type: sequelize.QueryTypes.SELECT,
+            replacements: {
+                run_number,
+                dataset_name
+            }
+        }
+    );
+
+    const lumisections_with_empty_wholes = [];
+    // Insert data:
+    if (merged_lumisections.length > 0) {
+        const last_lumisection_number =
+            merged_lumisections[merged_lumisections.length - 1]
+                .lumisection_number;
+        let current_merged_lumisection_element = 0;
+        for (let i = 0; i < last_lumisection_number; i++) {
+            const { oms_json_blob, lumisection_number } = merged_lumisections[
+                current_merged_lumisection_element
+            ];
+            lumisections_with_empty_wholes[i] = {};
+            if (i + 1 === lumisection_number) {
+                current_merged_lumisection_element += 1;
+                lumisections_with_empty_wholes[i] = oms_json_blob;
+            } else {
+                // it is just a space between lumisections. where there are some lumisections above and some below, it just means its an empty lumisection
+                lumisections_with_empty_wholes[i] = {
+                    err: 'No data available for this lumisection'
+                };
+            }
+        }
+    }
+    return lumisections_with_empty_wholes;
+};
+
 exports.getLumisectionsForDataset = async (req, res) => {
-    const { id_dataset } = req.params;
+    const { run_number, dataset_name } = req.body;
     let lumisections = await sequelize.query(
         `
             SELECT id_dataset, lumisection_number, mergejsonb(lumisection_metadata ORDER BY version ) as "lumisection_attributes"
             FROM(
             SELECT "LumisectionEvent"."version", id_dataset, lumisection_metadata, lumisection_number from "LumisectionEvent"  inner join "LumisectionEventAssignation" 
                 on "LumisectionEvent"."version" = "LumisectionEventAssignation"."version" 
-            WHERE "LumisectionEvent"."id_dataset" = :id_dataset
+            WHERE "LumisectionEvent"."run_number" = :run_number AND "LumisectionEvent"."name" = :dataset_name
             ) AS "updated_lumisectionEvents"
             GROUP BY id_dataset, lumisection_number;`,
         {
             type: sequelize.QueryTypes.SELECT,
             replacements: {
-                id_dataset
+                run_number,
+                dataset_name
             }
         }
     );
@@ -412,49 +501,51 @@ exports.getLumisectionRanges = (lumisections, lumisection_attributes) => {
     }
 
     const ls_ranges = [];
-    ls_ranges.push({ ...lumisections[0], start: 1 });
+    if (lumisections.length > 0) {
+        ls_ranges.push({ ...lumisections[0], start: 1 });
 
-    for (let i = 1; i < lumisections.length; i++) {
-        const previous_range = { ...ls_ranges[ls_ranges.length - 1] };
-        const previous_range_copy = { ...previous_range };
-        // We delete start and end from previous range so that it doesn't interfere with deepEqual
-        delete previous_range_copy.start;
-        delete previous_range_copy.end;
-        const current_range = lumisections[i];
+        for (let i = 1; i < lumisections.length; i++) {
+            const previous_range = { ...ls_ranges[ls_ranges.length - 1] };
+            const previous_range_copy = { ...previous_range };
+            // We delete start and end from previous range so that it doesn't interfere with deepEqual
+            delete previous_range_copy.start;
+            delete previous_range_copy.end;
+            const current_range = lumisections[i];
 
-        try {
-            deepEqual(previous_range_copy, current_range);
-        } catch (e) {
-            // This means that there is a LS break in the range (exception thrown), not equal, therefore we create a break in the ranges array:
-            ls_ranges[ls_ranges.length - 1] = {
-                ...previous_range,
-                end: i
-            };
-            ls_ranges.push({ ...lumisections[i], start: i + 1 });
+            try {
+                deepEqual(previous_range_copy, current_range);
+            } catch (e) {
+                // This means that there is a LS break in the range (exception thrown), not equal, therefore we create a break in the ranges array:
+                ls_ranges[ls_ranges.length - 1] = {
+                    ...previous_range,
+                    end: i
+                };
+                ls_ranges.push({ ...lumisections[i], start: i + 1 });
+            }
         }
-    }
 
-    // Set the end of final range:
-    ls_ranges[ls_ranges.length - 1] = {
-        ...ls_ranges[ls_ranges.length - 1],
-        end: lumisections.length
-    };
+        // Set the end of final range:
+        ls_ranges[ls_ranges.length - 1] = {
+            ...ls_ranges[ls_ranges.length - 1],
+            end: lumisections.length
+        };
+    }
 
     return ls_ranges;
 };
 
-// exports.getLumisectionsForRun = async (req, res) => {
-//     let {
-//         data: { data: lumisections }
-//     } = await axios.get(
-//         `${OMS_URL}/${OMS_LUMISECTIONS(req.params.run_number)}`
-//     );
-//     lumisections = lumisections.map(({ attributes }) =>
-//         getAttributesSpecifiedFromArray(attributes, lumisection_attributes)
-//     );
-//     const ls_ranges = exports.getLumisectionRanges(lumisections);
-//     res.json(ls_ranges);
-// };
+exports.getLumisectionsForRunFromOMS = async (req, res) => {
+    const { run_number } = req.params;
+    let {
+        data: { data: lumisections }
+    } = await axios.get(`${OMS_URL}/${OMS_LUMISECTIONS(run_number)}`);
+    lumisections = lumisections.map(({ attributes }) => attributes);
+    const ls_ranges = exports.getLumisectionRanges(
+        lumisections,
+        oms_lumisection_whitelist
+    );
+    res.json(ls_ranges);
+};
 
 // Old non event-sourced RR
 exports.getLumisectionsForDatasetWorkspace = async (req, res) => {
@@ -489,3 +580,47 @@ exports.getLumisectionsForDatasetWorkspace = async (req, res) => {
 // 	on "LumisectionEvent"."version" = "LumisectionEventAssignation"."version"
 // WHERE "LumisectionEvent"."id_dataset" = 177793
 // ) AS "updated_lumisectionEvents";
+
+// API:
+// Get lumisections:
+exports.get_rr_and_oms_lumisection_ranges = async (req, res) => {
+    const { run_number, dataset_name } = req.body;
+    const rr_lumisections = await exports.get_rr_lumisections_for_dataset(
+        run_number,
+        dataset_name
+    );
+    const oms_lumisections = await exports.get_oms_lumisections_for_dataset(
+        run_number,
+        'online'
+    );
+    let joint_lumisections;
+    if (rr_lumisections.length >= oms_lumisections.length) {
+        joint_lumisections = rr_lumisections.map((rr_lumisection, index) => {
+            return { ...oms_lumisections[index], ...rr_lumisection };
+        });
+    } else {
+        joint_lumisections = oms_lumisections.map((oms_lumisection, index) => {
+            return { ...oms_lumisection, ...rr_lumisections[index] };
+        });
+    }
+    const ls_ranges = exports.getLumisectionRanges(joint_lumisections, ['*']);
+    res.json(ls_ranges);
+};
+exports.get_rr_lumisection_ranges = async (req, res) => {
+    const { run_number, dataset_name } = req.body;
+    const rr_lumisections = await exports.get_rr_lumisections_for_dataset(
+        run_number,
+        dataset_name
+    );
+    const ls_ranges = exports.getLumisectionRanges(rr_lumisections, ['*']);
+    res.json(ls_ranges);
+};
+exports.get_oms_lumisection_ranges = async (req, res) => {
+    const { run_number, dataset_name } = req.body;
+    const rr_lumisections = await exports.get_oms_lumisections_for_dataset(
+        run_number,
+        'online'
+    );
+    const ls_ranges = exports.getLumisectionRanges(rr_lumisections, ['*']);
+    res.json(ls_ranges);
+};

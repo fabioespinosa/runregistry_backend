@@ -62,9 +62,10 @@ module.exports = {
             'https://cmsweb.cern.ch/dqm/offline/data/json/samples?match=',
         SECONDS_PER_DQM_GUI_CHECK: 3600
     },
+    // The online components are also the rr_lumisection_whitelist (just with _triplet after their name)
     online_components: [
-        'cms',
         'castor',
+        'cms',
         'csc',
         'dt',
         'ecal',
@@ -79,42 +80,6 @@ module.exports = {
         'rpc',
         'strip',
         'ctpps'
-    ],
-    lumisection_attributes: [
-        'beam1_present',
-        'beam1_stable',
-        'beam2_present',
-        'beam2_stable',
-        'bpix_ready',
-        'castor_ready',
-        'cms_infrastructure',
-        'cms_active',
-        'cscm_ready',
-        'cscp_ready',
-        'dt0_ready',
-        'dtm_ready',
-        'dtp_ready',
-        'ebm_ready',
-        'ebp_ready',
-        'eem_ready',
-        'eep_ready',
-        'esm_ready',
-        'esp_ready',
-        'fpix_ready',
-        'hbhea_ready',
-        'hbheb_ready',
-        'hbhec_ready',
-        'hf_ready',
-        'ho_ready',
-        'rp_sect_45_ready',
-        'rp_sect_56_ready',
-        'rp_time_ready',
-        'rpc_ready',
-        'tecm_ready',
-        'tecp_ready',
-        'tibtid_ready',
-        'tob_ready',
-        'zdc_ready'
     ],
     // This are the attributes we save from OMS lumisections:
     oms_lumisection_whitelist: [
@@ -152,22 +117,5 @@ module.exports = {
         'hbhec_ready',
         'beam2_stable',
         'beam2_present'
-    ],
-    rr_lumisection_whitelist: [
-        'dt_triplet',
-        'es_triplet',
-        'cms_triplet',
-        'csc_triplet',
-        'hlt_triplet',
-        'l1t_triplet',
-        'pix_triplet',
-        'rpc_triplet',
-        'ecal_triplet',
-        'hcal_triplet',
-        'lumi_triplet',
-        'ctpps_triplet',
-        'l1tmu_triplet',
-        'strip_triplet',
-        'l1tcalo_triplet '
     ]
 };

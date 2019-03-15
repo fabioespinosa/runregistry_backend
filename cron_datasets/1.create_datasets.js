@@ -5,9 +5,7 @@ const { API_URL } = require('../config/config')[
     process.env.NODE_ENV || 'development'
 ];
 const { update_or_create_dataset } = require('../controllers/dataset');
-const {
-    create_signed_off_dataset_lumisections
-} = require('../controllers/lumisection');
+const { create_rr_lumisections } = require('../controllers/lumisection');
 const {
     classify_component_per_lumisection
 } = require('../cron/saving_updating_runs_lumisections_utils');
@@ -128,7 +126,7 @@ const save_individual_dataset = async (
         transaction
     );
     if (lumisections.length > 0) {
-        const saved_lumisections = await create_signed_off_dataset_lumisections(
+        const saved_lumisections = await create_rr_lumisections(
             run_number,
             dataset_name,
             lumisections,

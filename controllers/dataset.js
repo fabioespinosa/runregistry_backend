@@ -16,7 +16,7 @@ const {
     Run
 } = require('../models');
 const { goOverDatasets } = require('./dataset_triplet_cache');
-const { get_lumisections_for_dataset } = require('./lumisection');
+const { get_rr_lumisections_for_dataset } = require('./lumisection');
 
 const { Op } = Sequelize;
 const conversion_operator = {
@@ -492,7 +492,7 @@ exports.getLumisectionBar = async (req, res) => {
 // Get all component lumisections:
 exports.get_lumisections = async (req, res) => {
     const { run_number, name } = req.body;
-    const lumisections_with_empty_wholes = await get_lumisections_for_dataset(
+    const lumisections_with_empty_wholes = await get_rr_lumisections_for_dataset(
         run_number,
         name
     );

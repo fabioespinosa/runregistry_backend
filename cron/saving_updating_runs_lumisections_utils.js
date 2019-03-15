@@ -168,7 +168,7 @@ exports.is_run_significant = handleErrors(
 exports.assign_lumisection_component_status = handleErrors(
     async (oms_attributes, rr_attributes, oms_lumisections) => {
         const run = { ...oms_attributes, ...rr_attributes };
-        // Since we are treating at a lumisection level, we don't need beams1_present_and_stable:
+        // Since we are treating at a lumisection level, we don't need beams_present_and_stable:
         delete run.beams_present_and_stable;
         // We fetch all classifiers and then filter them for each component
         const { data: classifiers } = await axios.get(

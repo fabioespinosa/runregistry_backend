@@ -4,16 +4,15 @@ const changeNameOfAllKeys = require('change-name-of-all-keys');
 
 const Sequelize = require('../models').Sequelize;
 const sequelize = require('../models').sequelize;
-const {
-    oms_lumisection_whitelist,
-    rr_lumisection_whitelist
-} = require('../config/config');
+
 const { OMS_URL, OMS_SPECIFIC_RUN } = require('../config/config')[
     process.env.ENV || 'development'
 ];
 const {
     create_oms_lumisections,
-    create_rr_lumisections
+    create_rr_lumisections,
+    update_oms_lumisections,
+    update_rr_lumisections
 } = require('./lumisection');
 const { update_or_create_dataset } = require('./dataset');
 const { fill_dataset_triplet_cache } = require('./dataset_triplet_cache');
@@ -211,8 +210,9 @@ exports.new = async (req, res) => {
                 transaction
             );
         }
-        await fill_dataset_triplet_cache();
         await transaction.commit();
+        // You can only fill the cache when transaction has commited:
+        await fill_dataset_triplet_cache();
         res.json(runEvent);
     } catch (err) {
         console.log(err);
@@ -235,37 +235,52 @@ exports.edit = async (req, res) => {
         throw 'Run must be in state OPEN to be edited';
     }
 
-    const new_oms_attributes = getObjectWithAttributesThatChanged(
-        oms_attributes,
-        req.body.oms_attributes
-    );
-    const new_rr_attributes = getObjectWithAttributesThatChanged(
-        rr_attributes,
-        req.body.rr_attributes
-    );
+    let transaction;
+    try {
+        // If there was a change in the lumisections, we also update the dataset triplet cache
 
-    // // Validate that all rr_attributes which changed the triplets contain comment, status and cause:
-    // for (const [key, val] of Object.entries(new_rr_attributes)) {
-    //     if (key.includes('_triplet')) {
-    //         const { status, comment, cause } = new_rr_attributes[key];
-    //         if (
-    //             typeof status === 'undefined' ||
-    //             typeof comment === 'undefined' ||
-    //             typeof cause === 'undefined'
-    //         ) {
-    //             throw 'Neither State, Comment or Cause can be undefined';
-    //         }
-    //     }
-    // }
+        transaction = await sequelize.transaction();
+        // Lumisection stuff:
+        const { oms_lumisections, rr_lumisections } = req.body;
+        const newRRLumisectionRanges = await update_rr_lumisections(
+            run_number,
+            'online',
+            rr_lumisections,
+            req,
+            transaction
+        );
+        if (newRRLumisectionRanges.length > 0) {
+            // There was a change in the lumisections, so we should update oms lumisections as well:
+            const newOMSLumisectionRange = await update_oms_lumisections(
+                run_number,
+                'online',
+                oms_lumisections,
+                req,
+                transaction
+            );
+            // Bump the version in the dataset so the fill_dataset_triplet_cache will know that the lumisections inside it changed, and so can refill the cache:
+            const datasetEvent = await update_or_create_dataset(
+                'online',
+                run_number,
+                {},
+                req,
+                transaction
+            );
+        }
 
-    const new_oms_attributes_length = Object.keys(new_oms_attributes).length;
-    const new_rr_attributes_length = Object.keys(new_rr_attributes).length;
-    // TODO: If there was a change in the lumisections, we also update the run, and the dataset triplet cache
-    // If there was actually something to update in the RR attributes, we update it, if it was a change in oms_attributes, we don't update it (since it doesn't affect RR attributes)
-    if (new_rr_attributes_length > 0) {
-        let transaction;
-        try {
-            transaction = await sequelize.transaction();
+        // Run stuff:
+
+        const new_oms_attributes = getObjectWithAttributesThatChanged(
+            oms_attributes,
+            req.body.oms_attributes
+        );
+        const new_rr_attributes = getObjectWithAttributesThatChanged(
+            rr_attributes,
+            req.body.rr_attributes
+        );
+        const new_rr_attributes_length = Object.keys(new_rr_attributes).length;
+        // If there was actually something to update in the RR attributes, we update it, if it was a change in oms_attributes, we don't update it (since it doesn't affect RR attributes)
+        if (new_rr_attributes_length > 0) {
             const runEvent = await update_or_create_run(
                 run_number,
                 new_oms_attributes,
@@ -273,24 +288,20 @@ exports.edit = async (req, res) => {
                 req,
                 transaction
             );
-            // const {oms_lumisections, rr_lumisections} = req.body;
-            // TODO: compare lumisections, see if there was a change with regards to the RR triplets, if so, save them, or if there was a change with regards to the Run attributes (class, state, significant then save as well the different lumisections)
+            //  if there was a change with regards to the RR triplets, if so, save them, or if there was a change with regards to the Run attributes (class, state, significant then save as well the different lumisections)
+
             // await update_dataset... (which will be the same method to update dataset from OFFLINE)
-            const { oms_metadata, rr_metadata } = runEvent;
-            run.dataValues.oms_attributes = {
-                ...oms_attributes,
-                ...oms_metadata
-            };
-            run.dataValues.rr_attributes = { ...rr_attributes, ...rr_metadata };
-            await transaction.commit();
-            res.json(run.dataValues);
-        } catch (err) {
-            console.log(err);
-            await transaction.rollback();
-            throw `Error updating run ${run_number}`;
+            // Now that it is commited we should find the updated run:
+            console.log(`updated run ${run_number}`);
         }
-    } else {
-        throw 'Nothing to update, the attributes sent are the same as those in the run already stored';
+        await transaction.commit();
+        await fill_dataset_triplet_cache();
+        const run = await Run.findByPk(run_number);
+        res.json(run.dataValues);
+    } catch (err) {
+        console.log(err);
+        await transaction.rollback();
+        throw `Error updating run ${run_number}`;
     }
 };
 

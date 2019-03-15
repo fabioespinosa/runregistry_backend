@@ -6,7 +6,7 @@
     "scripts": {
         "dev": "export NODE_ENV=development && nodemon app.js",
         "test": "NODE_ENV=development nodemon --exec 'mocha -R min'",
-        "test_once": "NODE_ENV=development node --exec 'mocha -R min'"
+        "test_once": "mocha -R min"
     },
     "keywords": [],
     "author": "",
