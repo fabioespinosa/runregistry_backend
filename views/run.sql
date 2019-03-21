@@ -45,8 +45,8 @@ GROUP BY "RunEvent"."run_number";
 
 
 CREATE OR REPLACE VIEW "LumisectionEventJSONB" as
-SELECT "version", "run_number", "name", "jsonb"
-from "LumisectionEvent" inner join "JSONBDeduplication" ON "LumisectionEvent"."lumisection_metadata_id" = "JSONBDeduplication"."id"
-ORDER BY "version" DESC;
+SELECT "Event"."comment", "Event"."by" , "LumisectionEvent"."version", "run_number", "name", "jsonb"
+from "LumisectionEvent" inner join "JSONBDeduplication" ON "LumisectionEvent"."lumisection_metadata_id" = "JSONBDeduplication"."id" inner join "Event" on "LumisectionEvent"."version" = "Event"."version"
+ORDER BY "LumisectionEvent"."version" DESC;
 
 COMMIT;

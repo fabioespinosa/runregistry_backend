@@ -70,9 +70,9 @@ exports.processDatasets = async (dataset_batch, transaction) => {
         const processed_datasets = dataset_batch.map(async dataset => {
             const merged_lumisections = await sequelize.query(
                 `
-                SELECT run_number, "name", lumisection_number, mergejsonb(lumisection_metadata ORDER BY version ) as "triplets", (SELECT max(version) FROM "LumisectionEvent" ) AS "version"
+                SELECT run_number, "name", lumisection_number, mergejsonb(lumisection_metadata ORDER BY manual_change, version ) as "triplets", (SELECT max(version) FROM "LumisectionEvent" ) AS "version"
                 FROM(
-                SELECT "LumisectionEvent"."version", run_number, "name",jsonb as "lumisection_metadata", lumisection_number  FROM "LumisectionEvent"  INNER JOIN "LumisectionEventAssignation" 
+                SELECT "LumisectionEvent"."version", run_number, "name",jsonb as "lumisection_metadata", lumisection_number, manual_change  FROM "LumisectionEvent"  INNER JOIN "LumisectionEventAssignation" 
                 on "LumisectionEvent"."version" = "LumisectionEventAssignation"."version" inner join "JSONBDeduplication" on "lumisection_metadata_id" = "id"
                 WHERE "LumisectionEvent"."name" = '${
                     dataset.name

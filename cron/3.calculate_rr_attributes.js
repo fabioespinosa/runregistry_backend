@@ -46,6 +46,7 @@ exports.calculate_rr_attributes = async (
             oms_lumisections
         );
     }
+    // Class is needed to determine significance of run, so it is calculated before
     rr_attributes.significant = await is_run_significant(
         oms_attributes,
         rr_attributes,

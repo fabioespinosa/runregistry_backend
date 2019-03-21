@@ -24,7 +24,7 @@ module.exports = {
         OMS_SPECIFIC_RUN: run_number => `runs?filter[run_number]=${run_number}`,
         OMS_LUMISECTIONS: run_number =>
             `lumisections?filter[run_number]=${run_number}&page[limit]=5000`,
-        RUNS_PER_API_CALL: 32,
+        RUNS_PER_API_CALL: 49,
         SECONDS_PER_API_CALL: 30,
         DBS_URL: 'https://cmsweb.cern.ch/dbs/prod/global',
         DBS_DATASETS: run_number => `DBSReader/datasets?run_num=${run_number}`,

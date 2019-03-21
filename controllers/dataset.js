@@ -434,9 +434,9 @@ exports.getLumisectionBar = async (req, res) => {
     const { run_number, name, component } = req.body;
     const merged_lumisections = await sequelize.query(
         `
-        SELECT run_number, "name", lumisection_number, mergejsonb(lumisection_metadata ORDER BY version ) as "triplets"
+        SELECT run_number, "name", lumisection_number, mergejsonb(lumisection_metadata ORDER BY manual_change, version ) as "triplets"
         FROM(
-        SELECT "LumisectionEvent"."version", run_number, "name", jsonb AS "lumisection_metadata", lumisection_number  FROM "LumisectionEvent" INNER JOIN "LumisectionEventAssignation" 
+        SELECT "LumisectionEvent"."version", run_number, "name", jsonb AS "lumisection_metadata", lumisection_number, manual_change  FROM "LumisectionEvent" INNER JOIN "LumisectionEventAssignation" 
         ON "LumisectionEvent"."version" = "LumisectionEventAssignation"."version" INNER JOIN "JSONBDeduplication" ON "lumisection_metadata_id" = "id"
         WHERE "LumisectionEvent"."name" = :name AND "LumisectionEvent"."run_number" = :run_number
         ) AS "updated_lumisectionEvents"

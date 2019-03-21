@@ -18,11 +18,11 @@ module.exports = (sequelize, DataTypes) => {
             lumisection_metadata_id: {
                 type: DataTypes.INTEGER,
                 allowNull: false
+            },
+            manual_change: {
+                type: DataTypes.BOOLEAN,
+                allowNull: false
             }
-            // lumisection_oms_id: {
-            //     type: DataTypes.INTEGER,
-            //     allowNull: false
-            // }
         },
         {
             timestamps: false,

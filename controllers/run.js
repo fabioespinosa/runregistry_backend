@@ -55,18 +55,27 @@ const update_or_create_run = async (
             },
             { transaction }
         );
-
+        let manual_change = false;
+        // If the email is not auto@auto, it means it was a manual change, therefore later on, when we order changes, we give priority to the manual change
+        if (by !== 'auto@auto') {
+            manual_change = true;
+            if (Object.keys(oms_metadata).length !== 0) {
+                throw 'Manual change must have empty oms_metadata';
+            }
+        }
         const runEvent = await RunEvent.create(
             {
                 run_number,
                 oms_metadata,
                 rr_metadata,
                 version: event.version,
-                deleted: false
+                deleted: false,
+                manual_change
             },
             { transaction }
         );
         // update the Run table, we are creating temporary tables to prevent the postgres optimizer to do unnecessary scans of whole table
+        // The ORDER BY in mergejsonb first orders by manual_change (shifters actions overwrite automatic changes )
         await sequelize.query(
             `
                 CREATE TEMPORARY TABLE updated_runnumbers as SELECT DISTINCT "run_number" from "RunEvent" where "RunEvent"."version" > (SELECT COALESCE((SELECT MAX("version") from "Run"), 0));
@@ -77,7 +86,7 @@ const update_or_create_run = async (
 
                 INSERT INTO "Run" (run_number, rr_attributes, oms_attributes, deleted, "version")
                 SELECT run_number,
-                        mergejsonb(rr_metadata ORDER BY version),
+                        mergejsonb(rr_metadata ORDER BY manual_change, version),
                         mergejsonb(oms_metadata ORDER BY version),
                         (SELECT deleted from "RunEvent" WHERE "version" = (SELECT max(version) FROM updated_runs)) AS "deleted",
                         (SELECT max(version) FROM "RunEvent" ) AS "version"
@@ -221,9 +230,9 @@ exports.new = async (req, res) => {
     }
 };
 
-// This edits or updates the run
+// This updates the run (triggered by an OMS update) not to be confused with an manual edition of a run
 // The new_attributes are a collection of the attributes that changed with respect to the run
-exports.edit = async (req, res) => {
+exports.automatic_run_update = async (req, res) => {
     const { run_number } = req.params;
 
     const run = await Run.findByPk(run_number);
@@ -234,7 +243,7 @@ exports.edit = async (req, res) => {
     if (rr_attributes.state !== 'OPEN') {
         throw 'Run must be in state OPEN to be edited';
     }
-
+    let was_run_updated = false;
     let transaction;
     try {
         // If there was a change in the lumisections, we also update the dataset triplet cache
@@ -266,6 +275,7 @@ exports.edit = async (req, res) => {
                 req,
                 transaction
             );
+            was_run_updated = true;
         }
 
         // Run stuff:
@@ -280,10 +290,88 @@ exports.edit = async (req, res) => {
         );
         const new_rr_attributes_length = Object.keys(new_rr_attributes).length;
         // If there was actually something to update in the RR attributes, we update it, if it was a change in oms_attributes, we don't update it (since it doesn't affect RR attributes)
-        if (new_rr_attributes_length > 0) {
+        if (new_rr_attributes_length > 0 || was_run_updated) {
             const runEvent = await update_or_create_run(
                 run_number,
                 new_oms_attributes,
+                new_rr_attributes,
+                req,
+                transaction
+            );
+            was_run_updated = true;
+            //  if there was a change with regards to the RR triplets, if so, save them, or if there was a change with regards to the Run attributes (class, state, significant then save as well the different lumisections)
+
+            // await update_dataset... (which will be the same method to update dataset from OFFLINE)
+            // Now that it is commited we should find the updated run:
+            console.log(`updated run ${run_number}`);
+        }
+        await transaction.commit();
+        await fill_dataset_triplet_cache();
+        if (was_run_updated) {
+            const run = await Run.findByPk(run_number);
+            res.json(run.dataValues);
+        } else {
+            // Nothing changed:
+            res.status(204);
+            res.send();
+        }
+    } catch (err) {
+        console.log(err);
+        await transaction.rollback();
+        throw `Error updating run ${run_number}`;
+    }
+};
+
+exports.manual_edit = async (req, res) => {
+    const { run_number } = req.params;
+
+    const run = await Run.findByPk(run_number);
+    if (run === null) {
+        throw 'Run not found';
+    }
+    const { rr_attributes } = run.dataValues;
+    if (rr_attributes.state !== 'OPEN') {
+        throw 'Run must be in state OPEN to be edited';
+    }
+
+    let transaction;
+    try {
+        // If there was a change in the lumisections, we also update the dataset triplet cache
+
+        transaction = await sequelize.transaction();
+        // Lumisection stuff:
+        const { rr_lumisections } = req.body;
+        if (Array.isArray(rr_lumisections)) {
+            const newRRLumisectionRanges = await update_rr_lumisections(
+                run_number,
+                'online',
+                rr_lumisections,
+                req,
+                transaction
+            );
+            if (newRRLumisectionRanges.length > 0) {
+                // Bump the version in the dataset so the fill_dataset_triplet_cache will know that the lumisections inside it changed, and so can refill the cache:
+                const datasetEvent = await update_or_create_dataset(
+                    'online',
+                    run_number,
+                    {},
+                    req,
+                    transaction
+                );
+            }
+        }
+
+        // Update Run attributes (no longer LUMISECTION attributes):
+        const new_rr_attributes = getObjectWithAttributesThatChanged(
+            rr_attributes,
+            req.body.rr_attributes
+        );
+        const new_rr_attributes_length = Object.keys(new_rr_attributes).length;
+        // If there was actually something to update in the RR attributes, we update it, if it was a change in oms_attributes, we don't update it (since it doesn't affect RR attributes)
+        if (new_rr_attributes_length > 0) {
+            const runEvent = await update_or_create_run(
+                run_number,
+                {},
                 new_rr_attributes,
                 req,
                 transaction
@@ -322,6 +410,7 @@ exports.markSignificant = async (req, res) => {
     const rr_metadata = { significant: true };
     await update_or_create_run(run_number, oms_metadata, rr_metadata, req);
     // We do this to make sure the LUMISECTIONS classification are there
+    const email = req.get('email');
     await manually_update_a_run(run_number, {
         email,
         manually_significant: true,
@@ -332,7 +421,7 @@ exports.markSignificant = async (req, res) => {
 
 exports.refreshRunClassAndComponents = async (req, res) => {
     const { run_number } = req.params;
-    const email = `auto - refresh by ${req.get('email')}`;
+    const email = req.get('email');
     const previously_saved_run = await Run.findByPk(run_number);
     if (previously_saved_run.rr_attributes.state !== 'OPEN') {
         throw 'Run must be in state OPEN to be refreshed';

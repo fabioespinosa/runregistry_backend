@@ -2,7 +2,7 @@ const axios = require('axios');
 const json_logic = require('json-logic-js');
 
 const { API_URL } = require('../config/config')[
-    process.env.NODE_ENV || 'development'
+    process.env.ENV || 'development'
 ];
 const { update_or_create_dataset } = require('../controllers/dataset');
 const { create_rr_lumisections } = require('../controllers/lumisection');

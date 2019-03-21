@@ -1,21 +1,54 @@
 const json_logic = require('json-logic-js');
 const Run = require('../models').Run;
 
+const { get_oms_lumisections_for_dataset } = require('./lumisection');
+const {
+    reduce_ls_attributes
+} = require('../cron/saving_updating_runs_lumisections_utils');
 exports.testClassifier = async (req, res) => {
     const run_number = req.body.run.run_number;
     const previously_saved_run = await Run.findByPk(run_number);
 
-    const { oms_attributes } = previously_saved_run.dataValues;
+    const { oms_attributes, rr_attributes } = previously_saved_run.dataValues;
 
-    const classifier = JSON.parse(req.body.classifier);
-    const result = return_classifier_evaluated_tuple(
-        oms_attributes,
-        classifier.if
+    const oms_lumisections = await get_oms_lumisections_for_dataset(
+        run_number,
+        'online'
     );
+    const reduced_lumisection_attributes = reduce_ls_attributes(
+        oms_lumisections
+    );
+    const run = {
+        ...oms_attributes,
+        ...rr_attributes,
+        ...reduced_lumisection_attributes
+    };
+    const classifier = JSON.parse(req.body.classifier);
+    const result = return_classifier_evaluated_tuple(run, classifier.if);
     res.json({
         result,
-        run_data: oms_attributes
+        run_data: run
     });
+};
+exports.getRunInfo = async (req, res) => {
+    const { run_number } = req.params;
+    const previously_saved_run = await Run.findByPk(run_number);
+
+    const { oms_attributes, rr_attributes } = previously_saved_run.dataValues;
+
+    const oms_lumisections = await get_oms_lumisections_for_dataset(
+        run_number,
+        'online'
+    );
+    const reduced_lumisection_attributes = reduce_ls_attributes(
+        oms_lumisections
+    );
+    const run = {
+        oms_attributes,
+        rr_attributes,
+        reduced_lumisection_attributes
+    };
+    res.json({ run });
 };
 
 // returns [rule, passed], for example [{"==": [{"var": "beam1_present"}, false]}, true], which means the variable beam1_present was indeed false

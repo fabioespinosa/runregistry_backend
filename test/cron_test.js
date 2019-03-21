@@ -34,3 +34,7 @@ describe('Cron: ', () => {
         await update_runs([run_oms_attributes], 0, {});
     });
 });
+
+// describe('Update runs: ', () => {
+//     it('');
+// });

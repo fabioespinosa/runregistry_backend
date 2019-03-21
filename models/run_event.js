@@ -22,6 +22,10 @@ module.exports = (sequelize, DataTypes) => {
             deleted: {
                 type: DataTypes.BOOLEAN,
                 allowNull: false
+            },
+            manual_change: {
+                type: DataTypes.BOOLEAN,
+                allowNull: false
             }
         },
         {

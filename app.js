@@ -27,14 +27,24 @@ process.on('unhandledRejection', (reason, p) => {
     console.log('Unhandled Promise Rejection at:', p, 'reason:', reason);
 });
 
-models.sequelize.sync({}).then(async () => {
-    // Initialize DB data
-    await require('./initialization/initialize')();
-    app.listen(port, () => {
-        console.log(`server listening in port ${port}`);
+models.sequelize
+    .sync({})
+    .then(async () => {
+        // Initialize DB data
+        await require('./initialization/initialize')();
+        app.listen(port, () => {
+            console.log(`server listening in port ${port}`);
 
-        // const cron = require('./cron/1.get_runs');
-        // const dbs_pinging = require('./cron_datasets/2.ping_dbs');
-        // const dqm_gui_pinging = require('./cron_datasets/2.ping_dqm_gui');
+            const cron = require('./cron/1.get_runs');
+            // const dbs_pinging = require('./cron_datasets/2.ping_dbs');
+            // const dqm_gui_pinging = require('./cron_datasets/2.ping_dqm_gui');
+        });
+    })
+    .catch(err => {
+        console.log(err);
+        app.listen(port, () => {
+            console.log(
+                `Error connecting to database, server listening in port ${port}`
+            );
+        });
     });
-});

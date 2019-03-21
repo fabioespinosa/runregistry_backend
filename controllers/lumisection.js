@@ -60,12 +60,17 @@ const update_or_create_lumisection = async (
             lumisection_metadata
         );
 
+        let manual_change = false;
+        if (by !== 'auto@auto') {
+            manual_change = true;
+        }
         const lumisectionEvent = await LSEvent.create(
             {
                 run_number,
                 name: dataset_name,
                 lumisection_metadata_id: deduplicated_jsonb.id,
-                version: event.version
+                version: event.version,
+                manual_change
             },
             { transaction }
         );
@@ -171,9 +176,18 @@ exports.update_rr_lumisections = async (
     req,
     transaction
 ) => {
+    const by = req.email || req.get('email');
+
+    let get_lumisections_without_shifter_intervention = false;
+    if (by === 'auto@auto') {
+        // If it is an automatic change, we want the program to get the lumisections without any change, so that if a change,after the shifters action occurs, it only saves it once:
+        get_lumisections_without_shifter_intervention = true;
+    }
+
     const previous_lumisections = await exports.get_rr_lumisections_for_dataset(
         run_number,
-        dataset_name
+        dataset_name,
+        get_lumisections_without_shifter_intervention
     );
     let local_whitelist;
     if (dataset_name !== 'online') {
@@ -252,104 +266,114 @@ exports.getNewLumisectionRanges = (
     // Check if the lumisections are equal, if they are equal, do nothing.
     // If the lumisections are different, then create the ranges for the ones which changed
 
+    if (previous_lumisections.length > new_lumisections.length) {
+        throw 'Lumisections cannot be deleted';
+    }
     const new_ls_ranges = [];
-    if (new_lumisections.length === previous_lumisections.length) {
-        for (let i = 0; i < new_lumisections.length; i++) {
-            let current_previous_lumisection = previous_lumisections[i];
-            let current_new_lumisection = new_lumisections[i];
-            if (lumisection_whitelist[0] !== '*') {
-                current_previous_lumisection = getAttributesSpecifiedFromArray(
-                    current_previous_lumisection,
-                    lumisection_whitelist
-                );
-                current_new_lumisection = getAttributesSpecifiedFromArray(
-                    current_new_lumisection,
-                    lumisection_whitelist
-                );
-            }
 
-            // We will check if the lumisections are equal one by one
-            try {
-                deepEqual(
-                    current_previous_lumisection,
-                    current_new_lumisection
-                );
-                if (new_ls_ranges.length > 0) {
-                    // If we had something saved in the range, we close it, since we found that there was one lumisection in the way which did match (and did not throw exception)
-                    const previous_range =
-                        new_ls_ranges[new_ls_ranges.length - 1];
+    for (let i = 0; i < new_lumisections.length; i++) {
+        let current_previous_lumisection = previous_lumisections[i] || {};
+        let current_new_lumisection = new_lumisections[i];
+        if (lumisection_whitelist[0] !== '*') {
+            current_previous_lumisection = getAttributesSpecifiedFromArray(
+                current_previous_lumisection,
+                lumisection_whitelist
+            );
+            current_new_lumisection = getAttributesSpecifiedFromArray(
+                current_new_lumisection,
+                lumisection_whitelist
+            );
+        }
+
+        // We will check if the lumisections are equal one by one
+        try {
+            deepEqual(current_previous_lumisection, current_new_lumisection);
+            if (new_ls_ranges.length > 0) {
+                // If we had something saved in the range, we close it, since we found that there was one lumisection in the way which did match (and did not throw exception)
+                const previous_range = new_ls_ranges[new_ls_ranges.length - 1];
+                // If the range has not been closed yet:
+                if (typeof previous_range.end === 'undefined') {
                     new_ls_ranges[new_ls_ranges.length - 1] = {
                         ...previous_range,
                         end: i
                     };
                 }
-            } catch (e) {
-                // this means that they are not equal
+            }
+        } catch (e) {
+            // this means that they are not equal
 
-                // Lumisection changed, therefore we need to create a new range
-                if (new_ls_ranges.length === 0) {
-                    // getObjectWithAttributesThatChanged does not take into account new attributes
+            // Lumisection changed, therefore we need to create a new range
+            if (new_ls_ranges.length === 0) {
+                const new_lumisection_attributes = getObjectWithAttributesThatChanged(
+                    current_previous_lumisection,
+                    current_new_lumisection
+                );
+                new_ls_ranges.push({
+                    ...new_lumisection_attributes,
+                    start: i + 1
+                });
+            } else {
+                const previous_range = new_ls_ranges[new_ls_ranges.length - 1];
+                const previous_range_copy = { ...previous_range };
+                const potentially_new_lumisection_attributes = getObjectWithAttributesThatChanged(
+                    current_previous_lumisection,
+                    current_new_lumisection
+                );
+                // We delete start and end from previous range so that it doesn't interfere with deepEqual
+                delete previous_range_copy.start;
+                delete previous_range_copy.end;
+                try {
+                    deepEqual(
+                        previous_range_copy,
+                        potentially_new_lumisection_attributes
+                    );
+                } catch (e) {
+                    if (typeof previous_range.end === 'undefined') {
+                        new_ls_ranges[new_ls_ranges.length - 1] = {
+                            ...previous_range,
+                            end: i
+                        };
+                    }
                     const new_lumisection_attributes = getObjectWithAttributesThatChanged(
                         current_previous_lumisection,
                         current_new_lumisection
                     );
                     new_ls_ranges.push({
                         ...new_lumisection_attributes,
-                        start: 1
+                        start: i + 1
                     });
-                } else {
-                    const previous_range =
-                        new_ls_ranges[new_ls_ranges.length - 1];
-                    const previous_range_copy = { ...previous_range };
-                    const potentially_new_lumisection_attributes = getObjectWithAttributesThatChanged(
-                        current_previous_lumisection,
-                        current_new_lumisection
-                    );
-                    // We delete start and end from previous range so that it doesn't interfere with deepEqual
-                    delete previous_range_copy.start;
-                    delete previous_range_copy.end;
-                    try {
-                        deepEqual(
-                            previous_range_copy,
-                            potentially_new_lumisection_attributes
-                        );
-                    } catch (e) {
-                        new_ls_ranges[new_ls_ranges.length - 1] = {
-                            ...previous_range,
-                            end: i
-                        };
-                        const new_lumisection_attributes = getObjectWithAttributesThatChanged(
-                            current_previous_lumisection,
-                            current_new_lumisection
-                        );
-                        new_ls_ranges.push({
-                            ...new_lumisection_attributes,
-                            start: i + 1
-                        });
-                    }
                 }
             }
         }
-        if (new_ls_ranges.length > 0) {
+    }
+    if (new_ls_ranges.length > 0) {
+        // If we had something saved in the range, we close it, since we found that there was one lumisection in the way which did match (and did not throw exception)
+        const previous_range = new_ls_ranges[new_ls_ranges.length - 1];
+        // If the range has not been closed yet:
+        if (typeof previous_range.end === 'undefined') {
             new_ls_ranges[new_ls_ranges.length - 1] = {
-                ...new_ls_ranges[new_ls_ranges.length - 1],
+                ...previous_range,
                 end: new_lumisections.length
             };
         }
-        return new_ls_ranges;
-    } else {
-        // Todo fix when new lumisections come (add new range)
-        throw 'Mismatch of LS length';
     }
+    return new_ls_ranges;
 };
 
 // Get all component lumisections:
-exports.get_rr_lumisections_for_dataset = async (run_number, dataset_name) => {
+// Without manual changes gives us the AUTOMATIC changes without any shifters intervention:
+exports.get_rr_lumisections_for_dataset = async (
+    run_number,
+    dataset_name,
+    without_manual_changes
+) => {
     const merged_lumisections = await sequelize.query(
         `
-        SELECT run_number, "name", lumisection_number, mergejsonb(lumisection_metadata ORDER BY version ) as "triplets"
+        SELECT run_number, "name", lumisection_number, mergejsonb(lumisection_metadata ORDER BY ${
+            without_manual_changes ? '' : 'manual_change,'
+        } version ) as "triplets"
         FROM(
-        SELECT "LumisectionEvent"."version", run_number, "name", jsonb AS "lumisection_metadata", lumisection_number  FROM "LumisectionEvent" INNER JOIN "LumisectionEventAssignation" 
+        SELECT "LumisectionEvent"."version", run_number, "name", jsonb AS "lumisection_metadata", lumisection_number, manual_change  FROM "LumisectionEvent" INNER JOIN "LumisectionEventAssignation" 
         ON "LumisectionEvent"."version" = "LumisectionEventAssignation"."version" INNER JOIN "JSONBDeduplication" ON "lumisection_metadata_id" = "id"
         WHERE "LumisectionEvent"."name" = :dataset_name AND "LumisectionEvent"."run_number" = :run_number
         ) AS "updated_lumisectionEvents"
@@ -463,33 +487,7 @@ exports.get_oms_lumisections_for_dataset = async (run_number, dataset_name) => {
     return lumisections_with_empty_wholes;
 };
 
-exports.getLumisectionsForDataset = async (req, res) => {
-    const { run_number, dataset_name } = req.body;
-    let lumisections = await sequelize.query(
-        `
-            SELECT id_dataset, lumisection_number, mergejsonb(lumisection_metadata ORDER BY version ) as "lumisection_attributes"
-            FROM(
-            SELECT "LumisectionEvent"."version", id_dataset, lumisection_metadata, lumisection_number from "LumisectionEvent"  inner join "LumisectionEventAssignation" 
-                on "LumisectionEvent"."version" = "LumisectionEventAssignation"."version" 
-            WHERE "LumisectionEvent"."run_number" = :run_number AND "LumisectionEvent"."name" = :dataset_name
-            ) AS "updated_lumisectionEvents"
-            GROUP BY id_dataset, lumisection_number;`,
-        {
-            type: sequelize.QueryTypes.SELECT,
-            replacements: {
-                run_number,
-                dataset_name
-            }
-        }
-    );
-    lumisections = lumisections.map(
-        ({ lumisection_attributses }) => lumisection_attributes
-    );
-
-    lumisections = exports.getLumisectionRanges(lumisections);
-
-    res.json(lumisections);
-};
+exports.getLumisectionsForDataset = async (req, res) => {};
 
 // Returns LS ranges in format: [{start:0, end: 23, ...values}, {start: 24, end: 90, ...values}]
 exports.getLumisectionRanges = (lumisections, lumisection_attributes) => {
@@ -587,7 +585,8 @@ exports.get_rr_and_oms_lumisection_ranges = async (req, res) => {
     const { run_number, dataset_name } = req.body;
     const rr_lumisections = await exports.get_rr_lumisections_for_dataset(
         run_number,
-        dataset_name
+        dataset_name,
+        false
     );
     const oms_lumisections = await exports.get_oms_lumisections_for_dataset(
         run_number,
@@ -610,7 +609,8 @@ exports.get_rr_lumisection_ranges = async (req, res) => {
     const { run_number, dataset_name } = req.body;
     const rr_lumisections = await exports.get_rr_lumisections_for_dataset(
         run_number,
-        dataset_name
+        dataset_name,
+        false
     );
     const ls_ranges = exports.getLumisectionRanges(rr_lumisections, ['*']);
     res.json(ls_ranges);

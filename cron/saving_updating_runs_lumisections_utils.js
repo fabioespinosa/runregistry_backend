@@ -76,7 +76,7 @@ exports.get_beam_present_and_stable = lumisections => {
 };
 
 // Reduces the array of lumisections to truthy if only one is true in whole array
-const reduce_ls_attributes = lumisections => {
+exports.reduce_ls_attributes = lumisections => {
     const reduced_values = {};
     // If there is at least 1 LS that is true, then its true for the run:
     lumisections.forEach(lumisection => {
@@ -96,7 +96,7 @@ const reduce_ls_attributes = lumisections => {
 // If run has no previous class, assign class
 exports.assign_run_class = handleErrors(
     async (oms_attributes, rr_attributes, oms_lumisections) => {
-        const reduced_lumisection_attributes = reduce_ls_attributes(
+        const reduced_lumisection_attributes = exports.reduce_ls_attributes(
             oms_lumisections
         );
         const run = {
@@ -137,7 +137,7 @@ exports.assign_run_class = handleErrors(
 
 exports.is_run_significant = handleErrors(
     async (oms_attributes, rr_attributes, oms_lumisections) => {
-        const reduced_lumisection_attributes = reduce_ls_attributes(
+        const reduced_lumisection_attributes = exports.reduce_ls_attributes(
             oms_lumisections
         );
         const run = {
@@ -154,7 +154,7 @@ exports.is_run_significant = handleErrors(
             classifier = JSON.parse(classifier.classifier);
             if (classifier_class === run.class) {
                 const create_dataset = json_logic.apply(classifier, run);
-                if (create_dataset === 'CREATE_DATASET') {
+                if (create_dataset) {
                     run_is_significant = true;
                 }
             }

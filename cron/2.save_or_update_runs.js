@@ -138,8 +138,8 @@ exports.update_runs = async (
                     oms_lumisections
                 );
             }
-            await axios.put(
-                `${API_URL}/runs/${run.run_number}`,
+            const updated_run = await axios.put(
+                `${API_URL}/automatic_run_update/${run.run_number}`,
                 {
                     oms_attributes,
                     oms_lumisections,
@@ -154,7 +154,10 @@ exports.update_runs = async (
                     }
                 }
             );
-            updated_runs += 1;
+            if (updated_run.status === 200) {
+                // if status is 200 the run was actually updated, if status is 204, the request was processed but there was nothing to update
+                updated_runs += 1;
+            }
         } catch (e) {
             console.log(`Error updating run ${run.run_number}`);
         }

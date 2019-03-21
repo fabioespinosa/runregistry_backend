@@ -6,7 +6,6 @@ const axios = require('axios').create({
         rejectUnauthorized: false
     })
 });
-const getObjectWithAttributesThatChanged = require('get-object-with-attributes-that-changed');
 const { handleErrors } = require('../utils/error_handlers');
 const config = require('../config/config');
 const cookie_generator = require('./get_cookie').get_cookie;
@@ -137,12 +136,17 @@ const calculate_runs_to_update = (fetched_runs, last_saved_runs) => {
             // if runs are the same (i.e. same run_number), do comparison:
             if (+fetched_run.run_number === +existing_run.run_number) {
                 // If something changed (the object with attributes that changed has one or more properties), we update it
-                const new_attributes = getObjectWithAttributesThatChanged(
-                    existing_run.oms_attributes,
-                    fetched_run
+                const last_updated_existing_run = new Date(
+                    existing_run.oms_attributes.last_update
                 );
-                // If the object has one or more properties, it means it changed:
-                if (Object.keys(new_attributes).length > 0) {
+                const last_updated_fetched_run = new Date(
+                    fetched_run.last_update
+                );
+                // If the last_update of fetched run is greater than that of previously saved run, we need to update the run
+                if (
+                    last_updated_fetched_run > last_updated_existing_run ||
+                    existing_run.run_number == 328691
+                ) {
                     runs_to_update.push(fetched_run);
                 }
             }
