@@ -23,10 +23,14 @@ module.exports = app => {
         '/lumisections/rr_lumisections',
         catchAPI(Lumisection.get_rr_lumisection_ranges)
     );
+    app.post(
+        '/lumisections/rr_lumisection_ranges_by_component',
+        catchAPI(Lumisection.get_rr_lumisection_ranges_by_component)
+    );
     app.put(
-        '/dataset_lumisections/:workspace',
+        '/lumisections/edit_lumisections',
         auth,
-        catchAPI(Lumisection.editDatasetLumisections)
+        catchAPI(Lumisection.edit_rr_lumisections)
     );
     app.put(
         '/dataset_lumisections/:workspace/reset',

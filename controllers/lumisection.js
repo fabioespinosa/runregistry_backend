@@ -20,6 +20,7 @@ const getAttributesSpecifiedFromArray = require('get-attributes-specified-from-a
 const getObjectWithAttributesThatChanged = require('get-object-with-attributes-that-changed');
 const { deepEqual } = require('assert');
 const { findOrCreateJSONB } = require('./JSONBDeduplication');
+const { fill_dataset_triplet_cache } = require('./dataset_triplet_cache');
 
 const rr_lumisection_whitelist = online_components.map(
     component => `${component}_triplet`
@@ -41,6 +42,9 @@ const update_or_create_lumisection = async (
     const comment = req.comment || req.get('comment');
     if (!by) {
         throw "The email of the author's action should be stated in request's header 'email'";
+    }
+    if (start_lumisection > end_lumisection) {
+        throw 'Start Lumisection must be less than end lumisection';
     }
     // Start transaction:
     let local_transaction = false;
@@ -169,6 +173,7 @@ exports.create_rr_lumisections = async (
     return saved_ranges;
 };
 
+// Receives a whole LUMISECTION ARRAY not a range
 exports.update_rr_lumisections = async (
     run_number,
     dataset_name,
@@ -358,6 +363,59 @@ exports.getNewLumisectionRanges = (
         }
     }
     return new_ls_ranges;
+};
+
+// get ranges per component in the form of:
+
+//cms_range: [{from:x, to: y, ...}, {}]
+//dt_range: [{},{}]
+exports.get_rr_lumisection_ranges_for_dataset = async (
+    run_number,
+    dataset_name
+) => {
+    const merged_lumisections = await sequelize.query(
+        `
+        SELECT run_number, "name", lumisection_number, mergejsonb(lumisection_metadata ORDER BY manual_change, version) as "triplets"
+        FROM(
+        SELECT "LumisectionEvent"."version", run_number, "name", jsonb AS "lumisection_metadata", lumisection_number, manual_change  FROM "LumisectionEvent" INNER JOIN "LumisectionEventAssignation" 
+        ON "LumisectionEvent"."version" = "LumisectionEventAssignation"."version" INNER JOIN "JSONBDeduplication" ON "lumisection_metadata_id" = "id"
+        WHERE "LumisectionEvent"."name" = :dataset_name AND "LumisectionEvent"."run_number" = :run_number
+        ) AS "updated_lumisectionEvents"
+        GROUP BY "run_number", "name", lumisection_number 
+        ORDER BY lumisection_number;
+    `,
+        {
+            type: sequelize.QueryTypes.SELECT,
+            replacements: {
+                run_number,
+                dataset_name
+            }
+        }
+    );
+
+    // Put all the components present in the dataset
+    const components_present_in_dataset = [];
+    merged_lumisections.forEach(({ triplets }) => {
+        for (const [component, val] of Object.entries(triplets)) {
+            if (!components_present_in_dataset.includes(component)) {
+                components_present_in_dataset.push(component);
+            }
+        }
+    });
+
+    const ranges = {};
+    components_present_in_dataset.forEach(component => {
+        const component_merged_lumisections = merged_lumisections.map(
+            lumisection => {
+                return lumisection.triplets[component];
+            }
+        );
+        ranges[component] = exports.getLumisectionRanges(
+            component_merged_lumisections,
+            ['*']
+        );
+    });
+    return ranges;
 };
 
 // Get all component lumisections:
@@ -581,6 +639,39 @@ exports.getLumisectionsForDatasetWorkspace = async (req, res) => {
 
 // API:
 // Get lumisections:
+
+exports.edit_rr_lumisections = async (req, res) => {
+    const {
+        run_number,
+        dataset_name,
+        component,
+        new_lumisection_range
+    } = req.body;
+    let { start, end, status, comment, cause } = new_lumisection_range;
+    const lumisection_metadata = {
+        [component]: {
+            status,
+            comment,
+            cause
+        }
+    };
+    // For consistency we want triplet values to be either their value or empty string:
+    status = status || '';
+    comment = comment || '';
+    cause = cause || '';
+    const new_range = await update_or_create_lumisection(
+        run_number,
+        dataset_name,
+        lumisection_metadata,
+        start,
+        end,
+        req,
+        LumisectionEvent,
+        LumisectionEventAssignation
+    );
+    await fill_dataset_triplet_cache();
+    res.json(new_range);
+};
 exports.get_rr_and_oms_lumisection_ranges = async (req, res) => {
     const { run_number, dataset_name } = req.body;
     const rr_lumisections = await exports.get_rr_lumisections_for_dataset(
@@ -614,6 +705,14 @@ exports.get_rr_lumisection_ranges = async (req, res) => {
     );
     const ls_ranges = exports.getLumisectionRanges(rr_lumisections, ['*']);
     res.json(ls_ranges);
+};
+exports.get_rr_lumisection_ranges_by_component = async (req, res) => {
+    const { run_number, dataset_name } = req.body;
+    const rr_lumisection_ranges_by_component = await exports.get_rr_lumisection_ranges_for_dataset(
+        run_number,
+        dataset_name
+    );
+    res.json(rr_lumisection_ranges_by_component);
 };
 exports.get_oms_lumisection_ranges = async (req, res) => {
     const { run_number, dataset_name } = req.body;
