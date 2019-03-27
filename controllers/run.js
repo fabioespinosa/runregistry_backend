@@ -12,7 +12,8 @@ const {
     create_oms_lumisections,
     create_rr_lumisections,
     update_oms_lumisections,
-    update_rr_lumisections
+    update_rr_lumisections,
+    get_rr_lumisections_for_dataset
 } = require('./lumisection');
 const { update_or_create_dataset } = require('./dataset');
 const { fill_dataset_triplet_cache } = require('./dataset_triplet_cache');
@@ -322,6 +323,8 @@ exports.automatic_run_update = async (req, res) => {
     }
 };
 
+// In order to update the lumisections, one does it directly in lumisection.js edit_rr_lumsiections
+// For run (class, stop_reason) its here:
 exports.manual_edit = async (req, res) => {
     const { run_number } = req.params;
 
@@ -336,32 +339,7 @@ exports.manual_edit = async (req, res) => {
 
     let transaction;
     try {
-        // If there was a change in the lumisections, we also update the dataset triplet cache
-
         transaction = await sequelize.transaction();
-        // Lumisection stuff:
-        const { rr_lumisections } = req.body;
-        if (Array.isArray(rr_lumisections)) {
-            const newRRLumisectionRanges = await update_rr_lumisections(
-                run_number,
-                'online',
-                rr_lumisections,
-                req,
-                transaction
-            );
-            if (newRRLumisectionRanges.length > 0) {
-                // Bump the version in the dataset so the fill_dataset_triplet_cache will know that the lumisections inside it changed, and so can refill the cache:
-                const datasetEvent = await update_or_create_dataset(
-                    'online',
-                    run_number,
-                    {},
-                    req,
-                    transaction
-                );
-            }
-        }
-
-        // Update Run attributes (no longer LUMISECTION attributes):
         const new_rr_attributes = getObjectWithAttributesThatChanged(
             rr_attributes,
             req.body.rr_attributes
@@ -383,7 +361,6 @@ exports.manual_edit = async (req, res) => {
             console.log(`updated run ${run_number}`);
         }
         await transaction.commit();
-        await fill_dataset_triplet_cache();
         const run = await Run.findByPk(run_number);
         res.json(run.dataValues);
     } catch (err) {
@@ -435,8 +412,6 @@ exports.refreshRunClassAndComponents = async (req, res) => {
     res.json(saved_run);
 };
 
-// TODO: finish moveRun creation of dataset
-
 exports.moveRun = async (req, res) => {
     const { to_state } = req.params;
     const { run_number } = req.body.original_run;
@@ -448,18 +423,31 @@ exports.moveRun = async (req, res) => {
     if (run.rr_attributes.state === to_state) {
         throw `Run's state is already in state ${to_state}`;
     }
-    //      Check if triplets are empty quotes:
-    for (const [run_property, value] of Object.entries(
-        run.dataValues.rr_attributes
-    )) {
-        if (run_property.includes('_triplet')) {
+
+    // Check if triplets are empty quotes:
+    const rr_lumisections = await get_rr_lumisections_for_dataset(
+        run_number,
+        'online'
+    );
+    if (rr_lumisections.length === 0) {
+        throw 'There is no run lumisection data for this run, therefore it cannot be signed off';
+    }
+    for (let i = 0; i < rr_lumisections.length; i++) {
+        const current_lumisection = rr_lumisections[i];
+        for (const [key, val] of Object.entries(current_lumisection)) {
             if (
-                to_state === 'SIGNOFF' &&
-                (value.status === 'NO VALUE FOUND' || value.status === '')
+                key.includes('_triplet') &&
+                (to_state === 'SIGNOFF' || to_state === 'COMPLETED')
             ) {
-                throw `The status of ${
-                    run_property.split('_triplet')[0]
-                } must not be empty`;
+                if (
+                    val.status === '' ||
+                    val.status === 'EMPTY' ||
+                    val.status === 'NO VALUE FOUND'
+                ) {
+                    throw `There is a ${
+                        val.status === '' ? 'empty' : val.status
+                    } lumisection at position ${i + 1} of this run. `;
+                }
             }
         }
     }

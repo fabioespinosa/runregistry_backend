@@ -17,6 +17,7 @@ module.exports = {
             idle: 20000,
             acquire: 20000
         },
+        WAITING_DQM_GUI_CONSTANT: 'waiting dqm gui',
         API_URL: 'http://localhost:9500',
         OMS_URL: `http://cmsomsapidev.cern.ch:8080/api/v1`,
         OMS_RUNS: (number_of_runs = 10) =>

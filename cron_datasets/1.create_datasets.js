@@ -1,16 +1,15 @@
 const axios = require('axios');
 const json_logic = require('json-logic-js');
 
-const { API_URL } = require('../config/config')[
+const { API_URL, WAITING_DQM_GUI_CONSTANT } = require('../config/config')[
     process.env.ENV || 'development'
 ];
+
 const { update_or_create_dataset } = require('../controllers/dataset');
 const { create_rr_lumisections } = require('../controllers/lumisection');
 const {
     classify_component_per_lumisection
 } = require('../cron/saving_updating_runs_lumisections_utils');
-
-exports.waiting_dqm_gui_constant = 'waiting dqm gui';
 
 exports.create_offline_waiting_datasets = async (run, transaction) => {
     const { run_number, rr_attributes } = run;
@@ -28,11 +27,13 @@ exports.create_offline_waiting_datasets = async (run, transaction) => {
     const { data: workspaces } = await axios.get(`${API_URL}/workspaces`);
 
     const standard_waiting_list_dataset_attributes = {
-        global_state: exports.waiting_dqm_gui_constant
+        global_state: WAITING_DQM_GUI_CONSTANT,
+        appeared_in: []
     };
     workspaces.forEach(({ workspace }) => {
-        standard_waiting_list_dataset_attributes[`${workspace}_state`] =
-            exports.waiting_dqm_gui_constant;
+        standard_waiting_list_dataset_attributes[
+            `${workspace}_state`
+        ] = WAITING_DQM_GUI_CONSTANT;
     });
 
     const { data: classifiers } = await axios.get(
@@ -48,7 +49,7 @@ exports.create_offline_waiting_datasets = async (run, transaction) => {
                     workspaces,
                     classifiers
                 );
-                return await save_individual_dataset(
+                return await exports.save_individual_dataset(
                     name,
                     run_number,
                     standard_waiting_list_dataset_attributes,
@@ -106,7 +107,7 @@ const classify_dataset_lumisections = (
     return dataset_lumisections;
 };
 
-const save_individual_dataset = async (
+exports.save_individual_dataset = async (
     dataset_name,
     run_number,
     dataset_attributes,
@@ -117,7 +118,8 @@ const save_individual_dataset = async (
         email: 'auto@auto',
         comment: 'Run signed off, dataset creation'
     };
-    // The only reason we do not do this via HTTP is because we want it to be a transaction
+
+    // The only reason we do not do this via HTTP is because we want it to be a transaction:
     const saved_dataset = await update_or_create_dataset(
         dataset_name,
         run_number,

@@ -5,6 +5,7 @@ const classifier_playground = require('./classifier_playground');
 const lumisection = require('./lumisection');
 const workspace = require('./workspace');
 const datasets_accepted = require('./datasets_accepted');
+const cycle = require('./cycle');
 
 module.exports = function(app) {
     classifier(app);
@@ -14,4 +15,5 @@ module.exports = function(app) {
     lumisection(app);
     workspace(app);
     datasets_accepted(app);
+    cycle(app);
 };

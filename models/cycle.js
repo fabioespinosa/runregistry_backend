@@ -1,15 +1,20 @@
 module.exports = (sequelize, DataTypes) => {
-    const Cycle = sequelize.define(
-        'Cycle',
-        {
-            id_cycle: { type: DataTypes.INTEGER, primaryKey: true },
-            cycle_attributes: { type: DataTypes.JSONB },
-            version: { type: DataTypes.INTEGER }
+    const Cycle = sequelize.define('Cycle', {
+        id_cycle: {
+            type: DataTypes.INTEGER,
+            primaryKey: true,
+            autoIncrement: true
         },
-        {
-            timestamps: false,
-            indexes: [{ name: 'Cycle_version_index', fields: ['version'] }]
+        cycle_attributes: { type: DataTypes.JSONB, allowNull: false },
+        deleted: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false
         }
-    );
+    });
+    Cycle.associate = function(models) {
+        Cycle.hasMany(models.CycleDataset, {
+            foreignKey: 'id_cycle'
+        });
+    };
     return Cycle;
 };

@@ -15,12 +15,12 @@ module.exports = app => {
     // This only queries:
     app.post(
         '/datasets/:workspace/editable/:page',
-        catchAPI(Dataset.getFilteredOrderedSignificant)
+        catchAPI(Dataset.getEditableDatasets)
     );
     // This only queries:
     app.post(
         '/datasets/:workspace/waiting_list/:page',
-        catchAPI(Dataset.getFilteredOrdered)
+        catchAPI(Dataset.getWaitingDatasets)
     );
     app.put('/datasets/:workspace', auth, catchAPI(Dataset.edit));
 

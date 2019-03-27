@@ -134,6 +134,7 @@ exports.create_oms_lumisections = async (
     return saved_ranges;
 };
 
+// Receives a whole LUMISECTION ARRAY not a range
 exports.create_rr_lumisections = async (
     run_number,
     dataset_name,
@@ -640,6 +641,7 @@ exports.getLumisectionsForDatasetWorkspace = async (req, res) => {
 // API:
 // Get lumisections:
 
+// Receives a range:
 exports.edit_rr_lumisections = async (req, res) => {
     const {
         run_number,
@@ -659,18 +661,36 @@ exports.edit_rr_lumisections = async (req, res) => {
     status = status || '';
     comment = comment || '';
     cause = cause || '';
-    const new_range = await update_or_create_lumisection(
-        run_number,
-        dataset_name,
-        lumisection_metadata,
-        start,
-        end,
-        req,
-        LumisectionEvent,
-        LumisectionEventAssignation
-    );
-    await fill_dataset_triplet_cache();
-    res.json(new_range);
+    let transaction;
+    try {
+        transaction = await sequelize.transaction();
+        const new_range = await update_or_create_lumisection(
+            run_number,
+            dataset_name,
+            lumisection_metadata,
+            start,
+            end,
+            req,
+            LumisectionEvent,
+            LumisectionEventAssignation,
+            transaction
+        );
+        // Bump the version in the dataset so the fill_dataset_triplet_cache will know that the lumisections inside it changed, and so can refill the cache:
+        const datasetEvent = await update_or_create_dataset(
+            dataset_name,
+            run_number,
+            {},
+            req,
+            transaction
+        );
+        await transaction.commit();
+        await fill_dataset_triplet_cache();
+        res.json(new_range);
+    } catch (e) {
+        console.log(err);
+        await transaction.rollback();
+        throw `Error updating lumisections of ${dataset_name} dataset, run number: ${run_number}`;
+    }
 };
 exports.get_rr_and_oms_lumisection_ranges = async (req, res) => {
     const { run_number, dataset_name } = req.body;

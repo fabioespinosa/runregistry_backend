@@ -1,22 +1,18 @@
 const changeNameOfAllKeys = require('change-name-of-all-keys');
-const json_logic = require('json-logic-js');
-const queue = require('async').queue;
-const { offline_column_structure } = require('../config/config');
 const Sequelize = require('../models').Sequelize;
 const sequelize = require('../models').sequelize;
 const {
     DatasetTripletCache,
-    LumisectionEvent,
-    LumisectionEventAssignation,
     Dataset,
     DatasetEvent,
     Event,
     Workspace,
-    OfflineDatasetClassifier,
     Run
 } = require('../models');
-const { goOverDatasets } = require('./dataset_triplet_cache');
 const { get_rr_lumisections_for_dataset } = require('./lumisection');
+const { WAITING_DQM_GUI_CONSTANT } = require('../config/config')[
+    process.env.ENV || 'development'
+];
 
 const { Op } = Sequelize;
 const conversion_operator = {
@@ -128,7 +124,7 @@ exports.getDatasetsWaiting = async (req, res) => {
     const datasets = await Dataset.findAll({
         where: {
             // DO NOT CHANGE THE FOLLOWING LINE AS APPLICATION LOGIC RELIES ON IT:
-            'global_state.value': 'waiting dqm gui'
+            'dataset_attributes.global_state': WAITING_DQM_GUI_CONSTANT
         }
     });
     res.json(datasets);
@@ -138,8 +134,8 @@ exports.getDatasetsWaitingDBS = async (req, res) => {
         where: {
             // DO NOT CHANGE THE FOLLOWING LINE AS APPLICATION LOGIC RELIES ON IT:
             [Op.or]: [
-                { 'appeared_in.value': '' },
-                { 'appeared_in.value': 'DQM GUI' }
+                { 'dataset_attributes.appeared_in': '' },
+                { 'dataset_attributes.appeared_in': 'DQM GUI' }
             ]
         }
     });
@@ -159,71 +155,93 @@ exports.getSpecificWorkspace = async (req, res) => {
 };
 
 exports.appearedInDBS = async (req, res) => {
-    const { id } = req.body;
-    const dataset = await Dataset.findByPk(id);
-    if (dataset.appeared_in.value.includes('DBS')) {
-        throw 'already marked as appeared';
+    const { run_number, dataset_name } = req.body;
+    const dataset = await Dataset.findOne({
+        where: {
+            run_number,
+            name: dataset_name
+        }
+    });
+    let { appeared_in } = dataset.dataset_attributes;
+
+    if (typeof appeared_in === 'undefined') {
+        appeared_in = [];
     }
-    dataset.appeared_in = changeHistory(
-        dataset.appeared_in,
+    if (appeared_in.includes('DBS')) {
+        throw 'already marked as appeared in DBS';
+    }
+
+    await exports.update_or_create_dataset(
+        dataset_name,
+        run_number,
         {
-            value:
-                // If the value is empty, put DBS, else, add it by ',' separation:
-                dataset.appeared_in.value === ''
-                    ? 'DBS'
-                    : `${dataset.appeared_in.value}, DBS`
+            appeared_in: appeared_in.concat('DBS')
         },
-        'auto (dbs trigger)'
+        req
     );
-    const saved_dataset = await dataset.save();
+    const saved_dataset = await Dataset.findOne({
+        where: {
+            run_number,
+            name: dataset_name
+        },
+        include: [{ model: Run }, { model: DatasetTripletCache }]
+    });
     res.json(saved_dataset);
 };
 // If a dataset appeared in DQM GUI we must mark it open inmediately (we must changed )
 exports.appearedInDQMGUI = async (req, res) => {
-    const { id } = req.body;
-    const dataset = await Dataset.findByPk(id);
-    const author_dqm_gui_trigger = 'auto (dqm gui trigger)';
-    const author_dataset_classifier = 'auto (dataset classifier)';
-    if (dataset.appeared_in.value.includes('DQM GUI')) {
-        throw 'already marked as appeared';
-    }
-    dataset.appeared_in = changeHistory(
-        dataset.appeared_in,
-        {
-            value:
-                // If the value is empty, put DQM GUI, else, add it by ',' separation:
-                dataset.appeared_in.value === ''
-                    ? 'DQM GUI'
-                    : `${dataset.appeared_in.value}, DQM GUI`
-        },
-        author_dqm_gui_trigger
-    );
-    // TODO: Check classifier if the run needs to  see if a run passes to certification:
-    const dataset_classifiers = await OfflineDatasetClassifier.findAll();
-    dataset_classifiers.forEach(dataset_classifier => {
-        const classifier = dataset_classifier.dataValues.classifier;
-        const significant = json_logic.apply(classifier, dataset);
-        const workspace = dataset_classifier.dataValues.workspace;
-        if (significant === 'CREATE_DATASET') {
-            dataset[`${workspace}_state`] = changeHistory(
-                dataset[`${workspace}_state`],
-                { value: 'OPEN' },
-                author_dataset_classifier
-            );
-        }
-        if (significant === 'IRRELEVANT') {
-            dataset[`${workspace}_state`] = changeHistory(
-                dataset[`${workspace}_state`],
-                { value: 'OPEN' },
-                author_dataset_classifier
-            );
+    const { run_number, dataset_name } = req.body;
+    const dataset = await Dataset.findOne({
+        where: {
+            run_number,
+            name: dataset_name
         }
     });
-    const saved_dataset = await dataset.save();
+
+    let { appeared_in } = dataset.dataset_attributes;
+
+    if (typeof appeared_in === 'undefined') {
+        appeared_in = [];
+    }
+    if (appeared_in.includes('DQM GUI')) {
+        throw 'already marked as appeared in DQM GUI';
+    }
+    await exports.update_or_create_dataset(dataset_name, run_number, {
+        appeared_in: appeared_in.concat('DQM GUI')
+    });
+    const saved_dataset = await Dataset.findOne({
+        where: {
+            run_number,
+            name: dataset_name
+        },
+        include: [{ model: Run }, { model: DatasetTripletCache }]
+    });
+
     res.json(saved_dataset);
+    // // TODO: Decide if there is going to be one dataset_classifier per workspace
+    // const dataset_classifiers = await OfflineDatasetClassifier.findAll();
+    // dataset_classifiers.forEach(dataset_classifier => {
+    //     const classifier = dataset_classifier.dataValues.classifier;
+    //     const significant = json_logic.apply(classifier, dataset);
+    //     const workspace = dataset_classifier.dataValues.workspace;
+    //     if (significant === 'CREATE_DATASET') {
+    //         dataset[`${workspace}_state`] = changeHistory(
+    //             dataset[`${workspace}_state`],
+    //             { value: 'OPEN' },
+    //             author_dataset_classifier
+    //         );
+    //     }
+    //     if (significant === 'IRRELEVANT') {
+    //         dataset[`${workspace}_state`] = changeHistory(
+    //             dataset[`${workspace}_state`],
+    //             { value: 'OPEN' },
+    //             author_dataset_classifier
+    //         );
+    //     }
+    // });
 };
 
-exports.getFilteredOrdered = async (req, res) => {
+exports.getWaitingDatasets = async (req, res) => {
     const { workspace, page } = req.params;
     const { sortings, page_size } = req.body;
     let filter = changeNameOfAllKeys(
@@ -272,7 +290,7 @@ exports.getFilteredOrdered = async (req, res) => {
     res.json({ datasets, pages });
 };
 
-exports.getFilteredOrderedSignificant = async (req, res) => {
+exports.getEditableDatasets = async (req, res) => {
     const { workspace, page } = req.params;
     const { sortings, page_size } = req.body;
     let filter = changeNameOfAllKeys(
@@ -319,113 +337,99 @@ exports.getFilteredOrderedSignificant = async (req, res) => {
 
 // Move manually a dataset from client:
 exports.moveDataset = async (req, res) => {
-    const { id_dataset, workspace, state } = req.body;
+    const { run_number, dataset_name, workspace, to_state } = req.body;
     const dataset = await Dataset.findOne({
-        where: { id: id_dataset },
+        where: { run_number, name: dataset_name },
         include: [
             {
-                model: Run,
-                as: 'run',
-                attributes: ['class', 'state', 'significant', 'stop_reason']
+                model: Run
             }
         ]
     });
+    const { dataset_attributes } = dataset;
+    const new_dataset_attributes = {};
     // IF THE USER MOVES MANUALLY THE DATASET FROM GLOBAL TO OPEN AND THE DATASET WAS WAITING DQM GUI IN OTHER WORKSPACES, IT IS MOVED FROM ALL TO OPEN:
     if (
         workspace === 'global' &&
-        dataset.global_state.value === 'waiting dqm gui' &&
-        state === 'OPEN'
+        dataset_attributes.global_state === WAITING_DQM_GUI_CONSTANT &&
+        to_state === 'OPEN'
     ) {
-        for (const [workspace, column] of Object.entries(
-            offline_column_structure
+        for (const [dataset_attribute, value] of Object.entries(
+            dataset_attributes
         )) {
-            // attribute cms is not really a workspace:
             if (
-                workspace !== 'cms' &&
-                dataset[`${workspace}_state`]['value'] === 'waiting dqm gui'
+                dataset_attribute.includes('_state') &&
+                value === WAITING_DQM_GUI_CONSTANT
             ) {
-                dataset[`${workspace}_state`] = changeHistory(
-                    dataset[`${workspace}_state`],
-                    { value: state },
-                    req.get('email')
-                );
+                new_dataset_attributes[dataset_attribute] = to_state;
             }
         }
         // And finally in global:
-        dataset[`${workspace}_state`] = changeHistory(
-            dataset[`${workspace}_state`],
-            { value: state },
-            req.get('email')
-        );
+        new_dataset_attributes[`${workspace}_state`] = to_state;
     } else {
         // Or else if a user just moved for an individual workspace other than global:
-        dataset[`${workspace}_state`] = changeHistory(
-            dataset[`${workspace}_state`],
-            {
-                value: state
-            },
-            req.get('email')
-        );
+        new_dataset_attributes[`${workspace}_state`] = to_state;
     }
-    const saved_dataset = await dataset.save();
+
+    await exports.update_or_create_dataset(
+        dataset_name,
+        run_number,
+        new_dataset_attributes,
+        req
+    );
+    const saved_dataset = await Dataset.findOne({
+        where: {
+            run_number,
+            name: dataset_name
+        },
+        include: [{ model: Run }, { model: DatasetTripletCache }]
+    });
+
     res.json(saved_dataset);
 };
 
-exports.edit = async (req, res) => {
+exports.manual_edit = async (req, res) => {
+    const { workspace } = req.params;
+    const { run_number, dataset_name } = req.body;
     const dataset = await Dataset.findOne({
-        where: { id: req.body.id_dataset },
+        where: { run_number, name: dataset_name },
         include: [
             {
-                model: Run,
-                as: 'run',
-                attributes: ['class', 'state', 'significant', 'stop_reason']
+                model: Run
             }
         ]
     });
-    const { dataValues } = dataset;
     if (dataset === null) {
         throw 'Dataset not found';
     }
-    const email = req.get('email');
-    if (req.body.class) {
-        // User is editing the class name (cosmics, collision, etc...)
-        const old_class = dataValues.class.value;
-        const new_class = req.body.class;
-        if (old_class !== new_class) {
-            dataValues['class'] = changeHistory(
-                dataValues.class,
-                { value: new_class },
-                email
-            );
-        }
-    } else {
-        // User is editing triplets
-        for (const [key, val] of Object.entries(req.body)) {
-            if (typeof val === 'object') {
-                if (val.status) {
-                    const { status, comment, cause } = dataValues[key];
-                    const new_status = req.body[key].status;
-                    const new_comment = req.body[key].comment;
-                    const new_cause = req.body[key].cause;
-                    // Check if the component changed:
-                    if (
-                        status !== new_status ||
-                        comment !== new_comment ||
-                        cause !== new_cause
-                    ) {
-                        dataValues[key] = changeHistory(
-                            dataValues[key],
-                            req.body[key],
-                            email
-                        );
-                    }
-                }
-            }
-        }
+    const { dataset_attributes } = dataset;
+    if (dataset_attributes[`${workspace}_state`] !== 'OPEN') {
+        throw `Dataset is not in state OPEN for workspace: ${workspace}`;
     }
 
-    const updated_dataset = await dataset.update(dataValues);
-    res.json(updated_dataset.dataValues);
+    const new_dataset_attributes = getObjectWithAttributesThatChanged(
+        dataset_attributes,
+        req.body.dataset_attributes
+    );
+    const new_attributes_length = Object.keys(new_dataset_attributes).length;
+    if (new_attributes_length > 0) {
+        const datasetEvent = await update_or_create_dataset(
+            dataset_name,
+            run_Number,
+            new_dataset_attributes,
+            req
+        );
+    } else {
+        throw 'Nothing to update, the attributes sent are the same as those in the dataset already stored';
+    }
+    const saved_dataset = await Dataset.findOne({
+        where: {
+            run_number,
+            name: dataset_name
+        },
+        include: [{ model: Run }, { model: DatasetTripletCache }]
+    });
+    res.json(saved_dataset);
 };
 
 // visualization on popover
@@ -497,46 +501,4 @@ exports.get_lumisections = async (req, res) => {
         name
     );
     res.json(lumisections_with_empty_wholes);
-};
-
-exports.edit = async (req, res) => {
-    const { run_number, name } = req.body;
-    const dataset = await Dataset.findOne({
-        where: {
-            run_number,
-            name
-        }
-    });
-    if (dataset === null) {
-        throw 'Dataset not found';
-    }
-    const { dataset_attributes } = dataset.dataValues;
-    const new_dataset_attributes = getObjectWithAttributesThatChanged(
-        dataset_attributes,
-        req.body.dataset_attributes
-    );
-
-    const new_dataset_attributes_length = Object.keys(new_dataset_attributes)
-        .length;
-
-    if (new_dataset_attributes_length > 0) {
-        let transaction;
-        try {
-            transaction = await sequelize.transaction();
-            const datasetEvent = await update_or_create_dataset(
-                name,
-                run_number,
-                new_dataset_attributes,
-                req,
-                transaction
-            );
-            await transaction.commit();
-        } catch (err) {
-            console.log(err);
-            await transaction.rollback();
-            throw `Error updating dataset ${name} of run ${run_number}`;
-        }
-    } else {
-        throw 'Nothing to update, the attributes sent are the same as those in the dataset already stored';
-    }
 };
