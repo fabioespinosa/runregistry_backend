@@ -41,11 +41,11 @@ module.exports = {
         host: 'dbod-rr4-dev.cern.ch',
         dialect: 'postgres',
         port: 6606,
-        operatorsAliases: false,
         define: {
             // Make sequelize not pluralize the name of tables:
             freezeTableName: true
         },
+        WAITING_DQM_GUI_CONSTANT: 'waiting dqm gui',
         API_URL: 'http://localhost:9500',
         OMS_URL: `http://cmsomsapidev.cern.ch:8080/api/v1`,
         OMS_RUNS: (number_of_runs = 10) =>
