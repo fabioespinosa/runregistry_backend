@@ -58,16 +58,16 @@ module.exports = async () => {
             { transaction }
         );
 
-        await sequelize.query(
-            `
-            ALTER TABLE IF EXISTS "CycleDataset" DROP CONSTRAINT IF EXISTS "CycleDataset_datasetReference_fkey";
-            ALTER TABLE IF EXISTS "CycleDataset"
-            ADD CONSTRAINT "CycleDataset_datasetReference_fkey"
-            FOREIGN KEY (run_number, name)
-            REFERENCES "Dataset" ON UPDATE CASCADE;
-        `,
-            { transaction }
-        );
+        // await sequelize.query(
+        //     `
+        //     ALTER TABLE IF EXISTS "CycleDataset" DROP CONSTRAINT IF EXISTS "CycleDataset_datasetReference_fkey";
+        //     ALTER TABLE IF EXISTS "CycleDataset"
+        //     ADD CONSTRAINT "CycleDataset_datasetReference_fkey"
+        //     FOREIGN KEY (run_number, name)
+        //     REFERENCES "Dataset" ON UPDATE CASCADE;
+        // `,
+        //     { transaction }
+        // );
 
         // Initialize data:
         const insert_1_into_lists = [

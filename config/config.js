@@ -6,7 +6,6 @@ module.exports = {
         host: '127.0.0.1',
         logging: false,
         dialect: 'postgres',
-        operatorsAliases: false,
         define: {
             // Make sequelize not pluralize the name of tables:
             freezeTableName: true
