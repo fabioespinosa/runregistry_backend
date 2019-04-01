@@ -4,6 +4,10 @@ const Dataset = require('../controllers/dataset');
 
 module.exports = app => {
     app.post(
+        '/dc_tools/unique_dataset_names',
+        catchAPI(Dataset.getUniqueDatasetNames)
+    );
+    app.post(
         '/dc_tools/duplicate_datasets',
         auth,
         catchAPI(Dataset.duplicate_datasets)

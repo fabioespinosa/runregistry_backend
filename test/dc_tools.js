@@ -10,7 +10,7 @@ describe('Duplicate datasets', () => {
         // Add some sample run:
     });
     it('Duplicates successfully', async () => {
-        const run_numbers = ['328726', '328666', '328784'];
+        const run_numbers = ['328784', '328726', '328731'];
         const source_dataset_name = '/Express/Commissioning2018/DQM';
         const workspaces_to_duplicate_into = ['egamma', 'castor', 'btag'];
         await axios.post(
@@ -25,11 +25,9 @@ describe('Duplicate datasets', () => {
                 headers: { email: 'test@test' }
             }
         );
-        console.log('h');
+        // Cleanup
     });
-    after(async () => {
-        // Clean up
-    });
+    after(async () => {});
 });
 
 // describe('Update runs: ', () => {

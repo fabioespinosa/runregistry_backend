@@ -291,7 +291,7 @@ exports.getWaitingDatasets = async (req, res) => {
         offset,
         include
     });
-    res.json({ datasets, pages });
+    res.json({ datasets, pages, count });
 };
 
 exports.getEditableDatasets = async (req, res) => {
@@ -336,7 +336,7 @@ exports.getEditableDatasets = async (req, res) => {
         offset,
         include
     });
-    res.json({ datasets, pages });
+    res.json({ datasets, pages, count });
 };
 
 // Move manually a dataset from client:
@@ -508,34 +508,53 @@ exports.get_lumisections = async (req, res) => {
 };
 
 // DC TOOLS:
+
+// It will duplicate existing datsets, if it fails for one, it fails for all and transaction is aborted
 exports.duplicate_datasets = async (req, res) => {
     let {
         run_numbers,
         source_dataset_name,
         target_dataset_name,
-        copy_from_online_dataset,
         workspaces_to_duplicate_into
     } = req.body;
-    // If user wants lumisections, and information from online dataset, we change the source_dataset_name to 'online'
-    if (copy_from_online_dataset) {
-        source_dataset_name = 'online';
+
+    let filter = changeNameOfAllKeys(
+        {
+            name: source_dataset_name,
+            'dataset_attributes.global_state': {
+                or: [{ '=': 'OPEN' }, { '=': 'SIGNOFF' }, { '=': 'COMPLETED' }]
+            },
+            ...req.body.filter
+        },
+        conversion_operator
+    );
+    let include = [
+        {
+            model: Run,
+            attributes: ['rr_attributes']
+        }
+    ];
+    if (typeof filter['class'] !== 'undefined') {
+        include[0].where = { 'rr_attributes.class': filter['class'] };
+        delete filter['class'];
     }
 
-    // Validate that the workspace in 'workspaces_to_duplicate_into' actually exist:
+    const datasets_to_copy = await Dataset.findAll({
+        where: filter,
+        include
+    });
+    if (datasets_to_copy.length === 0) {
+        throw `No dataset found for filter criteria`;
+    }
+
+    // TODO: Validate that the workspace in 'workspaces_to_duplicate_into' actually exist:
 
     let transaction;
     try {
         transaction = await sequelize.transaction();
-        const promises = run_numbers.map(async run_number => {
-            const dataset = await Dataset.findOne({
-                where: {
-                    run_number,
-                    name: source_dataset_name
-                }
-            });
-            if (dataset === null) {
-                throw `No dataset found for ${source_dataset_name} and run number ${run_number}, aborted duplication process, no dataset were duplicated`;
-            }
+
+        const promises = datasets_to_copy.map(async dataset => {
+            const { run_number } = dataset;
             // We go through the state of every workspace, if the user included that workspace in the "copy" tool, then we copy that. If not, then we don't
             // If the user didn't include a workspace, then the duplicated dataset will not appear in such workspace (because there is no state there)
             const new_dataset_attributes = {};
@@ -584,10 +603,37 @@ exports.duplicate_datasets = async (req, res) => {
         await transaction.commit();
         // You can only fill the cache when transaction has commited:
         await fill_dataset_triplet_cache();
+        res.json({ run_numbers, target_dataset_name });
     } catch (err) {
         console.log('Error duplicating datasets');
         console.log(err);
         await transaction.rollback();
         throw `Error duplicating datasets: ${err.message}`;
     }
+};
+
+exports.getUniqueDatasetNames = async (req, res) => {
+    let filter = changeNameOfAllKeys(req.body.filter, conversion_operator);
+    let include = [
+        {
+            model: Run,
+            attributes: ['rr_attributes']
+        }
+    ];
+    if (typeof filter['class'] !== 'undefined') {
+        include[0].where = { 'rr_attributes.class': filter['class'] };
+        delete filter['class'];
+    }
+
+    const datasets_filter_criteria = await Dataset.findAll({
+        where: filter,
+        include
+    });
+    const unique_dataset_names_object = {};
+    datasets_filter_criteria.forEach(({ name }) => {
+        unique_dataset_names_object[name] = name;
+    });
+    const unique_dataset_names = Object.keys(unique_dataset_names_object);
+
+    res.json(unique_dataset_names);
 };
