@@ -143,10 +143,7 @@ const calculate_runs_to_update = (fetched_runs, last_saved_runs) => {
                     fetched_run.last_update
                 );
                 // If the last_update of fetched run is greater than that of previously saved run, we need to update the run
-                if (
-                    last_updated_fetched_run > last_updated_existing_run ||
-                    existing_run.run_number == 328788
-                ) {
+                if (last_updated_fetched_run > last_updated_existing_run) {
                     runs_to_update.push(fetched_run);
                 }
             }

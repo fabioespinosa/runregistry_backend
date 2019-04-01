@@ -419,7 +419,7 @@ exports.get_rr_lumisection_ranges_for_dataset = async (
     return ranges;
 };
 
-// Get all component lumisections:
+// Get all component lumisections (not a range):
 // Without manual changes gives us the AUTOMATIC changes without any shifters intervention:
 exports.get_rr_lumisections_for_dataset = async (
     run_number,

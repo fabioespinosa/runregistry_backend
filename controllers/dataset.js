@@ -9,7 +9,11 @@ const {
     Workspace,
     Run
 } = require('../models');
-const { get_rr_lumisections_for_dataset } = require('./lumisection');
+const {
+    get_rr_lumisections_for_dataset,
+    create_rr_lumisections
+} = require('./lumisection');
+const { fill_dataset_triplet_cache } = require('./dataset_triplet_cache');
 const { WAITING_DQM_GUI_CONSTANT } = require('../config/config')[
     process.env.ENV || 'development'
 ];
@@ -501,4 +505,89 @@ exports.get_lumisections = async (req, res) => {
         name
     );
     res.json(lumisections_with_empty_wholes);
+};
+
+// DC TOOLS:
+exports.duplicate_datasets = async (req, res) => {
+    let {
+        run_numbers,
+        source_dataset_name,
+        target_dataset_name,
+        copy_from_online_dataset,
+        workspaces_to_duplicate_into
+    } = req.body;
+    // If user wants lumisections, and information from online dataset, we change the source_dataset_name to 'online'
+    if (copy_from_online_dataset) {
+        source_dataset_name = 'online';
+    }
+
+    // Validate that the workspace in 'workspaces_to_duplicate_into' actually exist:
+
+    let transaction;
+    try {
+        transaction = await sequelize.transaction();
+        const promises = run_numbers.map(async run_number => {
+            const dataset = await Dataset.findOne({
+                where: {
+                    run_number,
+                    name: source_dataset_name
+                }
+            });
+            if (dataset === null) {
+                throw `No dataset found for ${source_dataset_name} and run number ${run_number}, aborted duplication process, no dataset were duplicated`;
+            }
+            // We go through the state of every workspace, if the user included that workspace in the "copy" tool, then we copy that. If not, then we don't
+            // If the user didn't include a workspace, then the duplicated dataset will not appear in such workspace (because there is no state there)
+            const new_dataset_attributes = {};
+            for (const [key, val] of Object.entries(
+                dataset.dataValues.dataset_attributes
+            )) {
+                if (key.includes('_state')) {
+                    const key_workspace = key.split('_state')[0];
+                    if (workspaces_to_duplicate_into.includes(key_workspace)) {
+                        new_dataset_attributes[key] = val;
+                    }
+                } else {
+                    // All other attributes not regarding state, we copy to the new_dataset_attributes:
+                    new_dataset_attributes[key] = val;
+                }
+            }
+
+            // If there was a newly created workspace sent, and it wasn't saved before on the dataset, we should still add the state to the dataset, and set it to pending:
+            // So that it shows up in the newly created workspace:
+            workspaces_to_duplicate_into.forEach(workspace => {
+                new_dataset_attributes[`${workspace}_state`] =
+                    new_dataset_attributes[`${workspace}_state`] ||
+                    WAITING_DQM_GUI_CONSTANT;
+            });
+
+            await exports.update_or_create_dataset(
+                target_dataset_name,
+                run_number,
+                new_dataset_attributes,
+                req,
+                transaction
+            );
+            const original_lumisections = await get_rr_lumisections_for_dataset(
+                run_number,
+                source_dataset_name
+            );
+            const saved_rr_lumisections = await create_rr_lumisections(
+                run_number,
+                target_dataset_name,
+                original_lumisections,
+                req,
+                transaction
+            );
+        });
+        await Promise.all(promises);
+        await transaction.commit();
+        // You can only fill the cache when transaction has commited:
+        await fill_dataset_triplet_cache();
+    } catch (err) {
+        console.log('Error duplicating datasets');
+        console.log(err);
+        await transaction.rollback();
+        throw `Error duplicating datasets: ${err.message}`;
+    }
 };

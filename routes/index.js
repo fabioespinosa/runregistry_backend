@@ -6,6 +6,7 @@ const lumisection = require('./lumisection');
 const workspace = require('./workspace');
 const datasets_accepted = require('./datasets_accepted');
 const cycle = require('./cycle');
+const dc_tools = require('./dc_tools');
 
 module.exports = function(app) {
     classifier(app);
@@ -16,4 +17,5 @@ module.exports = function(app) {
     workspace(app);
     datasets_accepted(app);
     cycle(app);
+    dc_tools(app);
 };

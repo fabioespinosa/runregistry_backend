@@ -11,6 +11,10 @@ const id = 'WL_id';
 
 exports.getAll = async (req, res) => {
     const workspaces = await findAllItems(WorkspaceList, Workspace);
+    // Sort alphabetically:
+    workspaces.sort((a, b) =>
+        a.workspace !== b.workspace ? (a.workspace < b.workspace ? -1 : 1) : 0
+    );
     res.json(workspaces);
 };
 
