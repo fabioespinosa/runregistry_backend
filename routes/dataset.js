@@ -3,11 +3,11 @@ const auth = require('../auth/authenticate');
 const { catchAPIError: catchAPI } = require('../utils/error_handlers');
 
 module.exports = app => {
-    app.get('/datasets/:id_dataset', catchAPI(Dataset.getDataset));
     app.get('/datasets_waiting', catchAPI(Dataset.getDatasetsWaiting));
     app.get('/datasets_waiting_dbs', catchAPI(Dataset.getDatasetsWaitingDBS));
     app.get('/datasets/workspace/:pog', catchAPI(Dataset.getSpecificWorkspace));
     app.post('/dataset_appeared_in_dbs', catchAPI(Dataset.appearedInDBS));
+    app.post('/datasets/get_dataset', catchAPI(Dataset.getDataset));
     app.post(
         '/dataset_appeared_in_dqm_gui',
         catchAPI(Dataset.appearedInDQMGUI)

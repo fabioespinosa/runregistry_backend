@@ -120,7 +120,14 @@ exports.getDatasets = async (req, res) => {
 };
 
 exports.getDataset = async (req, res) => {
-    const dataset = await Dataset.findByPk(req.params.id_dataset);
+    const { run_number, dataset_name } = req.body;
+    const dataset = await Dataset.findOne({
+        where: {
+            run_number,
+            name: dataset_name
+        },
+        include: [{ model: Run }, { model: DatasetTripletCache }]
+    });
     res.json(dataset);
 };
 

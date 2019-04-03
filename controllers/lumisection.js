@@ -9,7 +9,6 @@ const {
     OMSLumisectionEvent,
     OMSLumisectionEventAssignation
 } = require('../models');
-const { update_or_create_dataset } = require('./dataset');
 const {
     oms_lumisection_whitelist,
     online_components
@@ -660,7 +659,7 @@ exports.edit_rr_lumisections = async (req, res) => {
         }
     };
     if (dataset_name === 'online') {
-        const run = Run.findByPk(run_number);
+        const run = await Run.findByPk(run_number);
         if (run.rr_attributes.state !== 'OPEN') {
             throw 'Run must be in state OPEN to be edited';
         }
@@ -692,6 +691,7 @@ exports.edit_rr_lumisections = async (req, res) => {
             transaction
         );
         // Bump the version in the dataset so the fill_dataset_triplet_cache will know that the lumisections inside it changed, and so can refill the cache:
+        const { update_or_create_dataset } = require('./dataset');
         const datasetEvent = await update_or_create_dataset(
             dataset_name,
             run_number,

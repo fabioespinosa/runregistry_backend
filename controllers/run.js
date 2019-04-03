@@ -141,7 +141,14 @@ exports.getAll = async (req, res) => {
 };
 
 exports.getOne = async (req, res) => {
-    const run = await Run.findByPk(req.params.run_number);
+    const run = await Run.findByPk(req.params.run_number, {
+        include: [
+            {
+                model: DatasetTripletCache,
+                attributes: ['triplet_summary']
+            }
+        ]
+    });
     res.json(run);
 };
 
