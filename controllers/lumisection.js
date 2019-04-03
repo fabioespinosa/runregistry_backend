@@ -1,13 +1,15 @@
 const axios = require('axios');
 const sequelize = require('../models').sequelize;
-const Dataset = require('../models').Dataset;
 const {
+    Run,
+    Dataset,
     Event,
     LumisectionEvent,
     LumisectionEventAssignation,
     OMSLumisectionEvent,
     OMSLumisectionEventAssignation
 } = require('../models');
+const { update_or_create_dataset } = require('./dataset');
 const {
     oms_lumisection_whitelist,
     online_components
@@ -657,6 +659,20 @@ exports.edit_rr_lumisections = async (req, res) => {
             cause
         }
     };
+    if (dataset_name === 'online') {
+        const run = Run.findByPk(run_number);
+        if (run.rr_attributes.state !== 'OPEN') {
+            throw 'Run must be in state OPEN to be edited';
+        }
+    } else {
+        // TODO: validate the dataset state is OPEN in this workspace
+        const dataset = Dataset.findOne({
+            where: {
+                name: dataset_name,
+                run_number
+            }
+        });
+    }
     // For consistency we want triplet values to be either their value or empty string:
     status = status || '';
     comment = comment || '';
@@ -686,10 +702,11 @@ exports.edit_rr_lumisections = async (req, res) => {
         await transaction.commit();
         await fill_dataset_triplet_cache();
         res.json(new_range);
-    } catch (e) {
+    } catch (err) {
         console.log(err);
         await transaction.rollback();
-        throw `Error updating lumisections of ${dataset_name} dataset, run number: ${run_number}`;
+        throw `Error updating lumisections of ${dataset_name} dataset, run number: ${run_number}: ${err.message ||
+            err}`;
     }
 };
 exports.get_rr_and_oms_lumisection_ranges = async (req, res) => {

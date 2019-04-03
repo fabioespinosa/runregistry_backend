@@ -1,7 +1,7 @@
 const exec = require('child_process').exec;
 let { Cookie, CookieMap, CookieError } = require('cookiefile');
 
-const bash_script2 = `kinit fespinos@CERN.CH -k -t /srv/runregistry_node/runregistry.keytab && cern-get-sso-cookie -u https://cmsoms.cern.ch/ -o ${__dirname}/cookie.txt --krb`;
+const bash_script2 = `kinit f.e@CERN.CH -k -t /srv/runregistry_node/runregistry.keytab && cern-get-sso-cookie -u https://cmsoms.cern.ch/ -o ${__dirname}/cookie.txt --krb`;
 const bash_script = `cern-get-sso-cookie -u https://cmsoms.cern.ch/ -o ${__dirname}/cookie.txt --krb`;
 // This will get a cookie to make an authenticated request to CMS OMS. It will not run on a machine that is not in openstack.
 exports.get_cookie = () =>

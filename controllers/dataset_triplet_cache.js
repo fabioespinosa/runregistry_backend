@@ -90,6 +90,7 @@ exports.processDatasets = async (dataset_batch, transaction) => {
             const components_present_in_dataset = [];
             merged_lumisections.forEach(({ triplets }) => {
                 for (const [component, val] of Object.entries(triplets)) {
+                    // component is the key, val is the value
                     if (!components_present_in_dataset.includes(component)) {
                         components_present_in_dataset.push(component);
                     }
@@ -138,9 +139,15 @@ exports.processDatasets = async (dataset_batch, transaction) => {
                                     comment !== '' &&
                                     typeof comment !== 'undefined'
                                 ) {
-                                    triplet_summary[component].comments.push(
-                                        comment
-                                    );
+                                    if (
+                                        !triplet_summary[
+                                            component
+                                        ].comments.includes(comment)
+                                    ) {
+                                        triplet_summary[
+                                            component
+                                        ].comments.push(comment);
+                                    }
                                 }
 
                                 // We add the cause (if any)
@@ -148,9 +155,15 @@ exports.processDatasets = async (dataset_batch, transaction) => {
                                     cause !== '' &&
                                     typeof cause !== 'undefined'
                                 ) {
-                                    triplet_summary[component].causes.push(
-                                        cause
-                                    );
+                                    if (
+                                        !triplet_summary[
+                                            component
+                                        ].causes.includes(cause)
+                                    ) {
+                                        triplet_summary[component].causes.push(
+                                            cause
+                                        );
+                                    }
                                 }
                             } else {
                                 // If the triplet for this particular change is not in there, it was empty, so we add 1 to the count

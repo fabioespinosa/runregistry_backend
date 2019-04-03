@@ -30,6 +30,8 @@ exports.testClassifier = async (req, res) => {
         run_data: run
     });
 };
+
+// TODO: Should refresh run
 exports.getRunInfo = async (req, res) => {
     const { run_number } = req.params;
     const previously_saved_run = await Run.findByPk(run_number);

@@ -400,11 +400,14 @@ exports.refreshRunClassAndComponents = async (req, res) => {
     const { run_number } = req.params;
     const email = req.get('email');
     const previously_saved_run = await Run.findByPk(run_number);
+    if (previously_saved_run === null) {
+        throw 'Run not found';
+    }
     if (previously_saved_run.rr_attributes.state !== 'OPEN') {
         throw 'Run must be in state OPEN to be refreshed';
     }
 
-    await manually_update_a_run([fetched_run[0].attributes], {
+    await manually_update_a_run(run_number, {
         email,
         comment: `${email} requested refresh from OMS`
     });

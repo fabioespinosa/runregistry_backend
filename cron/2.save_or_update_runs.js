@@ -220,9 +220,9 @@ exports.manually_update_a_run = async (
     { email, comment, manually_significant }
 ) => {
     // get rr_attributes:
-    const {
-        data: { data: saved_run }
-    } = await axios.get(`${API_URL}/runs/${run_number}`);
+    const { data: saved_run } = await axios.get(
+        `${API_URL}/runs/${run_number}`
+    );
     const previous_rr_attributes = saved_run.rr_attributes;
 
     if (previous_rr_attributes.state !== 'OPEN') {
