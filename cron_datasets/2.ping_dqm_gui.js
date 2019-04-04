@@ -9,7 +9,6 @@ const axios = require('axios').create({
         passphrase: 'passphrase'
     })
 });
-const json_logic = require('json-logic-js');
 const splitRegex = require('./pinging_utils').splitRegex;
 const { handleErrors } = require('../utils/error_handlers');
 const {

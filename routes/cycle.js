@@ -7,7 +7,7 @@ module.exports = app => {
     app.put(
         '/cycles/mark_cycle_complete/:workspace',
         auth,
-        Cycle.markCycleCompletedInWorkspace
+        catchAPI(Cycle.markCycleCompletedInWorkspace)
     );
     app.post('/cycles', auth, catchAPI(Cycle.add));
     app.post('/cycles/add_datasets', auth, catchAPI(Cycle.addDatasetsToCycle));

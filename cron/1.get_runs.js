@@ -3,7 +3,10 @@ const https = require('https');
 const CronJob = require('cron').CronJob;
 const axios = require('axios').create({
     httpsAgent: new https.Agent({
-        rejectUnauthorized: false
+        rejectUnauthorized: false,
+        cert: fs.readFileSync('./cron_datasets/usercert.pem'),
+        key: fs.readFileSync('./cron_datasets/userkey.pem'),
+        passphrase: 'passphrase'
     })
 });
 const { handleErrors } = require('../utils/error_handlers');

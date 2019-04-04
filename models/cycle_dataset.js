@@ -11,6 +11,11 @@ module.exports = (sequelize, DataTypes) => {
                 type: DataTypes.INTEGER,
                 allowNull: false,
                 primaryKey: true
+            },
+            name: {
+                type: DataTypes.TEXT,
+                allowNull: false,
+                primaryKey: true
             }
         },
         {
@@ -26,12 +31,19 @@ module.exports = (sequelize, DataTypes) => {
                 name: 'id_cycle'
             }
         });
-
-        CycleDataset.belongsTo(models.Run, {
-            constraints: false,
-            foreignKey: 'run_number',
-            sourceKey: 'run_number'
+        CycleDataset.hasMany(models.Dataset, {
+            foreignKey: 'name',
+            sourceKey: 'name',
+            scope: {
+                run_number: sequelize.where(
+                    sequelize.col('CycleDataset.run_number'),
+                    '=',
+                    sequelize.col('CycleDataset->Datasets.run_number')
+                )
+            }
         });
+
+        // Until sequelize supports multiple foreign keys
     };
     return CycleDataset;
 };

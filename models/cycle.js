@@ -13,13 +13,8 @@ module.exports = (sequelize, DataTypes) => {
         }
     });
     Cycle.associate = function(models) {
-        // Cycle.hasMany(models.CycleDataset, {
-        //     foreignKey: 'id_cycle'
-        // });
-        Cycle.belongsToMany(models.Run, {
-            through: models.CycleDataset,
-            foreignKey: 'id_cycle',
-            otherKey: 'run_number'
+        Cycle.hasMany(models.CycleDataset, {
+            foreignKey: 'id_cycle'
         });
     };
     return Cycle;
