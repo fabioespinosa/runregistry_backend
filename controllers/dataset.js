@@ -253,6 +253,20 @@ exports.appearedInDQMGUI = async (req, res) => {
 };
 
 exports.getWaitingDatasets = async (req, res) => {
+    // A user can filter on triplets, or on any other field
+    // If the user filters by triplets, then :
+    let triplet_summary_filter = {};
+    for (const [key, val] of Object.entries(req.body.filter)) {
+        if (key.includes('triplet_summary')) {
+            triplet_summary_filter[key] = val;
+            delete req.body.filter[key];
+        }
+    }
+    triplet_summary_filter = changeNameOfAllKeys(
+        triplet_summary_filter,
+        conversion_operator
+    );
+    // If a user filters by anything else:
     const { workspace, page } = req.params;
     const { sortings, page_size } = req.body;
     let filter = changeNameOfAllKeys(
@@ -278,6 +292,7 @@ exports.getWaitingDatasets = async (req, res) => {
         },
         {
             model: DatasetTripletCache,
+            where: triplet_summary_filter,
             attributes: ['triplet_summary']
         }
     ];
@@ -302,6 +317,21 @@ exports.getWaitingDatasets = async (req, res) => {
 };
 
 exports.getEditableDatasets = async (req, res) => {
+    // A user can filter on triplets, or on any other field
+    // If the user filters by triplets, then :
+    let triplet_summary_filter = {};
+    for (const [key, val] of Object.entries(req.body.filter)) {
+        if (key.includes('triplet_summary')) {
+            triplet_summary_filter[key] = val;
+            delete req.body.filter[key];
+        }
+    }
+    triplet_summary_filter = changeNameOfAllKeys(
+        triplet_summary_filter,
+        conversion_operator
+    );
+    // If a user filters by anything else:
+
     const { workspace, page } = req.params;
     const { sortings, page_size } = req.body;
     let filter = changeNameOfAllKeys(
@@ -323,6 +353,7 @@ exports.getEditableDatasets = async (req, res) => {
         },
         {
             model: DatasetTripletCache,
+            where: triplet_summary_filter,
             attributes: ['triplet_summary']
         }
     ];
@@ -330,7 +361,7 @@ exports.getEditableDatasets = async (req, res) => {
         include[0].where = { 'rr_attributes.class': filter['class'] };
         delete filter['class'];
     }
-    const { count } = await Dataset.findAndCountAll({
+    const { count } = await Dataset.count({
         where: filter,
         include
     });
@@ -517,9 +548,9 @@ exports.get_lumisections = async (req, res) => {
 // DC TOOLS:
 
 // It will duplicate existing datsets, if it fails for one, it fails for all and transaction is aborted
+// It comes with a filter that comes from front end, we will query for the datasets that match the filter AND that are not in a 'waiting dqm gui' global_state
 exports.duplicate_datasets = async (req, res) => {
     let {
-        run_numbers,
         source_dataset_name,
         target_dataset_name,
         workspaces_to_duplicate_into
@@ -570,7 +601,10 @@ exports.duplicate_datasets = async (req, res) => {
             )) {
                 if (key.includes('_state')) {
                     const key_workspace = key.split('_state')[0];
-                    if (workspaces_to_duplicate_into.includes(key_workspace)) {
+                    if (
+                        workspaces_to_duplicate_into.includes(key_workspace) ||
+                        key_workspace === 'global'
+                    ) {
                         new_dataset_attributes[key] = val;
                     }
                 } else {
@@ -606,11 +640,32 @@ exports.duplicate_datasets = async (req, res) => {
                 transaction
             );
         });
+
         await Promise.all(promises);
         await transaction.commit();
         // You can only fill the cache when transaction has commited:
         await fill_dataset_triplet_cache();
-        res.json({ run_numbers, target_dataset_name });
+
+        const saved_datasets_promises = datasets_to_copy.map(
+            async ({ run_number, name }) => {
+                const saved_dataset = await Dataset.findOne({
+                    where: {
+                        run_number,
+                        name: target_dataset_name
+                    },
+                    include: [
+                        {
+                            model: Run,
+                            attributes: ['rr_attributes']
+                        },
+                        { model: DatasetTripletCache }
+                    ]
+                });
+                return saved_dataset;
+            }
+        );
+        const saved_datasets = await Promise.all(saved_datasets_promises);
+        res.json(saved_datasets);
     } catch (err) {
         console.log('Error duplicating datasets');
         console.log(err);
@@ -620,7 +675,15 @@ exports.duplicate_datasets = async (req, res) => {
 };
 
 exports.getUniqueDatasetNames = async (req, res) => {
-    let filter = changeNameOfAllKeys(req.body.filter, conversion_operator);
+    let filter = changeNameOfAllKeys(
+        {
+            'dataset_attributes.global_state': {
+                or: [{ '=': 'OPEN' }, { '=': 'SIGNOFF' }, { '=': 'COMPLETED' }]
+            },
+            ...req.body.filter
+        },
+        conversion_operator
+    );
     let include = [
         {
             model: Run,
