@@ -47,15 +47,80 @@ exports.getOneInternal = async id_cycle => {
 
 exports.add = async (req, res) => {
     const { cycle_attributes, deadline } = req.body;
-    const cycle = await Cycle.create({
-        cycle_attributes: cycle_attributes || {},
-        deadline,
-        deleted: false
-    });
-    req.body.id_cycle = cycle.id_cycle;
-    await exports.addDatasetsToCycle(req, res);
+    let transaction;
+    try {
+        transaction = await sequelize.transaction();
+
+        const cycle = await Cycle.create(
+            {
+                cycle_attributes: cycle_attributes || {},
+                deadline,
+                deleted: false
+            },
+            { transaction }
+        );
+        const { id_cycle } = cycle;
+        // A filter comes, and we must reproduce that filter to get the dataset that were displayed on the lower table to add them to the cycle
+        let filter = changeNameOfAllKeys(
+            {
+                'dataset_attributes.global_state': {
+                    or: [
+                        { '=': 'OPEN' },
+                        { '=': 'SIGNOFF' },
+                        { '=': 'COMPLETED' }
+                    ]
+                },
+                ...req.body.filter
+            },
+            conversion_operator
+        );
+        let include = [
+            {
+                model: Run,
+                attributes: ['rr_attributes']
+            }
+        ];
+        if (typeof filter['class'] !== 'undefined') {
+            include[0].where = { 'rr_attributes.class': filter['class'] };
+            delete filter['class'];
+        }
+
+        const selected_datasets = await Dataset.findAll({
+            where: filter,
+            include
+        });
+        if (selected_datasets.length === 0) {
+            throw `No dataset found for filter criteria, select at least 1 dataset`;
+        }
+
+        const datasets_promises = selected_datasets.map(
+            async ({ run_number, name }) => {
+                if (!run_number || !name) {
+                    throw 'run_number and name of the dataset must be valid';
+                }
+                const cycle_datasets = await CycleDataset.create(
+                    {
+                        id_cycle,
+                        run_number,
+                        name
+                    },
+                    { transaction }
+                );
+            }
+        );
+        await Promise.all(datasets_promises);
+        await transaction.commit();
+        const saved_cycle = await exports.getOneInternal(id_cycle);
+        res.json(saved_cycle);
+    } catch (err) {
+        console.log(err);
+        await transaction.rollback();
+        throw `Error creating cycle: ${err}`;
+    }
 };
 exports.getAll = async (req, res) => {
+    const { workspace } = req.params;
+    const workspace_state = `cycle_attributes.${workspace}_state`;
     let cycles = await Cycle.findAll({
         include: [
             {
@@ -64,8 +129,16 @@ exports.getAll = async (req, res) => {
             }
         ],
         where: {
+            [Op.or]: [
+                { [workspace_state]: 'pending' },
+                { [workspace_state]: 'completed' }
+            ],
             deleted: false
-        }
+        },
+        order: [
+            [sequelize.json(`cycle_attributes.${workspace_state}`), 'desc'],
+            ['deadline', 'asc']
+        ]
     });
     // To add the datasets property to each cycle:
     cycles = cycles.map(({ dataValues }) => {
@@ -87,57 +160,7 @@ exports.getOne = async (req, res) => {
     res.json(cycle);
 };
 
-exports.addDatasetsToCycle = async (req, res) => {
-    // A filter comes, and we must reproduce that filter to get the dataset that were displayed on the lower table to add them to the cycle
-    let filter = changeNameOfAllKeys(
-        {
-            name: source_dataset_name,
-            'dataset_attributes.global_state': {
-                or: [{ '=': 'OPEN' }, { '=': 'SIGNOFF' }, { '=': 'COMPLETED' }]
-            },
-            ...req.body.filter
-        },
-        conversion_operator
-    );
-    let include = [
-        {
-            model: Run,
-            attributes: ['rr_attributes']
-        }
-    ];
-    if (typeof filter['class'] !== 'undefined') {
-        include[0].where = { 'rr_attributes.class': filter['class'] };
-        delete filter['class'];
-    }
-
-    const selected_datasets = await Dataset.findAll({
-        where: filter,
-        include
-    });
-    if (selected_datasets.length === 0) {
-        throw `No dataset found for filter criteria`;
-    }
-
-    const { id_cycle } = req.body;
-    const cycle = await Cycle.findByPk(id_cycle);
-    if (!cycle) {
-        throw 'This cycle does not exist ';
-    }
-    const datasets_promises = selected_datasets.map(
-        async ({ run_number, name }) => {
-            if (!run_number || !name) {
-                throw 'run_number and name of the dataset must be valid';
-            }
-            const cycle_datasets = await CycleDataset.create({
-                id_cycle,
-                run_number,
-                name
-            });
-        }
-    );
-    await Promise.all(datasets_promises);
-    await exports.getOne(req, res);
-};
+exports.addDatasetsToCycle = async (req, res) => {};
 
 exports.delete = async (req, res) => {
     const { id_cycle } = req.body;
@@ -152,18 +175,6 @@ exports.delete = async (req, res) => {
 exports.deleteDatasetFromCycle = async (req, res) => {};
 
 exports.signOffDatasetsInCycle = async (req, res) => {};
-
-exports.getSignedOffRunNumbers = async (req, res) => {
-    const unique_run_numbers = await Dataset.findAll({
-        where: {
-            name: { [Op.ne]: 'online' }
-        },
-        attributes: ['run_number'],
-        group: ['run_number'],
-        order: [['run_number', 'DESC']]
-    });
-    res.json(unique_run_numbers);
-};
 
 exports.markCycleCompletedInWorkspace = async (req, res) => {
     const { workspace } = req.params;

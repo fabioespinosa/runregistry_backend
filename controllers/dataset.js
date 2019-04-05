@@ -361,7 +361,7 @@ exports.getEditableDatasets = async (req, res) => {
         include[0].where = { 'rr_attributes.class': filter['class'] };
         delete filter['class'];
     }
-    const { count } = await Dataset.count({
+    const count = await Dataset.count({
         where: filter,
         include
     });
