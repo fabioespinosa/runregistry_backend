@@ -129,10 +129,6 @@ exports.getAll = async (req, res) => {
             }
         ],
         where: {
-            [Op.or]: [
-                { [workspace_state]: 'pending' },
-                { [workspace_state]: 'completed' }
-            ],
             deleted: false
         },
         order: [
