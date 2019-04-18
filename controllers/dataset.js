@@ -218,9 +218,14 @@ exports.appearedInDQMGUI = async (req, res) => {
     if (appeared_in.includes('DQM GUI')) {
         throw 'already marked as appeared in DQM GUI';
     }
-    await exports.update_or_create_dataset(dataset_name, run_number, {
-        appeared_in: appeared_in.concat('DQM GUI')
-    });
+    await exports.update_or_create_dataset(
+        dataset_name,
+        run_number,
+        {
+            appeared_in: appeared_in.concat('DQM GUI')
+        },
+        req
+    );
     const saved_dataset = await Dataset.findOne({
         where: {
             run_number,
