@@ -11,6 +11,7 @@ const {
 } = require('../models');
 const {
     get_rr_lumisections_for_dataset,
+    get_oms_lumisections_for_dataset,
     create_rr_lumisections
 } = require('./lumisection');
 const { fill_dataset_triplet_cache } = require('./dataset_triplet_cache');
@@ -154,15 +155,15 @@ exports.getDatasetsWaitingDBS = async (req, res) => {
 };
 
 exports.getSpecificWorkspace = async (req, res) => {
-    const columns = await Workspace.findAll({
-        where: {
-            pog: req.params.pog
-        }
-    });
-    const datasets = await Dataset.findAll({
-        include: [req.params.pog, ...columns]
-    });
-    res.json(datasets);
+    // const columns = await Workspace.findAll({
+    //     where: {
+    //         pog: req.params.pog
+    //     }
+    // });
+    // const datasets = await Dataset.findAll({
+    //     include: [req.params.pog, ...columns]
+    // });
+    // res.json(datasets);
 };
 
 exports.appearedInDBS = async (req, res) => {
@@ -536,7 +537,7 @@ exports.getLumisectionBar = async (req, res) => {
 };
 
 // Get all component lumisections:
-exports.get_lumisections = async (req, res) => {
+exports.get_rr_lumisections = async (req, res) => {
     const { run_number, name } = req.body;
     const lumisections_with_empty_wholes = await get_rr_lumisections_for_dataset(
         run_number,
@@ -544,7 +545,14 @@ exports.get_lumisections = async (req, res) => {
     );
     res.json(lumisections_with_empty_wholes);
 };
-
+exports.get_oms_lumisections = async (req, res) => {
+    const { run_number, name } = req.body;
+    const lumisections_with_empty_wholes = await get_oms_lumisections_for_dataset(
+        run_number,
+        name
+    );
+    res.json(lumisections_with_empty_wholes);
+};
 // DC TOOLS:
 
 // It will duplicate existing datsets, if it fails for one, it fails for all and transaction is aborted

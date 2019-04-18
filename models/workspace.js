@@ -2,22 +2,13 @@ module.exports = (sequelize, DataTypes) => {
     const Workspace = sequelize.define(
         'Workspace',
         {
-            id: {
-                type: DataTypes.INTEGER,
-                primaryKey: true,
-                autoIncrement: true
-            },
             workspace: {
-                type: DataTypes.STRING,
-                allowNull: false
-            },
-            columns: {
-                type: DataTypes.JSONB,
-                allowNull: false
+                type: DataTypes.TEXT,
+                allowNull: false,
+                primaryKey: true
             }
         },
         {
-            updatedAt: false,
             name: {
                 singular: 'Workspace',
                 plural: 'Workspace'
@@ -25,10 +16,9 @@ module.exports = (sequelize, DataTypes) => {
         }
     );
     Workspace.associate = function(models) {
-        Workspace.belongsToMany(models.WorkspaceList, {
-            through: models.WorkspaceEntries,
-            foreignKey: 'id',
-            otherKey: 'WL_id'
+        Workspace.hasMany(models.WorkspaceColumn, {
+            as: 'columns',
+            foreignKey: 'workspace'
         });
     };
     return Workspace;

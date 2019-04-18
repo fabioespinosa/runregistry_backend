@@ -113,6 +113,7 @@ const update_or_create_run = async (
         throw `Error updating/saving run ${run_number}, ${err.message}`;
     }
 };
+exports.update_run = update_or_create_run;
 
 const { Op } = Sequelize;
 const conversion_operator = {

@@ -7,15 +7,17 @@ module.exports = (sequelize, DataTypes) => {
                 primaryKey: true,
                 autoIncrement: true
             },
-            status: { type: DataTypes.STRING, allowNull: false },
-            component: { type: DataTypes.STRING, allowNull: false },
-            classifier: { type: DataTypes.JSONB, allowNull: false },
-            priority: { type: DataTypes.INTEGER, allowNull: false },
-            enabled: { type: DataTypes.BOOLEAN, allowNull: false },
-            workspace: {
+            status: {
+                type: DataTypes.STRING,
+                allowNull: false
+            },
+            component: {
                 type: DataTypes.INTEGER,
                 allowNull: false
-            }
+            },
+            classifier: { type: DataTypes.JSONB, allowNull: false },
+            priority: { type: DataTypes.INTEGER, allowNull: false },
+            enabled: { type: DataTypes.BOOLEAN, allowNull: false }
         },
         {
             updatedAt: false,
@@ -34,8 +36,8 @@ module.exports = (sequelize, DataTypes) => {
                 otherKey: 'OCPCL_id'
             }
         );
-        OfflineComponentClassifier.belongsTo(models.Workspace, {
-            foreignKey: 'workspace'
+        OfflineComponentClassifier.belongsTo(models.WorkspaceColumn, {
+            foreignKey: 'component'
         });
     };
     return OfflineComponentClassifier;

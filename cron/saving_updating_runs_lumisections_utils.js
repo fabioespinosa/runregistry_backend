@@ -185,11 +185,15 @@ exports.assign_lumisection_component_status = handleErrors(
 
             // For each online component:
             online_components.forEach(component => {
+                // Filter the classifiers of this component:
+                const component_classifiers = classifiers.filter(
+                    classifier => classifier.component === component
+                );
                 lumisection_components[
                     component
                 ] = exports.classify_component_per_lumisection(
                     run_and_lumisection_attributes,
-                    classifiers,
+                    component_classifiers,
                     component
                 );
             });
@@ -203,14 +207,8 @@ exports.assign_lumisection_component_status = handleErrors(
 // This method is also used when a dataset is signed off to classify datasets into component classifiers.
 exports.classify_component_per_lumisection = (
     run_and_lumisection_attributes,
-    classifiers,
-    component_name
+    component_classifiers
 ) => {
-    // Filter the classifiers of this component:
-    const component_classifiers = classifiers.filter(
-        classifier => classifier.component === component_name
-    );
-
     // Setup a hash of the classifier of this specific component by status (so that it can be accessed later)
     const component_classifiers_indexed_by_status = {};
     component_classifiers.forEach(classifier => {
@@ -226,23 +224,32 @@ exports.classify_component_per_lumisection = (
 
     // And then for each classifier inside the component, we find its priority and check if its superior then the actual one
     component_classifiers.forEach(classifier => {
-        const classifier_json = JSON.parse(classifier.classifier);
+        if (classifier.enabled) {
+            const classifier_json = JSON.parse(classifier.classifier);
 
-        // If it passes the classifier test for this lumisection:
-        if (json_logic.apply(classifier_json, run_and_lumisection_attributes)) {
-            const assigned_status = classifier.status;
-            // We have to compare priorities to the previous one assigned
-            const previous_status = calculated_triplet.status;
-            // In priority the less, the more priority, priority 1 is more important than priority 2:
-            // If the newly calculated status has higher priority than the previous one, then assigned it to the triplet (the classifier by default returns NO VALUE FOUND if it does not pass the test)
+            // If it passes the classifier test for this lumisection:
             if (
-                previous_status === 'NO VALUE FOUND' ||
-                component_classifiers_indexed_by_status[assigned_status]
-                    .priority <
-                    component_classifiers_indexed_by_status[previous_status]
-                        .priority
+                json_logic.apply(
+                    classifier_json,
+                    run_and_lumisection_attributes
+                )
             ) {
-                calculated_triplet.status = assigned_status;
+                const assigned_status = classifier.status;
+                // We have to compare priorities to the previous one assigned
+                const previous_status = calculated_triplet.status;
+                // In priority the less, the more priority, priority 1 is more important than priority 2:
+                // If the newly calculated status has higher priority than the previous one, then assigned it to the triplet (the classifier by default returns NO VALUE FOUND if it does not pass the test)
+                if (
+                    previous_status === 'NO VALUE FOUND' ||
+                    component_classifiers_indexed_by_status[assigned_status]
+                        .priority <
+                        component_classifiers_indexed_by_status[previous_status]
+                            .priority
+                ) {
+                    calculated_triplet.status = assigned_status;
+                    // Add online comment and cause here:
+                    // calculated_triplet.comment = // criteria for comment
+                }
             }
         }
     });

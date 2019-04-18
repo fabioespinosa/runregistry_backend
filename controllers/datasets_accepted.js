@@ -4,11 +4,7 @@ const DatasetsAcceptedList = require('../models').DatasetsAcceptedList;
 const {
     findAllItems,
     findAllItemsFiltered,
-    generateNewItem,
-    generateNewList,
-    getCurrentEntries,
-    generateNewEntries,
-    generateNewSettings
+    saveNewItem
 } = require('./version_tracking_helpers');
 
 // Still missing to be changed to versioned items

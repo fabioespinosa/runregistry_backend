@@ -25,11 +25,24 @@ exports.findAllItems = async (List, Item) => {
 };
 
 // This will join the Item with the Setting configuration of higher ID (the current one).
-exports.findAllItemsFiltered = async (List, Item, conditions) => {
+exports.findAllItemsFiltered = async (List, Item, conditions, include) => {
     const max_settings_id = await Settings.max('id');
+    if (!include) {
+        include = [];
+    }
     return await Item.findAll({
         ...conditions,
-        include: include_conditions(List, max_settings_id)
+        include: include.concat(include_conditions(List, max_settings_id))
+    });
+};
+
+exports.findAllItemsWithInclude = async (List, Item, include) => {
+    if (!include) {
+        include = [];
+    }
+    const max_settings_id = await Settings.max('id');
+    return await Item.findAll({
+        include: include.concat(include_conditions(List, max_settings_id))
     });
 };
 

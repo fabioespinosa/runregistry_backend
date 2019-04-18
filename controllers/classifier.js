@@ -1,7 +1,7 @@
-const Settings = require('../models').Settings;
 const {
     findAllItems,
     findAllItemsFiltered,
+    findAllItemsWithInclude,
     saveNewItem,
     editItem,
     deleteItem
@@ -26,7 +26,10 @@ const {
 
     OfflineComponentClassifier,
     OfflineComponentClassifierEntries,
-    OfflineComponentClassifierList
+    OfflineComponentClassifierList,
+
+    Workspace,
+    WorkspaceColumn
 } = require('../models');
 
 // Allows us to set the Classifier dynamically
@@ -77,6 +80,27 @@ exports.getClassifiers = async (req, res) => {
     res.json(classifiers);
 };
 
+exports.getOfflineComponentClassifiers = async (req, res) => {
+    const include = [
+        {
+            model: WorkspaceColumn,
+            include: [{ model: Workspace }]
+        }
+    ];
+    // This will join the Classifiers with the Setting configuration of higher ID (the current one).
+    let classifiers = await findAllItemsWithInclude(
+        OfflineComponentClassifierList,
+        OfflineComponentClassifier,
+        include
+    );
+    // We convert the classifier into a string:
+    classifiers = classifiers.map(({ dataValues }) => ({
+        ...dataValues,
+        classifier: JSON.stringify(dataValues.classifier)
+    }));
+    res.json(classifiers);
+};
+
 exports.getClassifiersFiltered = async (req, res) => {
     const { category } = req.params;
     const { Classifier, List } = ClassifierTypes[category];
@@ -85,6 +109,30 @@ exports.getClassifiersFiltered = async (req, res) => {
             component: req.params.component
         }
     });
+    classifiers = classifiers.map(classifier => {
+        classifier.classifier = JSON.stringify(classifier.classifier);
+        return classifier;
+    });
+    res.json(classifiers);
+};
+
+// used in cron_datasets/1.create_datasets to get offline components with the respective workspace
+exports.getOfflineComponentClassifiersFiltered = async (req, res) => {
+    let classifiers = await findAllItemsFiltered(
+        OfflineComponentClassifierList,
+        OfflineComponentClassifier,
+        {
+            where: {
+                component: req.params.component
+            },
+            include: [
+                {
+                    model: WorkspaceColumn,
+                    include: [{ model: Workspace }]
+                }
+            ]
+        }
+    );
     classifiers = classifiers.map(classifier => {
         classifier.classifier = JSON.stringify(classifier.classifier);
         return classifier;

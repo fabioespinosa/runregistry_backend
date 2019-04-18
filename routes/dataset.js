@@ -34,5 +34,12 @@ module.exports = app => {
         '/datasets_get_lumisection_bar',
         catchAPI(Dataset.getLumisectionBar)
     );
-    app.post('/datasets_get_lumisections', catchAPI(Dataset.get_lumisections));
+    app.post(
+        '/datasets_rr_lumisections',
+        catchAPI(Dataset.get_rr_lumisections)
+    );
+    app.post(
+        '/datasets_oms_lumisections',
+        catchAPI(Dataset.get_oms_lumisections)
+    );
 };

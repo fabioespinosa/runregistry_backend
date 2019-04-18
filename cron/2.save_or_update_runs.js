@@ -22,7 +22,14 @@ exports.save_runs = async (new_runs, number_of_tries) => {
     const promises = new_runs.map(run => async () => {
         try {
             // We get the lumisections from OMS:
-            const oms_lumisections = await get_OMS_lumisections(run.run_number);
+
+            // NORMAL:
+            // const oms_lumisections = await get_OMS_lumisections(run.run_number);
+            //TEMPORAL:
+            const oms_lumisections = run.lumisections;
+            delete run.lumisections;
+
+            // end temporal:
             const oms_attributes = await calculate_oms_attributes(
                 run,
                 oms_lumisections

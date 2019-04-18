@@ -1,61 +1,49 @@
-const { Workspace, WorkspaceEntries, WorkspaceList } = require('../models');
-const {
-    findAllItems,
-    findOneItem,
-    saveNewItem,
-    editItem,
-    deleteItem
-} = require('./version_tracking_helpers');
-
-const id = 'WL_id';
+const { Workspace, WorkspaceColumn } = require('../models');
 
 exports.getAll = async (req, res) => {
-    const workspaces = await findAllItems(WorkspaceList, Workspace);
-    // Sort alphabetically:
-    workspaces.sort((a, b) =>
-        a.workspace !== b.workspace ? (a.workspace < b.workspace ? -1 : 1) : 0
-    );
+    let workspaces = await Workspace.findAll({
+        order: [['workspace', 'ASC']],
+        include: [
+            {
+                model: WorkspaceColumn,
+                as: 'columns'
+            }
+        ]
+    });
+    // Front end will need the id of each column, and it will also need the name of the column
+    workspaces = workspaces.map(workspace => {
+        workspace.dataValues.columns_with_id = [
+            ...workspace.dataValues.columns
+        ];
+        workspace.dataValues.columns = workspace.dataValues.columns.map(
+            ({ name }) => name
+        );
+        return workspace.dataValues;
+    });
     res.json(workspaces);
 };
 
 exports.addColumnToWorkspace = async (req, res) => {
-    const workspace = await Workspace.findOneItem(WorkspaceList, Workspace, {
+    const workspace = await Workspace.findOne({
+        where: {
+            workspace: req.body.workspace
+        }
+    });
+    workspace.columns.push(req.body.column);
+    const updated_workspace = await workspace.update(workspace);
+    res.json(updated_workspace);
+};
+
+exports.deleteColumnFromWorkspace = async (req, res) => {
+    const workspace = await Workspace.findOne({
         where: {
             workspace: req.body.workspace
         }
     });
 
-    workspace.columns.push(req.body.column);
-    const edited_workspace = await editItem(
-        WorkspaceList,
-        WorkspaceEntries,
-        Workspace,
-        id,
-        workspace.dataValues,
-        workspace.dataValues.id,
-        req.get('email')
-    );
-    res.json(edited_workspace);
-};
-
-exports.deleteColumnFromWorkspace = async (req, res) => {
-    const workspace = await findOneItem(WorkspaceList, Workspace, {
-        where: { workspace: req.body.workspace }
-    });
-
-    workspace.dataValues.columns = workspace.columns.filter(column => {
+    workspace.columns = workspace.columns.filter(column => {
         return column !== req.body.column;
     });
-
-    const updated_workspace = await editItem(
-        WorkspaceList,
-        WorkspaceEntries,
-        Workspace,
-        id,
-        workspace.dataValues,
-        workspace.dataValues.id,
-        req.get('email')
-    );
-
+    const updated_workspace = await workspace.update(workspace);
     res.json(updated_workspace);
 };

@@ -27,6 +27,20 @@
                 "NODE_ENV": "development"
             },
             "skipFiles": ["<node_internals>/**"]
+        },
+        {
+            "name": "uploader",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/uploader/uploader.js",
+            "stopOnEntry": false,
+            "args": ["--no-timeouts", "--colors", "./test/dc_tools"], //you can specify paths to specific tests here
+            "cwd": "${workspaceRoot}",
+            "runtimeExecutable": null,
+            "env": {
+                "NODE_ENV": "development"
+            },
+            "skipFiles": ["<node_internals>/**"]
         }
     ]
 }

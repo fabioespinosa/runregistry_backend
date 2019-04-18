@@ -62,6 +62,7 @@ module.exports = {
             'https://cmsweb.cern.ch/dqm/offline/data/json/samples?match=',
         SECONDS_PER_DQM_GUI_CHECK: 3600
     },
+
     // The online components are also the rr_lumisection_whitelist (just with _triplet after their name)
     online_components: [
         'castor',
