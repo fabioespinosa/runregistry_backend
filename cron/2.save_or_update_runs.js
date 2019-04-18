@@ -24,12 +24,12 @@ exports.save_runs = async (new_runs, number_of_tries) => {
             // We get the lumisections from OMS:
 
             // NORMAL:
-            // const oms_lumisections = await get_OMS_lumisections(run.run_number);
-            //TEMPORAL:
-            const oms_lumisections = run.lumisections;
-            delete run.lumisections;
+            const oms_lumisections = await get_OMS_lumisections(run.run_number);
+            // START TEMPORAL (to be used with manual uploader):
+            //const oms_lumisections = run.lumisections;
+            //delete run.lumisections;
+            // END temporal:
 
-            // end temporal:
             const oms_attributes = await calculate_oms_attributes(
                 run,
                 oms_lumisections
