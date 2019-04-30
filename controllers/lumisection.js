@@ -368,7 +368,6 @@ exports.getNewLumisectionRanges = (
 };
 
 // get ranges per component in the form of:
-
 //cms_range: [{from:x, to: y, ...}, {}]
 //dt_range: [{},{}]
 exports.get_rr_lumisection_ranges_for_dataset = async (
@@ -421,7 +420,8 @@ exports.get_rr_lumisection_ranges_for_dataset = async (
 };
 
 // Get all component lumisections (not a range):
-// Without manual changes gives us the AUTOMATIC changes without any shifters intervention:
+// Without manual changes gives us the AUTOMATIC changes without the priority of shifters intervention:
+// So if there is an automatic change after manual change, it will not be reflected UNLESS we do without_manual_change as true
 exports.get_rr_lumisections_for_dataset = async (
     run_number,
     dataset_name,
@@ -651,11 +651,15 @@ exports.edit_rr_lumisections = async (req, res) => {
         new_lumisection_range
     } = req.body;
     let { start, end, status, comment, cause } = new_lumisection_range;
+    if (!status) {
+        throw 'No status present when trying to edit lumisections';
+    }
     const lumisection_metadata = {
         [component]: {
-            status,
-            comment,
-            cause
+            // For consistency we want triplet values to be either their value or empty strings:
+            status: status || '',
+            comment: comment || '',
+            cause: cause || ''
         }
     };
     if (dataset_name === 'online') {
@@ -664,7 +668,7 @@ exports.edit_rr_lumisections = async (req, res) => {
             throw 'Run must be in state OPEN to be edited';
         }
     } else {
-        // TODO: validate the dataset state is OPEN in this workspace
+        // TODO: validate the dataset state is OPEN in this workspace (fom backend)
         const dataset = Dataset.findOne({
             where: {
                 name: dataset_name,
@@ -672,10 +676,7 @@ exports.edit_rr_lumisections = async (req, res) => {
             }
         });
     }
-    // For consistency we want triplet values to be either their value or empty string:
-    status = status || '';
-    comment = comment || '';
-    cause = cause || '';
+
     let transaction;
     try {
         transaction = await sequelize.transaction();

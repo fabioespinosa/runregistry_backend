@@ -20,7 +20,7 @@
             "request": "launch",
             "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
             "stopOnEntry": false,
-            "args": ["--no-timeouts", "--colors", "./test/dc_tools"], //you can specify paths to specific tests here
+            "args": ["--no-timeouts", "--colors", "./test/golden_json_test"], //you can specify paths to specific tests here
             "cwd": "${workspaceRoot}",
             "runtimeExecutable": null,
             "env": {

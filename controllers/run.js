@@ -432,7 +432,7 @@ exports.moveRun = async (req, res) => {
         throw 'The final state must be SIGNOFF, OPEN OR COMPLETED, no other option is valid';
     }
     if (run.rr_attributes.state === to_state) {
-        throw `Run's state is already in state ${to_state}`;
+        throw `Run ${run_number} state is already in state ${to_state}`;
     }
 
     // Check if triplets are empty quotes:
@@ -441,8 +441,9 @@ exports.moveRun = async (req, res) => {
         'online'
     );
     if (rr_lumisections.length === 0) {
-        throw 'There is no run lumisection data for this run, therefore it cannot be signed off';
+        throw `There is no run lumisection data for run ${run_number}, therefore it cannot be signed off`;
     }
+    // Check for NO VALUE FOUND lumisections:
     for (let i = 0; i < rr_lumisections.length; i++) {
         const current_lumisection = rr_lumisections[i];
         for (const [key, val] of Object.entries(current_lumisection)) {
@@ -457,7 +458,10 @@ exports.moveRun = async (req, res) => {
                 ) {
                     throw `There is a ${
                         val.status === '' ? 'empty' : val.status
-                    } lumisection at position ${i + 1} of this run. `;
+                    } lumisection at position ${i +
+                        1} of this run in component ${
+                        key.split('_triplet')[0]
+                    }. `;
                 }
             }
         }
@@ -592,4 +596,19 @@ exports.significantRunsFilteredOrdered = async (req, res) => {
         include
     });
     res.json({ runs, pages });
+};
+
+exports.getDatasetNamesOfRun = async (req, res) => {
+    const { run_number } = req.params;
+    const datasets = await Dataset.findAll({
+        where: {
+            run_number
+        }
+    });
+    const unique_dataset_names_object = {};
+    datasets.forEach(({ name }) => {
+        unique_dataset_names_object[name] = name;
+    });
+    const unique_dataset_names = Object.keys(unique_dataset_names_object);
+    res.json(unique_dataset_names);
 };

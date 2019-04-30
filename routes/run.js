@@ -8,6 +8,10 @@ module.exports = app => {
     app.get('/runs_50', catchAPI(Run.get50));
     app.get('/run_with_history/:run_number', catchAPI(Run.getRunWithHistory));
     app.post('/runs/', catchAPI(Run.new));
+    app.get(
+        '/get_all_dataset_names_of_run/:run_number',
+        catchAPI(Run.getDatasetNamesOfRun)
+    );
     app.put(
         '/automatic_run_update/:run_number',
         auth,

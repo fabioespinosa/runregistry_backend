@@ -36,7 +36,7 @@ models.sequelize
             console.log(`server listening in port ${port}`);
 
             // const cron = require('./cron/1.get_runs');
-            const dqm_gui_pinging = require('./cron_datasets/2.ping_dqm_gui');
+            // const dqm_gui_pinging = require('./cron_datasets/2.ping_dqm_gui');
             // const dbs_pinging = require('./cron_datasets/2.ping_dbs');
         });
     })
