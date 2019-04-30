@@ -549,7 +549,7 @@ exports.getFilteredOrdered = async (req, res) => {
         include
     });
 
-    res.json({ runs, pages });
+    res.json({ runs, pages, count });
 };
 
 exports.significantRunsFilteredOrdered = async (req, res) => {
@@ -595,7 +595,7 @@ exports.significantRunsFilteredOrdered = async (req, res) => {
         offset,
         include
     });
-    res.json({ runs, pages });
+    res.json({ runs, pages, count });
 };
 
 exports.getDatasetNamesOfRun = async (req, res) => {
