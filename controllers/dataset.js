@@ -258,7 +258,7 @@ exports.appearedInDQMGUI = async (req, res) => {
     // });
 };
 
-exports.getWaitingDatasets = async (req, res) => {
+exports.getDatasetsFilteredOrdered = async (req, res) => {
     // A user can filter on triplets, or on any other field
     // If the user filters by triplets, then :
     let triplet_summary_filter = {};
@@ -273,80 +273,10 @@ exports.getWaitingDatasets = async (req, res) => {
         conversion_operator
     );
     // If a user filters by anything else:
-    const { workspace, page } = req.params;
-    const { sortings, page_size } = req.body;
+    const { page, sortings, page_size } = req.body;
+
     let filter = changeNameOfAllKeys(
         {
-            // Online is the dataset we show in Online RR, we don't want to show it here:
-            name: { '<>': 'online' },
-            [`dataset_attributes.${workspace}_state`]: {
-                and: [
-                    { '<>': 'OPEN' },
-                    { '<>': 'SIGNOFF' },
-                    { '<>': 'COMPLETED' }
-                ]
-            },
-            ...req.body.filter
-        },
-        conversion_operator
-    );
-    // If its filtering by run class, then include it in run class
-    let include = [
-        {
-            model: Run,
-            attributes: ['rr_attributes']
-        },
-        {
-            model: DatasetTripletCache,
-            where: triplet_summary_filter,
-            attributes: ['triplet_summary']
-        }
-    ];
-    if (typeof filter['class'] !== 'undefined') {
-        include[0].where = { 'rr_attributes.class': filter['class'] };
-        delete filter['class'];
-    }
-    const count = await Dataset.count({
-        where: filter,
-        include
-    });
-    let pages = Math.ceil(count / page_size);
-    let offset = page_size * page;
-    let datasets = await Dataset.findAll({
-        where: filter,
-        order: sortings.length > 0 ? sortings : [['run_number', 'DESC']],
-        limit: page_size,
-        offset,
-        include
-    });
-    res.json({ datasets, pages, count });
-};
-
-exports.getEditableDatasets = async (req, res) => {
-    // A user can filter on triplets, or on any other field
-    // If the user filters by triplets, then :
-    let triplet_summary_filter = {};
-    for (const [key, val] of Object.entries(req.body.filter)) {
-        if (key.includes('triplet_summary')) {
-            triplet_summary_filter[key] = val;
-            delete req.body.filter[key];
-        }
-    }
-    triplet_summary_filter = changeNameOfAllKeys(
-        triplet_summary_filter,
-        conversion_operator
-    );
-    // If a user filters by anything else:
-
-    const { workspace, page } = req.params;
-    const { sortings, page_size } = req.body;
-    let filter = changeNameOfAllKeys(
-        {
-            name: { '<>': 'online' },
-            // ONLY THOSE OPEN SIGNOFF OR COMPLETED ARE SHOWN IN EDITABLE
-            [`dataset_attributes.${workspace}_state`]: {
-                or: [{ '=': 'OPEN' }, { '=': 'SIGNOFF' }, { '=': 'COMPLETED' }]
-            },
             ...req.body.filter
         },
         conversion_operator
@@ -542,22 +472,22 @@ exports.getLumisectionBar = async (req, res) => {
 };
 
 // Get all component lumisections:
-exports.get_rr_lumisections = async (req, res) => {
-    const { run_number, name } = req.body;
-    const lumisections_with_empty_wholes = await get_rr_lumisections_for_dataset(
-        run_number,
-        name
-    );
-    res.json(lumisections_with_empty_wholes);
-};
-exports.get_oms_lumisections = async (req, res) => {
-    const { run_number, name } = req.body;
-    const lumisections_with_empty_wholes = await get_oms_lumisections_for_dataset(
-        run_number,
-        name
-    );
-    res.json(lumisections_with_empty_wholes);
-};
+// exports.get_rr_lumisections = async (req, res) => {
+//     const { run_number, name } = req.body;
+//     const lumisections_with_empty_wholes = await get_rr_lumisections_for_dataset(
+//         run_number,
+//         name
+//     );
+//     res.json(lumisections_with_empty_wholes);
+// };
+// exports.get_oms_lumisections = async (req, res) => {
+//     const { run_number, name } = req.body;
+//     const lumisections_with_empty_wholes = await get_oms_lumisections_for_dataset(
+//         run_number,
+//         name
+//     );
+//     res.json(lumisections_with_empty_wholes);
+// };
 // DC TOOLS:
 
 // It will duplicate existing datsets, if it fails for one, it fails for all and transaction is aborted

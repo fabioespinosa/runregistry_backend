@@ -506,7 +506,7 @@ exports.moveRun = async (req, res) => {
 };
 
 // Separate filtering and count will make the UX much faster.
-exports.getFilteredOrdered = async (req, res) => {
+exports.getRunsFilteredOrdered = async (req, res) => {
     // A user can filter on triplets, or on any other field
     // If the user filters by triplets, then :
     let triplet_summary_filter = {};
@@ -521,12 +521,11 @@ exports.getFilteredOrdered = async (req, res) => {
         conversion_operator
     );
 
-    const { sortings, page_size } = req.body;
+    const { sortings, page_size, page } = req.body;
     let filter = {
         ...changeNameOfAllKeys(req.body.filter, conversion_operator),
         deleted: false
     };
-    const { page } = req.params;
     let offset = page_size * page;
     let include = [
         {
@@ -542,53 +541,6 @@ exports.getFilteredOrdered = async (req, res) => {
     });
     let pages = Math.ceil(count / page_size);
     let runs = await Run.findAll({
-        where: filter,
-        order: sortings.length > 0 ? sortings : [['run_number', 'DESC']],
-        limit: page_size,
-        offset,
-        include
-    });
-
-    res.json({ runs, pages, count });
-};
-
-exports.significantRunsFilteredOrdered = async (req, res) => {
-    // A user can filter on triplets, or on any other field
-    // If the user filters by triplets, then :
-    let triplet_summary_filter = {};
-    for (const [key, val] of Object.entries(req.body.filter)) {
-        if (key.includes('triplet_summary')) {
-            triplet_summary_filter[key] = val;
-            delete req.body.filter[key];
-        }
-    }
-    triplet_summary_filter = changeNameOfAllKeys(
-        triplet_summary_filter,
-        conversion_operator
-    );
-    // If a user filters by anything else:
-    let filter = {
-        ...changeNameOfAllKeys(req.body.filter, conversion_operator),
-        'rr_attributes.significant': true,
-        deleted: false
-    };
-    let include = [
-        {
-            model: DatasetTripletCache,
-            where: triplet_summary_filter,
-            attributes: ['triplet_summary']
-        }
-    ];
-    let { sortings } = req.body;
-    const { page_size } = req.body;
-    const { page } = req.params;
-    const count = await Run.count({
-        where: filter,
-        include
-    });
-    let pages = Math.ceil(count / page_size);
-    let offset = page_size * page;
-    const runs = await Run.findAll({
         where: filter,
         order: sortings.length > 0 ? sortings : [['run_number', 'DESC']],
         limit: page_size,

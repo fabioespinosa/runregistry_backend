@@ -17,16 +17,16 @@ exports.create_offline_waiting_datasets = async (run, transaction) => {
     );
     // We get the lumisections from online dataset
     const { data: oms_lumisections } = await axios.post(
-        `${API_URL}/datasets_oms_lumisections`,
+        `${API_URL}/lumisections/oms_lumisections`,
         {
-            name: 'online',
+            dataset_name: 'online',
             run_number
         }
     );
     const { data: rr_lumisections } = await axios.post(
-        `${API_URL}/datasets_rr_lumisections`,
+        `${API_URL}/lumisections/rr_lumisections`,
         {
-            name: 'online',
+            dataset_name: 'online',
             run_number
         }
     );

@@ -547,8 +547,6 @@ exports.get_oms_lumisections_for_dataset = async (run_number, dataset_name) => {
     return lumisections_with_empty_wholes;
 };
 
-exports.getLumisectionsForDataset = async (req, res) => {};
-
 // Returns LS ranges in format: [{start:0, end: 23, ...values}, {start: 24, end: 90, ...values}]
 exports.getLumisectionRanges = (lumisections, lumisection_attributes) => {
     // We whitelist the attributes we want (if it is an * in an array, it means we want all):
@@ -603,23 +601,6 @@ exports.getLumisectionsForRunFromOMS = async (req, res) => {
         oms_lumisection_whitelist
     );
     res.json(ls_ranges);
-};
-
-// Old non event-sourced RR
-exports.getLumisectionsForDatasetWorkspace = async (req, res) => {
-    const { workspace } = req.params;
-    const { id_dataset } = req.body;
-    // If a user has previously edited the lumisections, they will be in the lumisection column:
-    const dataset = await Dataset.findByPk(id_dataset);
-    if (dataset[`${workspace}_lumisections`].value.length === 0) {
-        req.params.run_number = dataset.run_number;
-        exports.getLumisectionsForRun(req, res);
-    } else {
-        const ls_ranges = exports.getLumisectionRanges(
-            dataset[`${workspace}_lumisections`].value
-        );
-        res.json(ls_ranges);
-    }
 };
 
 // --compressed:
@@ -734,6 +715,16 @@ exports.get_rr_and_oms_lumisection_ranges = async (req, res) => {
     const ls_ranges = exports.getLumisectionRanges(joint_lumisections, ['*']);
     res.json(ls_ranges);
 };
+
+exports.get_rr_lumisection_ranges_by_component = async (req, res) => {
+    const { run_number, dataset_name } = req.body;
+    const rr_lumisection_ranges_by_component = await exports.get_rr_lumisection_ranges_for_dataset(
+        run_number,
+        dataset_name
+    );
+    res.json(rr_lumisection_ranges_by_component);
+};
+
 exports.get_rr_lumisection_ranges = async (req, res) => {
     const { run_number, dataset_name } = req.body;
     const rr_lumisections = await exports.get_rr_lumisections_for_dataset(
@@ -744,20 +735,32 @@ exports.get_rr_lumisection_ranges = async (req, res) => {
     const ls_ranges = exports.getLumisectionRanges(rr_lumisections, ['*']);
     res.json(ls_ranges);
 };
-exports.get_rr_lumisection_ranges_by_component = async (req, res) => {
-    const { run_number, dataset_name } = req.body;
-    const rr_lumisection_ranges_by_component = await exports.get_rr_lumisection_ranges_for_dataset(
-        run_number,
-        dataset_name
-    );
-    res.json(rr_lumisection_ranges_by_component);
-};
+
 exports.get_oms_lumisection_ranges = async (req, res) => {
-    const { run_number, dataset_name } = req.body;
+    const { run_number } = req.body;
+    // Dataset name is always online if its from OMS
     const rr_lumisections = await exports.get_oms_lumisections_for_dataset(
         run_number,
         'online'
     );
     const ls_ranges = exports.getLumisectionRanges(rr_lumisections, ['*']);
     res.json(ls_ranges);
+};
+
+exports.get_rr_lumisections = async (req, res) => {
+    const { run_number, dataset_name } = req.body;
+    const lumisections_with_empty_wholes = await exports.get_rr_lumisections_for_dataset(
+        run_number,
+        dataset_name
+    );
+    res.json(lumisections_with_empty_wholes);
+};
+
+exports.get_oms_lumisections = async (req, res) => {
+    const { run_number } = req.body;
+    const lumisections_with_empty_wholes = await exports.get_oms_lumisections_for_dataset(
+        run_number,
+        'online'
+    );
+    res.json(lumisections_with_empty_wholes);
 };

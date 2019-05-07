@@ -12,15 +12,11 @@ module.exports = app => {
         '/dataset_appeared_in_dqm_gui',
         catchAPI(Dataset.appearedInDQMGUI)
     );
+
     // This only queries:
     app.post(
-        '/datasets/:workspace/editable/:page',
-        catchAPI(Dataset.getEditableDatasets)
-    );
-    // This only queries:
-    app.post(
-        '/datasets/:workspace/waiting_list/:page',
-        catchAPI(Dataset.getWaitingDatasets)
+        '/datasets_filtered_ordered',
+        catchAPI(Dataset.getDatasetsFilteredOrdered)
     );
     app.put('/datasets/:workspace', auth, catchAPI(Dataset.edit));
 
@@ -33,13 +29,5 @@ module.exports = app => {
     app.post(
         '/datasets_get_lumisection_bar',
         catchAPI(Dataset.getLumisectionBar)
-    );
-    app.post(
-        '/datasets_rr_lumisections',
-        catchAPI(Dataset.get_rr_lumisections)
-    );
-    app.post(
-        '/datasets_oms_lumisections',
-        catchAPI(Dataset.get_oms_lumisections)
     );
 };
