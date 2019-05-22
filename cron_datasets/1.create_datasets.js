@@ -41,7 +41,9 @@ exports.create_offline_waiting_datasets = async (run, transaction) => {
         };
     });
 
-    const { data: workspaces } = await axios.get(`${API_URL}/workspaces`);
+    const { data: workspaces } = await axios.get(
+        `${API_URL}/workspaces/offline`
+    );
 
     const standard_waiting_list_dataset_attributes = {
         global_state: WAITING_DQM_GUI_CONSTANT,
@@ -80,6 +82,7 @@ exports.create_offline_waiting_datasets = async (run, transaction) => {
     return datasets_accepted_promises;
 };
 
+// We classify the run information from ONLINE, so that the datasets
 const classify_dataset_lumisections = (
     run,
     lumisections,
@@ -137,9 +140,10 @@ exports.save_individual_dataset = async (
     run_number,
     dataset_attributes,
     lumisections,
-    transaction
+    transaction,
+    event_info
 ) => {
-    const event_info = {
+    event_info = event_info || {
         email: 'auto@auto',
         comment: 'Run signed off, dataset creation'
     };
@@ -161,6 +165,8 @@ exports.save_individual_dataset = async (
             transaction
         );
     }
+    // TODO: JUST ENABLE FOLLOWING LINE AND IMPORT:
+    // await fill_dataset_triplet_cache()
 };
 
 const run_and_lumisection_attributes_example = {

@@ -23,10 +23,6 @@ const { deepEqual } = require('assert');
 const { findOrCreateJSONB } = require('./JSONBDeduplication');
 const { fill_dataset_triplet_cache } = require('./dataset_triplet_cache');
 
-const rr_lumisection_whitelist = online_components.map(
-    component => `${component}_triplet`
-);
-
 // Its a range, contains start_lumisection AND it contains end_lumisection
 const update_or_create_lumisection = async (
     run_number,
@@ -66,7 +62,7 @@ const update_or_create_lumisection = async (
         );
 
         let manual_change = false;
-        if (by !== 'auto@auto') {
+        if (!by.startsWith('auto@auto')) {
             manual_change = true;
         }
         const lumisectionEvent = await LSEvent.create(
@@ -143,15 +139,15 @@ exports.create_rr_lumisections = async (
     req,
     transaction
 ) => {
-    let local_whitelist;
-    if (dataset_name !== 'online') {
-        // If we are not dealing with online, we do not want to whitelist
-        local_whitelist = ['*'];
-    }
+    // let local_whitelist;
+    // if (dataset_name !== 'online') {
+    //     // If we are not dealing with online, we do not want to whitelist
+    //     local_whitelist = ['*'];
+    // }
 
     const lumisection_ranges = await exports.getLumisectionRanges(
         lumisections,
-        local_whitelist || rr_lumisection_whitelist
+        ['*']
     );
 
     const saved_ranges = lumisection_ranges.map(async lumisection_range => {
@@ -204,7 +200,7 @@ exports.update_rr_lumisections = async (
     const new_ls_ranges = exports.getNewLumisectionRanges(
         previous_lumisections,
         new_lumisections,
-        local_whitelist || rr_lumisection_whitelist
+        local_whitelist || online_components
     );
     const saved_ranges = new_ls_ranges.map(async lumisection_range => {
         const { start, end } = lumisection_range;

@@ -24,10 +24,6 @@ const {
     OfflineDatasetClassifierEntries,
     OfflineDatasetClassifierList,
 
-    OfflineComponentClassifier,
-    OfflineComponentClassifierEntries,
-    OfflineComponentClassifierList,
-
     Workspace,
     WorkspaceColumn
 } = require('../models');
@@ -57,12 +53,6 @@ const ClassifierTypes = {
         Entries: OfflineDatasetClassifierEntries,
         List: OfflineDatasetClassifierList,
         id: 'ODCL_id'
-    },
-    offline_component: {
-        Classifier: OfflineComponentClassifier,
-        Entries: OfflineComponentClassifierEntries,
-        List: OfflineComponentClassifierList,
-        id: 'OCPCL_id'
     }
 };
 
@@ -80,59 +70,46 @@ exports.getClassifiers = async (req, res) => {
     res.json(classifiers);
 };
 
-exports.getOfflineComponentClassifiers = async (req, res) => {
-    const include = [
-        {
-            model: WorkspaceColumn,
-            include: [{ model: Workspace }]
-        }
-    ];
-    // This will join the Classifiers with the Setting configuration of higher ID (the current one).
-    let classifiers = await findAllItemsWithInclude(
-        OfflineComponentClassifierList,
-        OfflineComponentClassifier,
-        include
-    );
-    // We convert the classifier into a string:
-    classifiers = classifiers.map(({ dataValues }) => ({
-        ...dataValues,
-        classifier: JSON.stringify(dataValues.classifier)
-    }));
-    res.json(classifiers);
-};
+// exports.getComponentClassifiers = async (req, res) => {
+//     // This will join the Classifiers with the Setting configuration of higher ID (the current one).
+//     let classifiers = await findAllItemsFiltered(
+//         ComponentClassifierList,
+//         ComponentClassifier,
+//         {
+//             include: [
+//                 {
+//                     model: WorkspaceColumn,
+//                     include: [
+//                         {
+//                             model: Workspace
+//                         }
+//                     ]
+//                 }
+//             ]
+//         }
+//     );
+//     classifiers = classifiers.map(classifier => {
+//         classifier.classifier = JSON.stringify(classifier.classifier);
+//         return classifier;
+//     });
+//     classifiers = res.json(classifiers);
+// };
 
+// TODO: FIX THIS
 exports.getClassifiersFiltered = async (req, res) => {
-    const { category } = req.params;
+    const { category, component } = req.params;
     const { Classifier, List } = ClassifierTypes[category];
     let classifiers = await findAllItemsFiltered(List, Classifier, {
         where: {
-            component: req.params.component
-        }
+            component: +component
+        },
+        include: [
+            {
+                model: WorkspaceColumn,
+                include: [{ model: Workspace }]
+            }
+        ]
     });
-    classifiers = classifiers.map(classifier => {
-        classifier.classifier = JSON.stringify(classifier.classifier);
-        return classifier;
-    });
-    res.json(classifiers);
-};
-
-// used in cron_datasets/1.create_datasets to get offline components with the respective workspace
-exports.getOfflineComponentClassifiersFiltered = async (req, res) => {
-    let classifiers = await findAllItemsFiltered(
-        OfflineComponentClassifierList,
-        OfflineComponentClassifier,
-        {
-            where: {
-                component: req.params.component
-            },
-            include: [
-                {
-                    model: WorkspaceColumn,
-                    include: [{ model: Workspace }]
-                }
-            ]
-        }
-    );
     classifiers = classifiers.map(classifier => {
         classifier.classifier = JSON.stringify(classifier.classifier);
         return classifier;

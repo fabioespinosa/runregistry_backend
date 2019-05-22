@@ -43,6 +43,7 @@ exports.fill_dataset_triplet_cache = async transaction => {
             `Cache generated for ${number_of_processed_datasets} datasets`
         );
     } else {
+        console.log(`Processing for ${count} datasets.`);
         const asyncQueue = queue(
             async dataset_batch => await dataset_batch(),
             1

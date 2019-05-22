@@ -7,8 +7,14 @@ module.exports = (sequelize, DataTypes) => {
                 primaryKey: true,
                 autoIncrement: true
             },
-            status: { type: DataTypes.STRING, allowNull: false },
-            component: { type: DataTypes.STRING, allowNull: false },
+            status: {
+                type: DataTypes.STRING,
+                allowNull: false
+            },
+            component: {
+                type: DataTypes.INTEGER,
+                allowNull: false
+            },
             classifier: { type: DataTypes.JSONB, allowNull: false },
             priority: { type: DataTypes.INTEGER, allowNull: false },
             enabled: { type: DataTypes.BOOLEAN, allowNull: false }
@@ -16,7 +22,7 @@ module.exports = (sequelize, DataTypes) => {
         {
             updatedAt: false,
             name: {
-                singular: 'ComponentClassifier',
+                singular: 'OfflineomponentClassifier',
                 plural: 'ComponentClassifier'
             }
         }
@@ -26,6 +32,9 @@ module.exports = (sequelize, DataTypes) => {
             through: models.ComponentClassifierEntries,
             foreignKey: 'id',
             otherKey: 'CPCL_id'
+        });
+        ComponentClassifier.belongsTo(models.WorkspaceColumn, {
+            foreignKey: 'component'
         });
     };
     return ComponentClassifier;

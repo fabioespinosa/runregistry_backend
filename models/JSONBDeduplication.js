@@ -9,6 +9,10 @@ module.exports = (sequelize, DataTypes) => {
             },
             jsonb: {
                 type: DataTypes.JSONB,
+                allowNull: false
+            },
+            unique_hash: {
+                type: DataTypes.TEXT,
                 allowNull: false,
                 unique: true
             }
@@ -19,8 +23,8 @@ module.exports = (sequelize, DataTypes) => {
         {
             indexes: [
                 {
-                    name: 'JSONBDeduplication_jsonb_index',
-                    fields: ['jsonb']
+                    name: 'JSONBDeduplication_jsonb_index_hash',
+                    fields: ['unique_hash']
                 }
             ]
         }

@@ -1,24 +1,25 @@
+CREATE EXTENSION pgcrypto;
 BEGIN;
     DROP VIEW IF EXISTS "RunView";
     DROP AGGREGATE IF EXISTS oms_attributes
     (jsonb);
-    DROP AGGREGATE IF EXISTS rr_attributes
-    (jsonb);
-    DROP AGGREGATE IF EXISTS mergejsonb
-    (jsonb);
+DROP AGGREGATE IF EXISTS rr_attributes
+(jsonb);
+DROP AGGREGATE IF EXISTS mergejsonb
+(jsonb);
 
 
 
-    CREATE OR REPLACE FUNCTION
+CREATE OR REPLACE FUNCTION
     mergejsonb
-    (jsonb, jsonb) RETURNS jsonb
+(jsonb, jsonb) RETURNS jsonb
 AS 'SELECT $1 || $2;'
 LANGUAGE SQL                                   
     IMMUTABLE
     RETURNS NULL ON NULL INPUT;
 
-    CREATE AGGREGATE mergejsonb(jsonb)
-    (sfunc =
+CREATE AGGREGATE mergejsonb(jsonb)
+(sfunc =
 mergejsonb, stype = jsonb, initcond = '{}');
 
 

@@ -7,8 +7,8 @@ module.exports = (sequelize, DataTypes) => {
                 primaryKey: true,
                 autoIncrement: true
             },
-            workspace: {
-                type: DataTypes.TEXT,
+            id_workspace: {
+                type: DataTypes.INTEGER,
                 allowNull: false,
                 unique: 'WorkspaceColumn_unique_column_workspace_constraint'
             },
@@ -22,7 +22,7 @@ module.exports = (sequelize, DataTypes) => {
             uniqueKeys: [
                 {
                     name: 'WorkspaceColumn_unique_column_workspace_constraint',
-                    fields: ['workspace', 'name']
+                    fields: ['id_workspace', 'name']
                 }
             ]
         }
@@ -30,7 +30,7 @@ module.exports = (sequelize, DataTypes) => {
 
     WorkspaceColumn.associate = function(models) {
         WorkspaceColumn.belongsTo(models.Workspace, {
-            foreignKey: 'workspace'
+            foreignKey: 'id_workspace'
         });
     };
     return WorkspaceColumn;

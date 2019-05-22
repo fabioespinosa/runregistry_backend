@@ -58,7 +58,7 @@ const update_or_create_run = async (
         );
         let manual_change = false;
         // If the email is not auto@auto, it means it was a manual change, therefore later on, when we order changes, we give priority to the manual change
-        if (by !== 'auto@auto') {
+        if (!by.startsWith('auto@auto')) {
             manual_change = true;
             if (Object.keys(oms_metadata).length !== 0) {
                 throw 'Manual change must have empty oms_metadata';
@@ -94,7 +94,7 @@ const update_or_create_run = async (
                 FROM updated_runs
                 GROUP BY run_number
                 ON CONFLICT (run_number) DO UPDATE SET "rr_attributes" = EXCLUDED."rr_attributes", "oms_attributes" = EXCLUDED."oms_attributes", "deleted" = EXCLUDED."deleted", "version" = EXCLUDED.version;
-            
+
                 DROP TABLE updated_runnumbers;
                 DROP TABLE updated_runs;
         `,
@@ -448,6 +448,7 @@ exports.moveRun = async (req, res) => {
         const current_lumisection = rr_lumisections[i];
         for (const [key, val] of Object.entries(current_lumisection)) {
             if (
+                // Revise
                 key.includes('_triplet') &&
                 (to_state === 'SIGNOFF' || to_state === 'COMPLETED')
             ) {
@@ -456,6 +457,7 @@ exports.moveRun = async (req, res) => {
                     val.status === 'EMPTY' ||
                     val.status === 'NO VALUE FOUND'
                 ) {
+                    // Revise:
                     throw `There is a ${
                         val.status === '' ? 'empty' : val.status
                     } lumisection at position ${i +

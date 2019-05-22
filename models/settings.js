@@ -59,13 +59,6 @@ module.exports = (sequelize, DataTypes) => {
             },
             onDelete: 'RESTRICT'
         });
-        Settings.belongsTo(models.OfflineComponentClassifierList, {
-            foreignKey: {
-                name: 'OCPCL_id',
-                allowNull: false
-            },
-            onDelete: 'RESTRICT'
-        });
     };
     return Settings;
 };

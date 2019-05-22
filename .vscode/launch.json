@@ -7,6 +7,12 @@
         {
             "type": "node",
             "request": "launch",
+            "name": "Current_file",
+            "program": "${file}"
+        },
+        {
+            "type": "node",
+            "request": "launch",
             "name": "API",
             "program": "${workspaceFolder}/app.js",
             "env": {

@@ -1,6 +1,7 @@
 const { Workspace, WorkspaceColumn } = require('../models');
 
 exports.getAll = async (req, res) => {
+    const { online_or_offline } = req.params;
     let workspaces = await Workspace.findAll({
         order: [['workspace', 'ASC']],
         include: [
@@ -8,7 +9,10 @@ exports.getAll = async (req, res) => {
                 model: WorkspaceColumn,
                 as: 'columns'
             }
-        ]
+        ],
+        where: {
+            online_or_offline
+        }
     });
     // Front end will need the id of each column, and it will also need the name of the column
     workspaces = workspaces.map(workspace => {

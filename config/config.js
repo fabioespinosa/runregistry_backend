@@ -2,7 +2,7 @@ module.exports = {
     development: {
         username: 'hackathon',
         password: '',
-        database: 'hackathon3',
+        database: 'hackathon4',
         host: '127.0.0.1',
         logging: false,
         dialect: 'postgres',
@@ -36,7 +36,7 @@ module.exports = {
     staging: {
         username: 'admin',
         password: 'changeme',
-        database: 'patatrack',
+        database: 'complete_rr',
         logging: false,
         host: 'dbod-rr4-dev.cern.ch',
         dialect: 'postgres',
@@ -63,11 +63,12 @@ module.exports = {
         SECONDS_PER_DQM_GUI_CHECK: 3600
     },
 
-    // The online components are also the rr_lumisection_whitelist (just with _triplet after their name)
+    // The online components are also the rr_lumisection_whitelist
     online_components: [
         'castor',
         'cms',
         'csc',
+        'ctpps',
         'dt',
         'ecal',
         'es',
@@ -79,8 +80,7 @@ module.exports = {
         'lumi',
         'pix',
         'rpc',
-        'strip',
-        'ctpps'
+        'strip'
     ],
     // This are the attributes we save from OMS lumisections:
     oms_lumisection_whitelist: [
