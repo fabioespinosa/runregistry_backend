@@ -15,10 +15,8 @@ exports.save_runs_from_old_rr = async (rows, number_of_tries) => {
 
     if (!rows) {
         const result = await client.query(`
-            select online.*, offline.lumisection_ranges from online 
-            inner join offline 
-            on online."run_number" = offline."run_number" and online."rda_name" = offline."rda_name" 
-            where (online.workspace_states -> 'global') is not null and lumisection_ranges is not null
+            select * from online 
+            where (workspace_states -> 'global') is not null and lumisections is not null
             order by run_number ASC
         `);
         rows = result.rows;
@@ -31,21 +29,21 @@ exports.save_runs_from_old_rr = async (rows, number_of_tries) => {
                 run_number,
                 run_class_name,
                 run_stop_reason,
-                lumisection_ranges,
+                lumisections,
                 run_short,
                 run_aud_user,
                 workspace_states
             } = row;
 
-            if (lumisection_ranges === null || !lumisection_ranges) {
-                throw 'Lumisection_ranges cannot be null';
+            if (lumisections === null || !lumisections) {
+                throw 'Lumisections cannot be null';
             }
-            const preformatted_lumisections = expand_ranges_to_lumisections(
-                lumisection_ranges
-            );
-            const rr_lumisections = generate_rr_lumisections(
+
+            const rr_lumisections = generate_rr_lumisections(row, lumisections);
+
+            const oms_lumisections = generate_oms_lumisections(
                 row,
-                preformatted_lumisections
+                lumisections
             );
 
             const rr_attributes = {
@@ -59,11 +57,12 @@ exports.save_runs_from_old_rr = async (rows, number_of_tries) => {
                 run_number,
                 ls_duration: rr_lumisections.length
             };
+
             await axios.post(
                 `${API_URL}/runs`,
                 {
                     oms_attributes,
-                    oms_lumisections: [],
+                    oms_lumisections,
                     rr_attributes,
                     rr_lumisections
                 },
@@ -141,10 +140,12 @@ const generate_rr_lumisections = (row, lumisections) => {
     return lumisections.map(lumisection => {
         const current_lumisection = {};
         for (let [key, triplet] of Object.entries(row)) {
+            // If key includes '-' it is a component triplet:
             if (key.includes('-')) {
                 const workspace = key.split('-')[0];
                 const component = key.split('-')[1];
-                if (workspace === component) {
+                if (workspace === component && workspace!== 'btag') {
+                    // Since btag is not included in the global workspace, we pass it:
                     // We are dealing with a local column (e.g. ecal-ecal, which will be replaced with global-ecal)
                     continue;
                 }
@@ -164,32 +165,11 @@ const generate_rr_lumisections = (row, lumisections) => {
                 if (workspace === 'ecal' && component === 'es') {
                     continue;
                 }
-                // if it includes "-" it is a triplet.
                 let final_status = 'NOTSET';
+
                 if (triplet === null) {
                     final_status = 'NOTSET';
-                } else if (triplet.status !== 'GOOD') {
-                    final_status = triplet.status;
-                }
-                // If it is the global, we must check if we can apply the lumisection bit:
-                else if (key.startsWith('global-')) {
-                    // Value must be GOOD, meaning it has some good lumisections inside:
-                    const ls_status = lumisection[`lse_${component}`];
-                    if (ls_status === null || component === 'cms') {
-                        final_status = 'GOOD';
-                    } else if (ls_status === 1) {
-                        console.log(
-                            `Run has lumisection bits: ${
-                                row.run_number
-                            } for ${key}`
-                        );
-                        final_status = 'GOOD';
-                    } else {
-                        // other scenario is 0:
-                        final_status = 'BAD';
-                    }
                 } else {
-                    // If it is not global, then it will be GOOD:
                     final_status = 'GOOD';
                 }
                 if (key.startsWith('global-')) {
@@ -208,6 +188,30 @@ const generate_rr_lumisections = (row, lumisections) => {
                     comment: triplet ? triplet.comment : '',
                     cause: triplet ? triplet.cause : ''
                 };
+            }
+        }
+        return current_lumisection;
+    });
+};
+
+const generate_oms_lumisections = (row, lumisections) => {
+    return lumisections.map(lumisection => {
+        const current_lumisection = {};
+        for (let [key, value] of Object.entries(lumisection)) {
+            if (!key.startsWith('lse_') && !key.startsWith('rdr_')) {
+                if (key === 'lhcfill') {
+                    // lhcfill is a number, no need to convert it:
+                    current_lumisection[key] = value;
+                } else {
+                    if (value === null) {
+                        value = 0;
+                    }
+                    if (value !== 1 && value !== 0) {
+                        throw `Value supposed to be boolean for ${key} and was ${value}`;
+                    }
+                    // We convert 1s and 0s to true and false:
+                    current_lumisection[key] = !!value;
+                }
             }
         }
         return current_lumisection;

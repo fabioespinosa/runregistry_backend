@@ -38,6 +38,8 @@ const conversion_operator = {
     NOTLIKE: Op.notLike
 };
 
+// fill_dataset_triplet_cache();
+
 exports.update_or_create_dataset = async (
     dataset_name,
     run_number,
@@ -293,9 +295,11 @@ exports.getDatasetsFilteredOrdered = async (req, res) => {
             attributes: ['triplet_summary']
         }
     ];
-    if (typeof filter['class'] !== 'undefined') {
-        include[0].where = { 'rr_attributes.class': filter['class'] };
-        delete filter['class'];
+    if (typeof filter['rr_attributes.class'] !== 'undefined') {
+        include[0].where = {
+            'rr_attributes.class': filter['rr_attributes.class']
+        };
+        delete filter['rr_attributes.class'];
     }
     const count = await Dataset.count({
         where: filter,
@@ -515,9 +519,11 @@ exports.duplicate_datasets = async (req, res) => {
             attributes: ['rr_attributes']
         }
     ];
-    if (typeof filter['class'] !== 'undefined') {
-        include[0].where = { 'rr_attributes.class': filter['class'] };
-        delete filter['class'];
+    if (typeof filter['rr_attributes.class'] !== 'undefined') {
+        include[0].where = {
+            'rr_attributes.class': filter['rr_attributes.class']
+        };
+        delete filter['rr_attributes.class'];
     }
 
     const datasets_to_copy = await Dataset.findAll({
@@ -634,9 +640,11 @@ exports.getUniqueDatasetNames = async (req, res) => {
             attributes: ['rr_attributes']
         }
     ];
-    if (typeof filter['class'] !== 'undefined') {
-        include[0].where = { 'rr_attributes.class': filter['class'] };
-        delete filter['class'];
+    if (typeof filter['rr_attributes.class'] !== 'undefined') {
+        include[0].where = {
+            'rr_attributes.class': filter['rr_attributes.class']
+        };
+        delete filter['rr_attributes.class'];
     }
 
     const datasets_filter_criteria = await Dataset.findAll({

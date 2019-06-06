@@ -17,7 +17,7 @@ const classify_runs = () => {
     runs_directories.forEach((run, index) => {
         const run_number = +run.split('/uploader/runs/')[1];
         // Only interested in those of 2018
-        if (run_number >= 307926) {
+        if (run_number >= 329403) {
             const run_info = JSON.parse(
                 readFileSync(`${__dirname}/runs/${run_number}/run.json`)
             ).attributes;

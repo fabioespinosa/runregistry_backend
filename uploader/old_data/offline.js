@@ -86,7 +86,7 @@ exports.save_runs_from_old_rr = async (rows, number_of_tries) => {
 
     // When runs finished saving:
     asyncQueue.drain = async () => {
-        console.log(`${saved_runs} run(s) saved`);
+        console.log(`${saved_runs} dataset(s) saved`);
         if (runs_not_saved.length > 0) {
             const run_numbers_of_runs_not_saved = runs_not_saved.map(
                 ({ run_number }) => run_number
@@ -109,7 +109,7 @@ exports.save_runs_from_old_rr = async (rows, number_of_tries) => {
                 );
             } else {
                 console.log(
-                    `After trying 4 times, ${run_numbers_of_runs_not_saved} run(s) were not saved`
+                    `After trying 4 times, ${run_numbers_of_runs_not_saved} dataset(s) were not saved`
                 );
             }
         }
@@ -140,13 +140,23 @@ const generate_rr_lumisections = (row, lumisections) => {
         throw 'Lumisections cannot be null';
     }
     return lumisections.map(lumisection => {
-        const current_lumisection = {};
+        const current_lumisection = {
+            'ctpps-ctpps': {
+                status: calculate_ctpps_status(row, lumisection),
+                comment: '',
+                cause: ''
+            }
+        };
         for (let [key, triplet] of Object.entries(row)) {
             if (key.includes('-')) {
                 const workspace = key.split('-')[0];
                 const component = key.split('-')[1];
                 if (workspace === component) {
                     // We are dealing with a local column (e.g. ecal-ecal, which will be replaced with global-ecal)
+                    continue;
+                }
+                // Ctpps we handle separately
+                if (key === 'global-ctpps') {
                     continue;
                 }
                 // The following will be replaced by the global one (btag-btag, jetmet-jetmet, l1t-l1tmu, l1t-l1tcalo, tracker-pix, tracker-strip, ecal-es)
@@ -180,6 +190,14 @@ const generate_rr_lumisections = (row, lumisections) => {
                 if (workspace === 'ecal' && component === 'es') {
                     continue;
                 }
+                if (
+                    workspace === 'ctpps' &&
+                    (component.startsWith('trk') ||
+                        component.startsWith('time'))
+                ) {
+                    // All trk and time are not to be imported from ctpps:
+                    continue;
+                }
                 // if it includes "-" it is a triplet.
                 let final_status = 'NOTSET';
                 if (triplet === null) {
@@ -210,22 +228,40 @@ const generate_rr_lumisections = (row, lumisections) => {
                 ) {
                     // Value must be GOOD, meaning it has some good lumisections inside:
                     const ls_status = lumisection[`lse_${component}`];
-                    if (ls_status === null || component === 'cms') {
+                    if (ls_status === null && component !== 'lowlumi') {
                         final_status = 'GOOD';
+                    }
+                    // Low lumi will only be GOOD if it was indeed set to true on a lumisection basis, else is BAD:
+                    else if (ls_status === null && component === 'lowlumi') {
+                        final_status = 'BAD';
                     } else if (ls_status === 1) {
-                        console.log(
-                            `Run has lumisection bits: ${
-                                row.run_number
-                            } for ${key}`
-                        );
                         final_status = 'GOOD';
                     } else {
                         // other scenario is 0:
                         final_status = 'BAD';
                     }
                 } else {
-                    // If it is not global, then it will be GOOD:
-                    final_status = 'GOOD';
+                    if (workspace !== 'ctpps') {
+                        final_status = 'GOOD';
+                    }
+                    // ctpps has special case (ctpps45_ready is the same as ctpps45 status)
+                    if (workspace === 'ctpps') {
+                        if (component === 'rp45_cyl') {
+                            // rp45_cyl is to be renamed to Time45_cyl, as well as rp56_cyl
+                            key = 'ctpps-time45_cyl';
+                        }
+                        if (component === 'rp56_cyl') {
+                            key = 'ctpps-time56_cyl';
+                        }
+                        if (
+                            lumisection['ctpps45_ready'] === 1 ||
+                            lumisection['ctpps56_ready'] === 1
+                        ) {
+                            final_status = 'GOOD';
+                        } else {
+                            final_status = 'BAD';
+                        }
+                    }
                 }
                 if (key.startsWith('global-')) {
                     if (component === 'l1tmu' || component === 'l1tcalo') {
@@ -238,6 +274,8 @@ const generate_rr_lumisections = (row, lumisections) => {
                         key = `tracker-${component}`;
                     } else if (component === 'es') {
                         key = `ecal-${component}`;
+                    } else if (component === 'lowlumi') {
+                        key = `dc-${component}`;
                     } else {
                         key = `${component}-${component}`;
                     }
@@ -251,4 +289,33 @@ const generate_rr_lumisections = (row, lumisections) => {
         }
         return current_lumisection;
     });
+};
+
+const calculate_ctpps_status = (row, lumisection) => {
+    if (lumisection.ctpps45_ready === 1 || lumisection.ctpps56_ready === 1) {
+        // In case they are null:
+        row.rp45_210 = row.rp45_210 || {};
+        row.rp45_220 = row.rp45_220 || {};
+        row.rp45_cyl = row.rp45_cyl || {};
+        row.rp56_210 = row.rp56_210 || {};
+        row.rp56_220 = row.rp56_220 || {};
+        row.rp56_cyl = row.rp56_cyl || {};
+        if (
+            (row.rp45_210.status === 'GOOD' &&
+                row.rp45_220.status === 'GOOD') ||
+            (row.rp45_cyl.status === 'GOOD' &&
+                row.rp45_210.status === 'GOOD') ||
+            (row.rp45_cyl.status === 'GOOD' &&
+                row.rp45_220.status === 'GOOD') ||
+            (row.rp56_210.status === 'GOOD' &&
+                row.rp56_220.status === 'GOOD') ||
+            (row.rp56_220.status === 'GOOD' &&
+                row.rp56_cyl.status === 'GOOD') ||
+            (row.rp56_210.status === 'GOOD' && row.rp56_cyl.status === 'GOOD')
+        ) {
+            console.log('ctpps returned good');
+            return 'GOOD';
+        }
+    }
+    return 'BAD';
 };
