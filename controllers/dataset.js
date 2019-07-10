@@ -12,13 +12,19 @@ const {
 const {
     get_rr_lumisections_for_dataset,
     get_oms_lumisections_for_dataset,
-    create_rr_lumisections
+    create_rr_lumisections,
+    update_oms_lumisections
 } = require('./lumisection');
-const { fill_dataset_triplet_cache } = require('./dataset_triplet_cache');
+const {
+    fill_dataset_triplet_cache,
+    fill_for_unfilled_datasets,
+    recalculate_all_triplet_cache
+} = require('./dataset_triplet_cache');
 const { WAITING_DQM_GUI_CONSTANT } = require('../config/config')[
     process.env.ENV || 'development'
 ];
 
+fill_for_unfilled_datasets();
 const { Op } = Sequelize;
 const conversion_operator = {
     and: Op.and,
@@ -37,8 +43,6 @@ const conversion_operator = {
     LIKE: Op.iLike,
     NOTLIKE: Op.notLike
 };
-
-// fill_dataset_triplet_cache();
 
 exports.update_or_create_dataset = async (
     dataset_name,
@@ -132,6 +136,72 @@ exports.getDataset = async (req, res) => {
         include: [{ model: Run }, { model: DatasetTripletCache }]
     });
     res.json(dataset);
+};
+
+exports.new = async (req, res) => {
+    const {
+        run_number,
+        dataset_name,
+        rr_lumisections,
+        oms_lumisections,
+        dataset_attributes
+    } = req.body;
+    const dataset = await Dataset.findOne({
+        where: {
+            run_number,
+            name: dataset_name
+        }
+    });
+    if (dataset !== null) {
+        throw 'Dataset already exists';
+    }
+    let transaction;
+    try {
+        const transaction = await sequelize.transaction();
+        const datasetEvent = await exports.update_or_create_dataset(
+            dataset_name,
+            run_number,
+            dataset_attributes,
+            req,
+            transaction
+        );
+
+        // lumisections
+        // For RR lumisections, we create a independent copy of the lumisections (which comes from the request)
+        const saved_rr_lumisections = await create_rr_lumisections(
+            run_number,
+            dataset_name,
+            rr_lumisections,
+            req,
+            transaction
+        );
+        // However for OMS lumisections, if there is new stuff, we simply append it to the current table, so that the aggregate will get the changes
+        // It can edit oms_lumisections
+        if (oms_lumisections) {
+            const previous_oms_lumisections = await get_oms_lumisections_for_dataset(
+                run_number,
+                dataset_name
+            );
+            if (oms_lumisections.length !== previous_oms_lumisections.length) {
+                throw 'Given lumisections length do not match online lumisections length';
+            }
+            const newOMSLumisectionRange = await update_oms_lumisections(
+                run_number,
+                dataset_name,
+                oms_lumisections,
+                req,
+                transaction
+            );
+        }
+        await transaction.commit();
+        // Enable again:
+        // await fill_dataset_triplet_cache();
+        res.json(datasetEvent);
+    } catch (err) {
+        console.log(err.message);
+        await transaction.rollback();
+        throw `Error saving dataset ${dataset_name} of run ${run_number}`;
+    }
 };
 
 exports.getDatasetsWaiting = async (req, res) => {
@@ -261,46 +331,11 @@ exports.appearedInDQMGUI = async (req, res) => {
 };
 
 exports.getDatasetsFilteredOrdered = async (req, res) => {
-    // A user can filter on triplets, or on any other field
-    // If the user filters by triplets, then :
-    let triplet_summary_filter = {};
-    for (const [key, val] of Object.entries(req.body.filter)) {
-        if (key.includes('triplet_summary')) {
-            triplet_summary_filter[key] = val;
-            delete req.body.filter[key];
-        }
-    }
-    triplet_summary_filter = changeNameOfAllKeys(
-        triplet_summary_filter,
-        conversion_operator
+    const [filter, include] = calculate_dataset_filter_and_include(
+        req.body.filter
     );
     // If a user filters by anything else:
     const { page, sortings, page_size } = req.body;
-
-    let filter = changeNameOfAllKeys(
-        {
-            ...req.body.filter
-        },
-        conversion_operator
-    );
-    // If its filtering by run class, then include it in run filter
-    let include = [
-        {
-            model: Run,
-            attributes: ['rr_attributes']
-        },
-        {
-            model: DatasetTripletCache,
-            where: triplet_summary_filter,
-            attributes: ['triplet_summary']
-        }
-    ];
-    if (typeof filter['rr_attributes.class'] !== 'undefined') {
-        include[0].where = {
-            'rr_attributes.class': filter['rr_attributes.class']
-        };
-        delete filter['rr_attributes.class'];
-    }
     const count = await Dataset.count({
         where: filter,
         include
@@ -503,28 +538,9 @@ exports.duplicate_datasets = async (req, res) => {
         workspaces_to_duplicate_into
     } = req.body;
 
-    let filter = changeNameOfAllKeys(
-        {
-            name: source_dataset_name,
-            'dataset_attributes.global_state': {
-                or: [{ '=': 'OPEN' }, { '=': 'SIGNOFF' }, { '=': 'COMPLETED' }]
-            },
-            ...req.body.filter
-        },
-        conversion_operator
+    const [filter, include] = calculate_dataset_filter_and_include(
+        req.body.filter
     );
-    let include = [
-        {
-            model: Run,
-            attributes: ['rr_attributes']
-        }
-    ];
-    if (typeof filter['rr_attributes.class'] !== 'undefined') {
-        include[0].where = {
-            'rr_attributes.class': filter['rr_attributes.class']
-        };
-        delete filter['rr_attributes.class'];
-    }
 
     const datasets_to_copy = await Dataset.findAll({
         where: filter,
@@ -658,4 +674,41 @@ exports.getUniqueDatasetNames = async (req, res) => {
     const unique_dataset_names = Object.keys(unique_dataset_names_object);
 
     res.json(unique_dataset_names);
+};
+
+const calculate_dataset_filter_and_include = client_filter => {
+    // A user can filter on triplets, or on any other field
+    // If the user filters by triplets, then :
+    let triplet_summary_filter = {};
+    for (const [key, val] of Object.entries(client_filter)) {
+        if (key.includes('triplet_summary')) {
+            triplet_summary_filter[key] = val;
+            delete client_filter[key];
+        }
+    }
+    triplet_summary_filter = changeNameOfAllKeys(
+        triplet_summary_filter,
+        conversion_operator
+    );
+
+    let filter = changeNameOfAllKeys(client_filter, conversion_operator);
+    // If its filtering by run class, then include it in run filter
+    let include = [
+        {
+            model: Run,
+            attributes: ['rr_attributes']
+        },
+        {
+            model: DatasetTripletCache,
+            where: triplet_summary_filter,
+            attributes: ['triplet_summary']
+        }
+    ];
+    if (typeof filter['rr_attributes.class'] !== 'undefined') {
+        include[0].where = {
+            'rr_attributes.class': filter['rr_attributes.class']
+        };
+        delete filter['rr_attributes.class'];
+    }
+    return [filter, include];
 };

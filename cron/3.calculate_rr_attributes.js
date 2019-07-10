@@ -38,7 +38,7 @@ exports.calculate_rr_attributes = async (
         rr_attributes = previous_rr_attributes;
     }
 
-    // hlt_key is determinant to calculate the run's class, so if its not ready, we rather wait to classify a run
+    // hlt_key is determinant to calculate the run's class, so if its not ready, we rather wait to classify a run into cosmics, collisions
     if (oms_attributes.hlt_key !== null) {
         rr_attributes.class = await assign_run_class(
             oms_attributes,

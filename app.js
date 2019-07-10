@@ -11,7 +11,8 @@ const port = 9500;
 const app = express();
 app.use(morgan('dev'));
 app.use(cors());
-app.use(bodyParser.json({ limit: '100mb' }));
+app.use(bodyParser.json({ limit: '400mb' }));
+app.use(bodyParser.urlencoded({ limit: '400mb', extended: true }));
 
 routes(app);
 

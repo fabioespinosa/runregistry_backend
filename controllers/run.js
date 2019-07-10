@@ -211,7 +211,7 @@ exports.new = async (req, res) => {
             req,
             transaction
         );
-        if (rr_lumisections.length > 0) {
+        if (rr_lumisections.length > 0 || oms_lumisections.length > 0) {
             const saved_oms_lumisections = await create_oms_lumisections(
                 run_number,
                 'online',

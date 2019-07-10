@@ -4,19 +4,24 @@ const queue = require('async').queue;
 const axios = require('axios');
 
 const connectionString =
-    'postgresql://fabioespinosa:@localhost:5432/intermediate_rr';
+    'postgresql://fabioespinosa:@localhost:5432/intermediate_rr_2';
 const { API_URL } = require('../../config/config')['development'];
+const { oms_lumisection_whitelist } = require('../../config/config');
+const getAttributesSpecifiedFromArray = require('get-attributes-specified-from-array');
 
-exports.save_runs_from_old_rr = async (rows, number_of_tries) => {
+exports.save_runs_from_old_rr = async (rows, number_of_tries, interval = 0) => {
     const client = new Client({
         connectionString: connectionString
     });
     await client.connect();
-
+    const interval_length = 10000;
+    const starting_point = 296783; //123000;
     if (!rows) {
         const result = await client.query(`
             select * from online 
-            where (workspace_states -> 'global') is not null and lumisections is not null
+            where (workspace_states -> 'global') is not null and lumisections is not null and run_number > ${starting_point +
+                interval * interval_length} and run_number <= ${starting_point +
+            (interval + 1) * interval_length}
             order by run_number ASC
         `);
         rows = result.rows;
@@ -58,8 +63,8 @@ exports.save_runs_from_old_rr = async (rows, number_of_tries) => {
                 ls_duration: rr_lumisections.length
             };
 
-            await axios.post(
-                `${API_URL}/runs`,
+            await axios.put(
+                `${API_URL}/automatic_run_update/${run_number}`,
                 {
                     oms_attributes,
                     oms_lumisections,
@@ -69,22 +74,24 @@ exports.save_runs_from_old_rr = async (rows, number_of_tries) => {
                 {
                     headers: {
                         email: `auto@auto MIG: ${run_aud_user}`,
-                        comment: 'migration from previous RR'
+                        comment: 'run migration from RR',
+                        egroups: 'egroup;'
                     },
                     maxContentLength: 524288900
                 }
             );
+            saved_runs += 1;
         } catch (e) {
             runs_not_saved.push(row);
             console.log(e);
         }
     });
-    const number_of_workers = 4;
+    const number_of_workers = 1;
     const asyncQueue = queue(async run => await run(), number_of_workers);
 
     // When runs finished saving:
     asyncQueue.drain = async () => {
-        console.log(`${saved_runs} run(s) saved`);
+        console.log(`${saved_runs} run(s) updated`);
         if (runs_not_saved.length > 0) {
             const run_numbers_of_runs_not_saved = runs_not_saved.map(
                 ({ run_number }) => run_number
@@ -92,7 +99,7 @@ exports.save_runs_from_old_rr = async (rows, number_of_tries) => {
             console.log(
                 `WARNING: ${
                     runs_not_saved.length
-                } run(s) were not saved. They are: ${run_numbers_of_runs_not_saved}.`
+                } run(s) were not updated. They are: ${run_numbers_of_runs_not_saved}.`
             );
             console.log('------------------------------');
             console.log('------------------------------');
@@ -107,9 +114,22 @@ exports.save_runs_from_old_rr = async (rows, number_of_tries) => {
                 );
             } else {
                 console.log(
-                    `After trying 4 times, ${run_numbers_of_runs_not_saved} run(s) were not saved`
+                    `After trying 4 times, ${run_numbers_of_runs_not_saved} run(s) were not updated`
                 );
             }
+        }
+        const result = await client.query(`
+            select * from online 
+            where (workspace_states -> 'global') is not null and lumisections is not null and run_number > ${starting_point +
+                (interval + 1) *
+                    interval_length} and run_number <= ${starting_point +
+            (interval + 2) * interval_length}
+            order by run_number ASC
+        `);
+        rows = result.rows;
+        if (starting_point + (interval + 2) * interval_length < 400000) {
+            // if there are still runs to be saved:
+            await exports.save_runs_from_old_rr(rows, 0, interval + 1);
         }
     };
     asyncQueue.error = err => {
@@ -142,40 +162,58 @@ const generate_rr_lumisections = (row, lumisections) => {
         for (let [key, triplet] of Object.entries(row)) {
             // If key includes '-' it is a component triplet:
             if (key.includes('-')) {
-                const workspace = key.split('-')[0];
-                const component = key.split('-')[1];
-                if (workspace === component && workspace!== 'btag') {
-                    // Since btag is not included in the global workspace, we pass it:
-                    // We are dealing with a local column (e.g. ecal-ecal, which will be replaced with global-ecal)
-                    continue;
+                let workspace = key.split('-')[0];
+                let component = key.split('-')[1];
+                if (component === 'pix') {
+                    component = 'pixel';
+                }
+                if (component === 'tracking') {
+                    component = 'track';
                 }
                 // The following will be replaced by the global one (l1t-l1tmu, l1t-l1tcalo, tracker-pix, tracker-strip, ecal-es)
-                if (
-                    workspace === 'l1t' &&
-                    (component === 'l1tmu' || component === 'l1tcalo')
-                ) {
-                    continue;
-                }
-                if (
-                    workspace === 'tracker' &&
-                    (component === 'pixel' || component === 'strip')
-                ) {
-                    continue;
-                }
-                if (workspace === 'ecal' && component === 'es') {
-                    continue;
+                if (workspace !== 'global') {
+                    const list_of_certifiable_columns = {
+                        btag: ['btag'],
+                        castor: ['castor'],
+                        cms: ['cms'],
+                        csc: ['csc'],
+                        ctpps: ['ctpps'],
+                        dt: ['dt'],
+                        ecal: ['ecal', 'es'],
+                        egamma: ['egamma'],
+                        hcal: ['hcal'],
+                        hlt: ['hlt'],
+                        jetmet: ['jetmet'],
+                        l1t: ['l1t', 'l1tmu', 'l1tcalo'],
+                        lumi: ['lumi'],
+                        muon: ['muon'],
+                        rpc: ['rpc'],
+                        tau: ['tau'],
+                        tracker: ['track', 'pixel', 'strip']
+                    };
+                    if (
+                        list_of_certifiable_columns[workspace].includes(
+                            component
+                        )
+                    ) {
+                        component = `${component}_private`;
+                    }
                 }
                 let final_status = 'NOTSET';
 
                 if (triplet === null) {
                     final_status = 'NOTSET';
                 } else {
-                    final_status = 'GOOD';
+                    final_status = triplet.status;
                 }
                 if (key.startsWith('global-')) {
                     if (component === 'l1tmu' || component === 'l1tcalo') {
                         key = `l1t-${component}`;
-                    } else if (component === 'pix' || component === 'strip') {
+                    } else if (
+                        component === 'pixel' ||
+                        component === 'strip' ||
+                        component === 'track'
+                    ) {
                         key = `tracker-${component}`;
                     } else if (component === 'es') {
                         key = `ecal-${component}`;
@@ -197,6 +235,10 @@ const generate_rr_lumisections = (row, lumisections) => {
 const generate_oms_lumisections = (row, lumisections) => {
     return lumisections.map(lumisection => {
         const current_lumisection = {};
+        lumisection = getAttributesSpecifiedFromArray(
+            lumisection,
+            oms_lumisection_whitelist
+        );
         for (let [key, value] of Object.entries(lumisection)) {
             if (!key.startsWith('lse_') && !key.startsWith('rdr_')) {
                 if (key === 'lhcfill') {

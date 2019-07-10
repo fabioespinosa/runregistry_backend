@@ -179,7 +179,7 @@ exports.markCycleCompletedInWorkspace = async (req, res) => {
     // Validate if all datasets inside are moved to complete:
     cycle.datasets.forEach(({ run_number, name, dataset_attributes }) => {
         if (dataset_attributes[`${workspace}_state`] !== 'COMPLETED') {
-            throw `The dataset with name: ${name} and run number: ${run_number}, has not been moved to completed. Cycle cannot be marked completed.`;
+            throw `There is at least one dataset inside this cycle that has not been moved to completed: The dataset with name: ${name} and run number: ${run_number}, has not been moved to completed. Cycle cannot be marked completed.`;
         }
     });
     cycle.cycle_attributes = {

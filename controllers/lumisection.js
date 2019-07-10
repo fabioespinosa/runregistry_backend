@@ -192,15 +192,12 @@ exports.update_rr_lumisections = async (
         dataset_name,
         get_lumisections_without_shifter_intervention
     );
-    let local_whitelist;
-    if (dataset_name !== 'online') {
-        // If we are not dealing with online, we do not want to whitelist
-        local_whitelist = ['*'];
-    }
+    let local_whitelist = ['*'];
+
     const new_ls_ranges = exports.getNewLumisectionRanges(
         previous_lumisections,
         new_lumisections,
-        local_whitelist || online_components
+        local_whitelist
     );
     const saved_ranges = new_ls_ranges.map(async lumisection_range => {
         const { start, end } = lumisection_range;
@@ -496,16 +493,25 @@ exports.get_rr_lumisections_for_dataset = async (
     return lumisections_with_empty_wholes;
 };
 
-exports.get_oms_lumisections_for_dataset = async (run_number, dataset_name) => {
+// OMS lumisections can be either the online dataset (default) or it can inherit from the online dataset and then have changes on it:
+exports.get_oms_lumisections_for_dataset = async (
+    run_number,
+    dataset_name = 'online'
+) => {
+    // OMS lumisections can be either the online dataset (default) or it can inherit from the online dataset and then have changes on it:
+    const not_online_dataset =
+        dataset_name === 'online'
+            ? ''
+            : ` OR "OMSLumisectionEvent"."name" = :dataset_name`;
     const merged_lumisections = await sequelize.query(
         `
-        SELECT run_number, "name", lumisection_number, mergejsonb(lumisection_metadata ORDER BY version ) as "oms_json_blob"
+        SELECT run_number, lumisection_number, mergejsonb(lumisection_metadata ORDER BY version ) as "oms_json_blob"
         FROM(
         SELECT "OMSLumisectionEvent"."version", run_number, "name", jsonb AS "lumisection_metadata", lumisection_number  FROM "OMSLumisectionEvent" INNER JOIN "OMSLumisectionEventAssignation" 
         ON "OMSLumisectionEvent"."version" = "OMSLumisectionEventAssignation"."version" INNER JOIN "JSONBDeduplication" ON "lumisection_metadata_id" = "id"
-        WHERE "OMSLumisectionEvent"."name" = :dataset_name AND "OMSLumisectionEvent"."run_number" = :run_number
+        WHERE ("OMSLumisectionEvent"."name" = 'online' ${not_online_dataset}) AND "OMSLumisectionEvent"."run_number" = :run_number
         ) AS "updated_lumisectionEvents"
-        GROUP BY "run_number", "name", lumisection_number 
+        GROUP BY "run_number", lumisection_number 
         ORDER BY lumisection_number;
     `,
         {
@@ -733,30 +739,31 @@ exports.get_rr_lumisection_ranges = async (req, res) => {
 };
 
 exports.get_oms_lumisection_ranges = async (req, res) => {
-    const { run_number } = req.body;
+    const { run_number, dataset_name } = req.body;
     // Dataset name is always online if its from OMS
-    const rr_lumisections = await exports.get_oms_lumisections_for_dataset(
+    // unless its from the import data (which includes exceptions)
+    const oms_lumisections = await exports.get_oms_lumisections_for_dataset(
         run_number,
-        'online'
+        dataset_name || 'online'
     );
-    const ls_ranges = exports.getLumisectionRanges(rr_lumisections, ['*']);
+    const ls_ranges = exports.getLumisectionRanges(oms_lumisections, ['*']);
     res.json(ls_ranges);
 };
 
 exports.get_rr_lumisections = async (req, res) => {
     const { run_number, dataset_name } = req.body;
-    const lumisections_with_empty_wholes = await exports.get_rr_lumisections_for_dataset(
+    const rr_lumisections = await exports.get_rr_lumisections_for_dataset(
         run_number,
         dataset_name
     );
-    res.json(lumisections_with_empty_wholes);
+    res.json(rr_lumisections);
 };
 
 exports.get_oms_lumisections = async (req, res) => {
-    const { run_number } = req.body;
-    const lumisections_with_empty_wholes = await exports.get_oms_lumisections_for_dataset(
+    const { run_number, dataset_name } = req.body;
+    const oms_lumisections = await exports.get_oms_lumisections_for_dataset(
         run_number,
-        'online'
+        dataset_name || 'online'
     );
-    res.json(lumisections_with_empty_wholes);
+    res.json(oms_lumisections);
 };

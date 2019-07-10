@@ -2,7 +2,7 @@ module.exports = {
     development: {
         username: 'hackathon',
         password: '',
-        database: 'hackathon4',
+        database: 'hackathon6',
         host: '127.0.0.1',
         logging: false,
         dialect: 'postgres',
@@ -36,7 +36,7 @@ module.exports = {
     staging: {
         username: 'admin',
         password: 'changeme',
-        database: 'complete_rr',
+        database: 'final_rr',
         logging: false,
         host: 'dbod-rr4-dev.cern.ch',
         dialect: 'postgres',

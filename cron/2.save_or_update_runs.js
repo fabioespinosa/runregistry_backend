@@ -37,10 +37,14 @@ exports.save_runs = async (new_runs, number_of_tries) => {
             // We freeze oms_attributes to prevent them changing later on:
             Object.freeze(oms_lumisections);
             Object.freeze(oms_attributes);
+            // NORMAL:
             const rr_attributes = await calculate_rr_attributes(
                 oms_attributes,
                 oms_lumisections
             );
+            // start temporal
+            // const rr_attributes = {};
+            // end temporal;
             let rr_lumisections = [];
             // Only if the run is significant, do we calculate the component statuses for the run
             if (rr_attributes.significant) {
@@ -62,8 +66,9 @@ exports.save_runs = async (new_runs, number_of_tries) => {
                 {
                     headers: {
                         email: 'auto@auto',
-                        comment: 'run creation - appeared in OMS'
-                    }
+                        comment: 'run creation'
+                    },
+                    maxContentLength: 52428890
                 }
             );
             saved_runs += 1;
@@ -158,7 +163,8 @@ exports.update_runs = async (
                     headers: {
                         email: email || 'auto@auto',
                         comment: comment || 'automatic update from OMS'
-                    }
+                    },
+                    maxContentLength: 52428890
                 }
             );
             if (updated_run.status === 200) {

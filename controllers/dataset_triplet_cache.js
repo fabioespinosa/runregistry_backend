@@ -195,4 +195,106 @@ exports.processDatasets = async (dataset_batch, transaction) => {
     }
 };
 
-exports.fill_for_unfilled_dataset = (req, res) => {};
+exports.fill_for_unfilled_datasets = async transaction => {
+    const count_query = await sequelize.query(
+        'SELECT count(*) FROM "Dataset" LEFT JOIN "DatasetTripletCache" ON "Dataset".run_number = "DatasetTripletCache".run_number AND "Dataset".name = "DatasetTripletCache".name WHERE triplet_summary IS NULL;',
+        {
+            type: sequelize.QueryTypes.SELECT
+        }
+    );
+    let { count } = count_query[0];
+    count = +count;
+
+    const number_of_batches = Math.ceil(count / number_of_datasets_per_batch);
+    const async_functions = [];
+    let number_of_processed_datasets = 0;
+    for (let i = 0; i < number_of_batches; i++) {
+        async_functions.push(async () => {
+            const dataset_batch = await sequelize.query(
+                `
+                SELECT "Dataset".* FROM "Dataset" 
+                LEFT JOIN "DatasetTripletCache" ON "Dataset".run_number = "DatasetTripletCache".run_number AND "Dataset".name = "DatasetTripletCache".name 
+                WHERE triplet_summary IS NULL
+                ORDER BY "Dataset".run_number ASC
+                LIMIT ${number_of_datasets_per_batch}
+                OFFSET ${i * number_of_datasets_per_batch};
+                `,
+                {
+                    type: sequelize.QueryTypes.SELECT
+                }
+            );
+            const processed_datasets = await exports.processDatasets(
+                dataset_batch,
+                transaction
+            );
+            number_of_processed_datasets += processed_datasets.length;
+        });
+    }
+    if (number_of_batches < 10) {
+        await Promise.all(async_functions.map(async => async()));
+        console.log(
+            `Cache generated for ${number_of_processed_datasets} datasets`
+        );
+    } else {
+        console.log(`Processing for ${count} datasets.`);
+        const asyncQueue = queue(
+            async dataset_batch => await dataset_batch(),
+            1
+        );
+        asyncQueue.drain = async () => {
+            console.log(
+                `Cache generated for ${number_of_processed_datasets} datasets`
+            );
+        };
+        asyncQueue.error = err => {
+            console.log('Error: ');
+            console.log(err);
+            throw err;
+        };
+        await asyncQueue.push(async_functions);
+    }
+};
+
+exports.recalculate_all_triplet_cache = async transaction => {
+    const count = await Dataset.count();
+    const number_of_batches = Math.ceil(count / number_of_datasets_per_batch);
+    const async_functions = [];
+    let number_of_processed_datasets = 0;
+    for (let i = 0; i < number_of_batches; i++) {
+        async_functions.push(async () => {
+            const dataset_batch = await Dataset.findAll({
+                order: [['version', 'ASC'], ['run_number', 'ASC']],
+                limit: number_of_datasets_per_batch,
+                offset: i * number_of_datasets_per_batch
+            });
+            const processed_datasets = await exports.processDatasets(
+                dataset_batch,
+                transaction
+            );
+            number_of_processed_datasets += processed_datasets.length;
+        });
+    }
+    if (number_of_batches < 10) {
+        await Promise.all(async_functions.map(async => async()));
+        console.log(
+            `Cache generated for ${number_of_processed_datasets} datasets`
+        );
+    } else {
+        console.log(`Processing for ${count} datasets.`);
+        const asyncQueue = queue(
+            async dataset_batch => await dataset_batch(),
+            1
+        );
+        asyncQueue.drain = async () => {
+            console.log(
+                `Cache generated for ${number_of_processed_datasets} datasets`
+            );
+        };
+        asyncQueue.error = err => {
+            console.log('Error: ');
+            console.log(err);
+            throw err;
+        };
+        await asyncQueue.push(async_functions);
+    }
+};

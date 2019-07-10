@@ -62,7 +62,7 @@ exports.generate_golden_json_for_dataset = async (
     // The only dataset that is referenced in OMS is the run, therefore it is the online dataset
     const oms_lumisections = await get_oms_lumisections_for_dataset(
         run_number,
-        'online'
+        dataset_name
     );
     if (rr_lumisections.length !== oms_lumisections.length) {
         throw `OMS lumisections and RR lumisections do not match for dataset ${dataset_name}, run: ${run_number}, please reset the run's lumisections, in worst case delete datasets and signoff run again`;

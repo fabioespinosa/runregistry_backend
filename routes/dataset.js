@@ -6,6 +6,7 @@ module.exports = app => {
     app.get('/datasets_waiting', catchAPI(Dataset.getDatasetsWaiting));
     app.get('/datasets_waiting_dbs', catchAPI(Dataset.getDatasetsWaitingDBS));
     app.get('/datasets/workspace/:pog', catchAPI(Dataset.getSpecificWorkspace));
+    app.post('/datasets', catchAPI(Dataset.new));
     app.post('/dataset_appeared_in_dbs', catchAPI(Dataset.appearedInDBS));
     app.post('/datasets/get_dataset', catchAPI(Dataset.getDataset));
     app.post(

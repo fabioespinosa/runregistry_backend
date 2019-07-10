@@ -1,9 +1,9 @@
 const Permission = require('../controllers/permission');
 const requireAuth = async (req, res, next) => {
-    if (process.env.NODE_ENV === 'development') {
-        next();
-        return;
-    }
+    // if (process.env.NODE_ENV === 'development') {
+    //     next();
+    //     return;
+    // }
     let authenticated = false;
 
     const egroups = req.get('egroups');
