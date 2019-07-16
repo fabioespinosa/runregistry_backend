@@ -67,9 +67,9 @@ module.exports = {
         password: 'changeme',
         database: 'runregistry_database',
         logging: false,
-        host: 'dbod-rr4-dev.cern.ch',
+        host: 'dbod-gc005.cern.ch',
         dialect: 'postgres',
-        port: 6606,
+        port: 6601,
         define: {
             // Make sequelize not pluralize the name of tables:
             freezeTableName: true
