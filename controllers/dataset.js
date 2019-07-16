@@ -24,7 +24,6 @@ const { WAITING_DQM_GUI_CONSTANT } = require('../config/config')[
     process.env.ENV || 'development'
 ];
 
-fill_for_unfilled_datasets();
 const { Op } = Sequelize;
 const conversion_operator = {
     and: Op.and,

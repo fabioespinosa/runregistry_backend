@@ -33,7 +33,7 @@ exports.calculate_rr_attributes = async (
     rr_attributes.class = '';
     rr_attributes.state = 'OPEN';
 
-    // However, if it is a refersh ('update_runs' from 2.save_or_update_runs), we want to preserver the previous values of the run and only recalculate the class and if the run was significant:
+    // However, if it is a refresh ('update_runs' from 2.save_or_update_runs), we want to preserver the previous values of the run and only recalculate the class and if the run was significant:
     if (previous_rr_attributes) {
         rr_attributes = previous_rr_attributes;
     }

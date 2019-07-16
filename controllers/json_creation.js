@@ -2,7 +2,8 @@ const {
     get_rr_lumisections_for_dataset,
     get_oms_lumisections_for_dataset
 } = require('./lumisection');
-const { Dataset } = require('../models');
+const sequelize = require('../models').sequelize;
+const { Dataset, Run } = require('../models');
 
 // We need to go from [1,2,3,4,10,11,12] to [[1,4], [10,12]]:
 const convert_array_of_list_to_array_of_ranges = list_of_good_lumisections => {
@@ -23,13 +24,28 @@ const convert_array_of_list_to_array_of_ranges = list_of_good_lumisections => {
             } else {
                 // If not, we are at the end of the current range, therefore we need to insert a new range, starting from the next lumisection in the array which is +1 the current position:
                 array_of_ranges.push([
-                    lumisection_number + 1,
-                    lumisection_number + 1
+                    list_of_good_lumisections[index + 1],
+                    list_of_good_lumisections[index + 1]
                 ]);
             }
         }
     });
     return array_of_ranges;
+};
+
+exports.get_all_distinct_run_numbers_for_dataset = async dataset_name => {
+    let run_numbers = await sequelize.query(
+        `
+        SELECT distinct run_number from "Dataset" where "Dataset".name = :dataset_name`,
+        {
+            type: sequelize.QueryTypes.SELECT,
+            replacements: {
+                dataset_name
+            }
+        }
+    );
+    run_numbers = run_numbers.map(({ run_number }) => run_number);
+    return run_numbers;
 };
 
 exports.generate_golden_json_for_dataset = async (
@@ -50,8 +66,16 @@ exports.generate_golden_json_for_dataset = async (
         where: {
             name: dataset_name,
             run_number
-        }
+        },
+        include: [
+            {
+                model: Run
+            }
+        ]
     });
+    if (dataset.Run.oms_attributes.recorded_lumi <= 0.08) {
+        return [];
+    }
     if (dataset === null) {
         throw `Dataset: ${dataset_name} of run ${run_number} does not exist`;
     }
@@ -69,12 +93,13 @@ exports.generate_golden_json_for_dataset = async (
     }
     const good_lumisections = [];
     rr_lumisections.forEach((rr_lumisection, index) => {
+        const lumisection_number = index + 1;
         let lumisection_overall_status = true;
         rr_columns_required_to_be_good.forEach(duplet => {
             const column = duplet[0];
             const desired_value = duplet[1];
             if (!rr_lumisection[column]) {
-                throw `There is no ${column} value for lumisection #${index} of dataset ${dataset_name} of run ${run_number}`;
+                throw `There is no ${column} value for lumisection #${lumisection_number} of dataset ${dataset_name} of run ${run_number}`;
             }
             const { status } = rr_lumisection[column];
             if (!status) {
@@ -88,7 +113,7 @@ exports.generate_golden_json_for_dataset = async (
             const column = duplet[0];
             const desired_value = duplet[1];
             if (typeof oms_lumisection[column] === 'undefined') {
-                throw `There is no ${column} value for lumisection #${index} of dataset ${dataset_name} of run ${run_number}`;
+                throw `There is no ${column} value for lumisection #${lumisection_number} of dataset ${dataset_name} of run ${run_number}`;
             }
             if (oms_lumisection[column] !== desired_value) {
                 lumisection_overall_status = false;

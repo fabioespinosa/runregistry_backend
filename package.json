@@ -16,6 +16,7 @@
         "async": "^2.6.1",
         "axios": "^0.18.0",
         "body-parser": "^1.18.3",
+        "cern-get-sso-cookie": "^1.0.0",
         "change-name-of-all-keys": "^1.0.3",
         "cookiefile": "^1.0.10",
         "cors": "^2.8.5",

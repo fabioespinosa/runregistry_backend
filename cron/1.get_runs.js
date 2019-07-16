@@ -1,17 +1,10 @@
 const fs = require('fs');
 const https = require('https');
 const CronJob = require('cron').CronJob;
-const axios = require('axios').create({
-    httpsAgent: new https.Agent({
-        rejectUnauthorized: false,
-        cert: fs.readFileSync('./cron_datasets/usercert.pem'),
-        key: fs.readFileSync('./cron_datasets/userkey.pem'),
-        passphrase: 'passphrase'
-    })
-});
+const getCookie = require('cern-get-sso-cookie');
+const axios = require('axios');
 const { handleErrors } = require('../utils/error_handlers');
 const config = require('../config/config');
-const cookie_generator = require('./get_cookie').get_cookie;
 const {
     OMS_URL,
     OMS_RUNS,
@@ -20,30 +13,28 @@ const {
     SECONDS_PER_API_CALL
 } = config[process.env.ENV || 'development'];
 const { save_runs, update_runs } = require('./2.save_or_update_runs');
-
-let headers = {
-    Cookie:
-        ' _saml_idp=aHR0cHM6Ly9jZXJuLmNoL2xvZ2lu; _shibsession_64656661756c7468747470733a2f2f636d736f6d732e6365726e2e63682f53686962626f6c6574682e73736f2f41444653=_1052ca037ce4fe37c692c01e388fdfea'
-};
+const cert = `${__dirname}/../certs/usercert.pem`;
+const key = `${__dirname}/../certs/userkey.pem`;
 
 // Will call itself recursively if all runs are new
 const fetch_runs = async (
     fetch_amount = RUNS_PER_API_CALL,
     first_time = true
 ) => {
+    const oms_url = `${OMS_URL}/${OMS_RUNS(fetch_amount)}`;
     // insert cookie that will authenticate OMS request:
-    if (first_time && process.env.ENV === 'production') {
+    if (
+        first_time
+        // && process.env.ENV === 'production'
+    ) {
         headers = {
-            Cookie: await cookie_generator()
+            Cookie: await getCookie({ url: oms_url, certificate: cert, key })
         };
     }
 
-    const oms_response = await axios.get(
-        `${OMS_URL}/${OMS_RUNS(fetch_amount)}`,
-        {
-            headers
-        }
-    );
+    const oms_response = await axios.get(oms_url, {
+        headers
+    });
     if (typeof oms_response.data.data === 'undefined') {
         throw Error('Invalid cookie in request');
     }

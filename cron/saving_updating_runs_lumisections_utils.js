@@ -1,9 +1,6 @@
 const https = require('https');
-const axios = require('axios').create({
-    httpsAgent: new https.Agent({
-        rejectUnauthorized: false
-    })
-});
+const axios = require('axios');
+const getCookie = require('cern-get-sso-cookie');
 const json_logic = require('json-logic-js');
 const { handleCronErrors: handleErrors } = require('../utils/error_handlers');
 const { API_URL, OMS_URL, OMS_LUMISECTIONS } = require('../config/config')[
@@ -11,6 +8,8 @@ const { API_URL, OMS_URL, OMS_LUMISECTIONS } = require('../config/config')[
 ];
 
 const { online_components } = require('../config/config');
+const cert = `${__dirname}/../certs/usercert.pem`;
+const key = `${__dirname}/../certs/userkey.pem`;
 
 // Takes the 'components included array' from API and turns it into attributes:
 exports.getComponentsIncludedBooleans = oms_attributes => {
@@ -24,11 +23,15 @@ exports.getComponentsIncludedBooleans = oms_attributes => {
 
 exports.get_OMS_lumisections = handleErrors(async run_number => {
     // Get lumisections:
+    const oms_lumisection_url = `${OMS_URL}/${OMS_LUMISECTIONS(run_number)}`;
     const oms_lumisection_response = await axios
-        .get(`${OMS_URL}/${OMS_LUMISECTIONS(run_number)}`, {
+        .get(oms_lumisection_url, {
             headers: {
-                Cookie:
-                    '_shibsession_64656661756c7468747470733a2f2f636d736f6d732e6365726e2e63682f53686962626f6c6574682e73736f2f41444653=_1052ca037ce4fe37c692c01e388fdfea'
+                Cookie: await getCookie({
+                    url: oms_lumisection_url,
+                    certificate: cert,
+                    key
+                })
             }
         })
         .catch(err => {
