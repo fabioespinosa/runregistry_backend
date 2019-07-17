@@ -317,7 +317,14 @@ exports.automatic_run_update = async (req, res) => {
         await transaction.commit();
         await fill_dataset_triplet_cache();
         if (was_run_updated) {
-            const run = await Run.findByPk(run_number);
+            const run = await Run.findByPk(run_number, {
+                include: [
+                    {
+                        model: DatasetTripletCache,
+                        attributes: ['triplet_summary']
+                    }
+                ]
+            });
             res.json(run.dataValues);
         } else {
             // Nothing changed:
@@ -369,7 +376,14 @@ exports.manual_edit = async (req, res) => {
             console.log(`updated run ${run_number}`);
         }
         await transaction.commit();
-        const run = await Run.findByPk(run_number);
+        const run = await Run.findByPk(run_number, {
+            include: [
+                {
+                    model: DatasetTripletCache,
+                    attributes: ['triplet_summary']
+                }
+            ]
+        });
         res.json(run.dataValues);
     } catch (err) {
         console.log(err);
@@ -380,7 +394,14 @@ exports.manual_edit = async (req, res) => {
 
 exports.markSignificant = async (req, res) => {
     const { run_number } = req.body.original_run;
-    const run = await Run.findByPk(run_number);
+    const run = await Run.findByPk(run_number, {
+        include: [
+            {
+                model: DatasetTripletCache,
+                attributes: ['triplet_summary']
+            }
+        ]
+    });
     if (run === null) {
         throw 'Run not found';
     }
@@ -419,7 +440,14 @@ exports.refreshRunClassAndComponents = async (req, res) => {
         email,
         comment: `${email} requested refresh from OMS`
     });
-    const saved_run = await Run.findByPk(run_number);
+    const saved_run = await Run.findByPk(run_number, {
+        include: [
+            {
+                model: DatasetTripletCache,
+                attributes: ['triplet_summary']
+            }
+        ]
+    });
     res.json(saved_run);
 };
 
@@ -444,30 +472,30 @@ exports.moveRun = async (req, res) => {
         throw `There is no run lumisection data for run ${run_number}, therefore it cannot be signed off`;
     }
     // Check for NO VALUE FOUND lumisections:
-    for (let i = 0; i < rr_lumisections.length; i++) {
-        const current_lumisection = rr_lumisections[i];
-        for (const [key, val] of Object.entries(current_lumisection)) {
-            if (
-                // Revise
-                key.includes('_triplet') &&
-                (to_state === 'SIGNOFF' || to_state === 'COMPLETED')
-            ) {
-                if (
-                    val.status === '' ||
-                    val.status === 'EMPTY' ||
-                    val.status === 'NO VALUE FOUND'
-                ) {
-                    // Revise:
-                    throw `There is a ${
-                        val.status === '' ? 'empty' : val.status
-                    } lumisection at position ${i +
-                        1} of this run in component ${
-                        key.split('_triplet')[0]
-                    }. `;
-                }
-            }
-        }
-    }
+    // for (let i = 0; i < rr_lumisections.length; i++) {
+    //     const current_lumisection = rr_lumisections[i];
+    //     for (const [key, val] of Object.entries(current_lumisection)) {
+    //         if (
+    //             // Revise
+    //             key.includes('_triplet') &&
+    //             (to_state === 'SIGNOFF' || to_state === 'COMPLETED')
+    //         ) {
+    //             if (
+    //                 val.status === '' ||
+    //                 val.status === 'EMPTY' ||
+    //                 val.status === 'NO VALUE FOUND'
+    //             ) {
+    //                 // Revise:
+    //                 throw `There is a ${
+    //                     val.status === '' ? 'empty' : val.status
+    //                 } lumisection at position ${i +
+    //                     1} of this run in component ${
+    //                     key.split('_triplet')[0]
+    //                 }. `;
+    //             }
+    //         }
+    //     }
+    // }
     //      Check if run class is empty:
     if (run.dataValues.rr_attributes.class === '') {
         throw 'The class of run must not be empty ';

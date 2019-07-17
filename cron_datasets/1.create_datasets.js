@@ -6,6 +6,9 @@ const { API_URL, WAITING_DQM_GUI_CONSTANT } = require('../config/config')[
 
 const { update_or_create_dataset } = require('../controllers/dataset');
 const {
+    fill_dataset_triplet_cache
+} = require('../controllers/dataset_triplet_cache');
+const {
     create_rr_lumisections,
     create_oms_lumisections
 } = require('../controllers/lumisection');
@@ -144,9 +147,7 @@ exports.save_individual_dataset = async (
     dataset_attributes,
     lumisections,
     transaction,
-    event_info,
-    // For data import only:
-    oms_lumisections
+    event_info
 ) => {
     event_info = event_info || {
         email: 'auto@auto',
@@ -161,19 +162,11 @@ exports.save_individual_dataset = async (
         event_info,
         transaction
     );
-    if (lumisections.length > 0 || oms_lumisections.length > 0) {
+    if (lumisections.length > 0) {
         const saved_lumisections = await create_rr_lumisections(
             run_number,
             dataset_name,
             lumisections,
-            event_info,
-            transaction
-        );
-        // For data import only (since later on, editing oms_lumisections will not be allowed):
-        const oms_lumisections = await create_oms_lumisections(
-            run_number,
-            'online',
-            oms_lumisections,
             event_info,
             transaction
         );
