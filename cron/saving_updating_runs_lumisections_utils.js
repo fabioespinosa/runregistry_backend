@@ -174,9 +174,26 @@ exports.assign_lumisection_component_status = handleErrors(
         // Since we are treating at a lumisection level, we don't need beams_present_and_stable:
         delete run.beams_present_and_stable;
         // We fetch all classifiers and then filter them for each component
-        const { data: classifiers } = await axios.get(
-            `${API_URL}/classifiers/component`
+        const { data: online_classifiers } = await axios.get(
+            `${API_URL}/classifiers/component/online`
         );
+        // We group them now by workspace (notice we don't do this via SQL because we still want to preserve history of objects)
+        const workspace_classifiers = {};
+        online_classifiers.forEach(classifier => {
+            const { workspace } = classifier.WorkspaceColumn.Workspace;
+            const column_name = classifier.WorkspaceColumn.name;
+            workspace_classifiers[workspace] =
+                workspace_classifiers[workspace] || {};
+            workspace_classifiers[workspace][column_name] =
+                workspace_classifiers[workspace][column_name] || [];
+            const columns_of_workspace = workspace_classifiers[workspace];
+            const classifiers_of_column = columns_of_workspace[column_name];
+
+            workspace_classifiers[workspace][column_name] = [
+                ...classifiers_of_column,
+                classifier
+            ];
+        });
         const rr_lumisections = [];
         oms_lumisections.forEach(oms_lumisection => {
             // We join the attributes from the run AND the lumisection to produce a per lumisection result:
@@ -186,20 +203,25 @@ exports.assign_lumisection_component_status = handleErrors(
             };
             const lumisection_components = {};
 
-            // For each online component:
-            online_components.forEach(component => {
-                // Filter the classifiers of this component:
-                const component_classifiers = classifiers.filter(
-                    classifier => classifier.component === component
-                );
-                lumisection_components[
-                    component
-                ] = exports.classify_component_per_lumisection(
-                    run_and_lumisection_attributes,
-                    component_classifiers,
-                    component
-                );
-            });
+            // Now per workspace:
+            for (const [workspace, columns_of_workspace] of Object.entries(
+                workspace_classifiers
+            )) {
+                // Each workspace has columns:
+                for (const [
+                    column_name,
+                    component_classifiers
+                ] of Object.entries(columns_of_workspace)) {
+                    const component = `${workspace}-${column_name}`;
+                    lumisection_components[
+                        component
+                    ] = exports.classify_component_per_lumisection(
+                        run_and_lumisection_attributes,
+                        component_classifiers,
+                        component
+                    );
+                }
+            }
             rr_lumisections.push(lumisection_components);
         });
         return rr_lumisections;

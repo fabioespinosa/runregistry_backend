@@ -8,6 +8,7 @@ module.exports = app => {
         '/classifiers/component/:online_or_offline',
         catchAPI(Classifier.getComponentClassifiers)
     );
+
     app.get('/classifiers/:category', catchAPI(Classifier.getClassifiers));
     app.get(
         '/classifiers/:category/filter_by_component/:component',

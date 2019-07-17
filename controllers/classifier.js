@@ -70,30 +70,38 @@ exports.getClassifiers = async (req, res) => {
     res.json(classifiers);
 };
 
-// exports.getComponentClassifiers = async (req, res) => {
-//     // This will join the Classifiers with the Setting configuration of higher ID (the current one).
-//     let classifiers = await findAllItemsFiltered(
-//         ComponentClassifierList,
-//         ComponentClassifier,
-//         {
-//             include: [
-//                 {
-//                     model: WorkspaceColumn,
-//                     include: [
-//                         {
-//                             model: Workspace
-//                         }
-//                     ]
-//                 }
-//             ]
-//         }
-//     );
-//     classifiers = classifiers.map(classifier => {
-//         classifier.classifier = JSON.stringify(classifier.classifier);
-//         return classifier;
-//     });
-//     classifiers = res.json(classifiers);
-// };
+exports.getComponentClassifiers = async (req, res) => {
+    const { online_or_offline } = req.params;
+    if (online_or_offline !== 'online' && online_or_offline !== 'offline') {
+        throw 'component classifiers must be either online or offline';
+    }
+    // This will join the Classifiers with the Setting configuration of higher ID (the current one).
+    let classifiers = await findAllItemsFiltered(
+        ComponentClassifierList,
+        ComponentClassifier,
+        {},
+        [
+            {
+                model: WorkspaceColumn,
+                include: [
+                    {
+                        model: Workspace
+                    }
+                ]
+            }
+        ]
+    );
+    classifiers = classifiers.filter(({ WorkspaceColumn }) => {
+        const { Workspace } = WorkspaceColumn;
+        return Workspace.online_or_offline === online_or_offline;
+    });
+    classifiers = classifiers.map(classifier => {
+        classifier.classifier = JSON.stringify(classifier.classifier);
+        return classifier;
+    });
+
+    res.json(classifiers);
+};
 
 // TODO: FIX THIS
 exports.getClassifiersFiltered = async (req, res) => {
