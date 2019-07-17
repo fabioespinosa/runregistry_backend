@@ -5,14 +5,13 @@ const requireAuth = async (req, res, next) => {
     //     return;
     // }
     let authenticated = false;
-
+    const email = req.get('email');
     if (email.startsWith('auto@auto')) {
         // This would be the cron job re-classifying runs when they change from the API, no need to check for authentication:
         next();
         return;
     }
     const egroups = req.get('egroups');
-    const email = req.get('email');
 
     if (!egroups || !email) {
         next('Request must provide email and egroups');
