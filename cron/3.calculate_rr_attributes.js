@@ -66,5 +66,5 @@ exports.calculate_rr_lumisections = async (
         rr_attributes,
         oms_lumisections
     );
-    return lumisection_components_status_renamed;
+    return rr_lumisections;
 };
