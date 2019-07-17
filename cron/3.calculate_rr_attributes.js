@@ -66,12 +66,5 @@ exports.calculate_rr_lumisections = async (
         rr_attributes,
         oms_lumisections
     );
-    // Add the string "_triplet" to the end of each lumisection component
-    // Revise:
-    const lumisection_components_status_renamed = appendToAllAttributes(
-        rr_lumisections,
-        '_triplet'
-    );
-
     return lumisection_components_status_renamed;
 };

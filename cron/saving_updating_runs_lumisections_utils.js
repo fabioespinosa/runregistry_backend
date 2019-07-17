@@ -7,7 +7,6 @@ const { API_URL, OMS_URL, OMS_LUMISECTIONS } = require('../config/config')[
     process.env.ENV || 'development'
 ];
 
-const { online_components } = require('../config/config');
 const cert = `${__dirname}/../certs/usercert.pem`;
 const key = `${__dirname}/../certs/userkey.pem`;
 
