@@ -1,4 +1,5 @@
 const axios = require('axios');
+const getCookie = require('cern-get-sso-cookie');
 const queue = require('async').queue;
 const {
     get_OMS_lumisections
@@ -8,6 +9,9 @@ const {
     calculate_rr_lumisections,
     calculate_oms_attributes
 } = require('./3.calculate_rr_attributes');
+const cert = `${__dirname}/../certs/usercert.pem`;
+const key = `${__dirname}/../certs/userkey.pem`;
+
 const { API_URL, OMS_URL, OMS_SPECIFIC_RUN } = require('../config/config')[
     process.env.ENV || 'development'
 ];
@@ -162,7 +166,9 @@ exports.update_runs = async (
                     // The email HAS to start with auto, or else API won't know it's an automatic change (unless it was manually requested to update)
                     headers: {
                         email: email || 'auto@auto',
-                        comment: comment || 'automatic update from OMS'
+                        comment: comment || 'automatic update from OMS',
+                        // Avoid permission egroups problem:
+                        egroups: 'cms-dqm-runregistry-experts;'
                     },
                     maxContentLength: 52428890
                 }
@@ -242,9 +248,18 @@ exports.manually_update_a_run = async (
         throw 'Run must be in state OPEN to be refreshed';
     }
     // get oms_attributes:
+    const endpoint = `${OMS_URL}/${OMS_SPECIFIC_RUN(run_number)}`;
     const {
         data: { data: fetched_run }
-    } = await axios.get(`${OMS_URL}/${OMS_SPECIFIC_RUN(run_number)}`);
+    } = await axios.get(endpoint, {
+        headers: {
+            Cookie: await getCookie({
+                url: endpoint,
+                certificate: cert,
+                key
+            })
+        }
+    });
     const run_oms_attributes = fetched_run[0].attributes;
     await exports.update_runs([run_oms_attributes], 0, {
         previous_rr_attributes,
