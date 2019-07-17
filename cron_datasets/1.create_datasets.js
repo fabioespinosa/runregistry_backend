@@ -59,7 +59,7 @@ exports.create_offline_waiting_datasets = async (run, transaction) => {
     });
 
     let { data: classifiers } = await axios.get(
-        `${API_URL}/classifiers/offline_component`
+        `${API_URL}/classifiers/component/offline`
     );
 
     const datasets_accepted_promises = datasets_accepted.map(
