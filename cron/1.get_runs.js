@@ -127,9 +127,8 @@ const calculate_runs_to_update = (fetched_runs, last_saved_runs) => {
     const runs_to_update = [];
     fetched_runs.forEach(fetched_run => {
         last_saved_runs.forEach(existing_run => {
-            // if runs are the same (i.e. same run_number), do comparison:
+            // if runs are the same (i.e. same run_number), check last_update
             if (+fetched_run.run_number === +existing_run.run_number) {
-                // If something changed (the object with attributes that changed has one or more properties), we update it
                 const last_updated_existing_run = new Date(
                     existing_run.oms_attributes.last_update
                 );

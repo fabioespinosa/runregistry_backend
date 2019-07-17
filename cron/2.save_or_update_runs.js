@@ -123,7 +123,7 @@ exports.save_runs = async (new_runs, number_of_tries) => {
 
 exports.update_runs = async (
     runs_to_update,
-    number_of_tries,
+    number_of_tries = 0,
     { email, comment, manually_significant, previous_rr_attributes }
 ) => {
     let updated_runs = 0;
@@ -165,7 +165,7 @@ exports.update_runs = async (
                 {
                     // The email HAS to start with auto, or else API won't know it's an automatic change (unless it was manually requested to update)
                     headers: {
-                        email: email || 'auto@auto',
+                        email: `auto@auto${email && ` - ${email}`}`,
                         comment: comment || 'automatic update from OMS',
                         // Avoid permission egroups problem:
                         egroups: 'cms-dqm-runregistry-experts;'
