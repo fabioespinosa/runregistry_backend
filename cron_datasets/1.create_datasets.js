@@ -110,7 +110,8 @@ const classify_dataset_lumisections = (
             // We filter the classifiers into those belonging to this specific workspace:
             const workspace_classifiers = classifiers.filter(
                 ({ WorkspaceColumn }) => {
-                    const classifier_workspace = WorkspaceColumn.workspace;
+                    const classifier_workspace =
+                        WorkspaceColumn.Workspace.workspace;
                     return classifier_workspace === workspace;
                 }
             );
