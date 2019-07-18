@@ -7,7 +7,7 @@ const {
 const previous_json = fs.readFileSync(`${__dirname}/previous_json.json`);
 
 const criteria_for_status_flags = [
-    ['cms-cms', 'GOOD'],
+    // ['cms-cms', 'GOOD'],
     ['dt-dt', 'GOOD'],
     ['csc-csc', 'GOOD'],
     ['l1t-l1tcalo', 'GOOD'],
@@ -59,15 +59,15 @@ const criteria_for_dcs = [
 ];
 
 describe('Generate golden json', () => {
-    const year = 2017;
+    const year = 2018;
     const dataset_nameA = `/PromptReco/Collisions${year}A/DQM`;
     const dataset_nameB = `/PromptReco/Collisions${year}B/DQM`;
     const dataset_nameC = `/PromptReco/Collisions${year}C/DQM`;
     const dataset_nameD = `/PromptReco/Collisions${year}D/DQM`;
-    // const dataset_nameE = `/PromptReco/Collisions${year}E/DQM`;
-    // const dataset_nameF = `/PromptReco/Collisions${year}F/DQM`;
-    // const dataset_nameG = `/PromptReco/Collisions${year}G/DQM`;
-    // const dataset_nameH = `/PromptReco/Collisions${year}H/DQM`;
+    const dataset_nameE = `/PromptReco/Collisions${year}E/DQM`;
+    const dataset_nameF = `/PromptReco/Collisions${year}F/DQM`;
+    const dataset_nameG = `/PromptReco/Collisions${year}G/DQM`;
+    const dataset_nameH = `/PromptReco/Collisions${year}H/DQM`;
     it('Fails with no array', async () => {
         // Call with invalid array:
     });
@@ -77,20 +77,20 @@ describe('Generate golden json', () => {
         const json_eraB = get_json_for_dataset(dataset_nameB);
         const json_eraC = get_json_for_dataset(dataset_nameC);
         const json_eraD = get_json_for_dataset(dataset_nameD);
-        // const json_eraE = get_json_for_dataset(dataset_nameE);
-        // const json_eraF = get_json_for_dataset(dataset_nameF);
-        // const json_eraG = get_json_for_dataset(dataset_nameG);
-        // const json_eraH = get_json_for_dataset(dataset_nameH);
+        const json_eraE = get_json_for_dataset(dataset_nameE);
+        const json_eraF = get_json_for_dataset(dataset_nameF);
+        const json_eraG = get_json_for_dataset(dataset_nameG);
+        const json_eraH = get_json_for_dataset(dataset_nameH);
 
         const result = await Promise.all([
             json_eraA,
             json_eraB,
             json_eraC,
-            json_eraD
-            // json_eraE,
-            // json_eraF,
-            // json_eraG,
-            // json_eraH
+            json_eraD,
+            json_eraE,
+            json_eraF,
+            json_eraG,
+            json_eraH
         ]);
         let final_json = {};
         result.forEach(small_json => {

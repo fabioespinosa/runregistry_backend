@@ -168,7 +168,7 @@ exports.update_runs = async (
                     {
                         // The email HAS to start with auto, or else API won't know it's an automatic change (unless it was manually requested to update)
                         headers: {
-                            email: `auto@auto${email && ` - ${email}`}`,
+                            email: `auto@auto${email ? ` - ${email}` : ''}`,
                             comment: comment || 'automatic update from OMS',
                             // Avoid permission egroups problem:
                             egroups: 'cms-dqm-runregistry-experts;'
