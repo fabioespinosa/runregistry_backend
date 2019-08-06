@@ -16,7 +16,7 @@ const { API_URL, OMS_URL, OMS_SPECIFIC_RUN } = require('../config/config')[
     process.env.ENV || 'development'
 ];
 
-// The runs to be saved/updated get here, they await to be classified into cosmics/collision/commission:
+// The runs to be saved get here, they await to be classified into cosmics/collision/commission:
 // AND check if they are significant
 // IF the run is significant, the lumisection component's statuses get assigned
 // If some runs didn't got saved, it will try again 4 times.
@@ -25,9 +25,8 @@ exports.save_runs = async (new_runs, number_of_tries) => {
     const runs_not_saved = [];
     const promises = new_runs.map(run => async () => {
         try {
-            // We get the lumisections from OMS:
-
             // NORMAL:
+            // We get the lumisections from OMS:
             const oms_lumisections = await get_OMS_lumisections(run.run_number);
             // START TEMPORAL (to be used with manual uploader):
             // const oms_lumisections = run.lumisections;
@@ -38,6 +37,7 @@ exports.save_runs = async (new_runs, number_of_tries) => {
                 run,
                 oms_lumisections
             );
+
             // We freeze oms_attributes to prevent them changing later on:
             Object.freeze(oms_lumisections);
             Object.freeze(oms_attributes);
@@ -46,9 +46,9 @@ exports.save_runs = async (new_runs, number_of_tries) => {
                 oms_attributes,
                 oms_lumisections
             );
-            // start temporal
+            // START TEMPORAL
             // const rr_attributes = {};
-            // end temporal;
+            // END TEMPORAL
             let rr_lumisections = [];
             // Only if the run is significant, do we calculate the component statuses for the run
             if (rr_attributes.significant) {
@@ -121,7 +121,7 @@ exports.save_runs = async (new_runs, number_of_tries) => {
     asyncQueue.push(promises);
 };
 
-exports.update_runs = async (
+exports.update_runs = (
     runs_to_update,
     number_of_tries = 0,
     { email, comment, manually_significant, previous_rr_attributes }
@@ -169,7 +169,8 @@ exports.update_runs = async (
                         // The email HAS to start with auto, or else API won't know it's an automatic change (unless it was manually requested to update)
                         headers: {
                             email: `auto@auto${email ? ` - ${email}` : ''}`,
-                            comment: comment || 'automatic update from OMS',
+                            // comment: comment || 'automatic update from OMS',
+                            comment: comment || 'run update',
                             // Avoid permission egroups problem:
                             egroups: 'cms-dqm-runregistry-experts;'
                         },

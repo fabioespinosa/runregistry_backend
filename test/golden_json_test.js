@@ -1,12 +1,12 @@
 const fs = require('fs');
 const queue = require('async').queue;
 const {
-    get_all_distinct_run_numbers_for_dataset,
+    get_datasets_with_filter,
     generate_golden_json_for_dataset
 } = require('../controllers/json_creation');
 const previous_json = fs.readFileSync(`${__dirname}/previous_json.json`);
 
-const criteria_for_status_flags = [
+const rr_columns_required_to_be_good = [
     // ['cms-cms', 'GOOD'],
     ['dt-dt', 'GOOD'],
     ['csc-csc', 'GOOD'],
@@ -22,11 +22,12 @@ const criteria_for_status_flags = [
     ['egamma-egamma', 'GOOD'],
     ['muon-muon', 'GOOD'],
     ['jetmet-jetmet', 'GOOD'],
-    ['lumi-lumi', 'GOOD']
-    // ['dc-lowlumi', 'GOOD']
+    ['lumi-lumi', 'GOOD'],
+    // low lumi should be BAD (as it is )
+    ['dc-lowlumi', 'BAD']
 ];
 
-const criteria_for_dcs = [
+const oms_columns_required_to_be_good = [
     ['cms_active', true],
     ['bpix_ready', true],
     ['fpix_ready', true],
@@ -59,82 +60,112 @@ const criteria_for_dcs = [
 ];
 
 describe('Generate golden json', () => {
-    const year = 2018;
-    const dataset_nameA = `/PromptReco/Collisions${year}A/DQM`;
-    const dataset_nameB = `/PromptReco/Collisions${year}B/DQM`;
-    const dataset_nameC = `/PromptReco/Collisions${year}C/DQM`;
-    const dataset_nameD = `/PromptReco/Collisions${year}D/DQM`;
-    const dataset_nameE = `/PromptReco/Collisions${year}E/DQM`;
-    const dataset_nameF = `/PromptReco/Collisions${year}F/DQM`;
-    const dataset_nameG = `/PromptReco/Collisions${year}G/DQM`;
-    const dataset_nameH = `/PromptReco/Collisions${year}H/DQM`;
-    it('Fails with no array', async () => {
-        // Call with invalid array:
-    });
-    it('Generates correct json', async () => {
-        // const parsed_json = JSON.parse(previous_json);
-        const json_eraA = get_json_for_dataset(dataset_nameA);
-        const json_eraB = get_json_for_dataset(dataset_nameB);
-        const json_eraC = get_json_for_dataset(dataset_nameC);
-        const json_eraD = get_json_for_dataset(dataset_nameD);
-        const json_eraE = get_json_for_dataset(dataset_nameE);
-        const json_eraF = get_json_for_dataset(dataset_nameF);
-        const json_eraG = get_json_for_dataset(dataset_nameG);
-        const json_eraH = get_json_for_dataset(dataset_nameH);
-
-        const result = await Promise.all([
-            json_eraA,
-            json_eraB,
-            json_eraC,
-            json_eraD,
-            json_eraE,
-            json_eraF,
-            json_eraG,
-            json_eraH
-        ]);
-        let final_json = {};
-        result.forEach(small_json => {
-            final_json = { ...final_json, ...small_json };
+    for (let year = 2015; year <= 2018; year++) {
+        // const year = 2017;
+        // const dataset_nameA = 'online';
+        it('Fails with no array', async () => {
+            // Call with invalid array:
         });
-        console.log('finished');
-        fs.writeFileSync(
-            `./generated_json${year}.json`,
-            JSON.stringify(final_json),
-            'utf8'
-        );
-    });
+        it('Generates correct json', async () => {
+            // const parsed_json = JSON.parse(previous_json);
+            const dataset_filter = {
+                // name: {
+                //     like: '/PromptReco%'
+                // }
+                and: [
+                    {
+                        or: [
+                            { name: `/PromptReco/Collisions${year}A/DQM` },
+                            { name: `/PromptReco/Collisions${year}B/DQM` },
+                            { name: `/PromptReco/Collisions${year}C/DQM` },
+                            { name: `/PromptReco/Collisions${year}D/DQM` },
+                            { name: `/PromptReco/Collisions${year}A/DQM` },
+                            { name: `/PromptReco/Collisions${year}E/DQM` },
+                            { name: `/PromptReco/Collisions${year}F/DQM` },
+                            { name: `/PromptReco/Collisions${year}G/DQM` },
+                            { name: `/PromptReco/Collisions${year}H/DQM` }
+                        ]
+                    }
+                ]
+            };
+            const run_filter = {
+                and: [
+                    // 'rr_attributes.class': 'Collisions18'
+                    {
+                        'oms_attributes.energy': {
+                            '>=': 6000
+                        }
+                    },
+                    {
+                        'oms_attributes.energy': {
+                            '<=': 7000
+                        }
+                    },
+                    {
+                        'oms_attributes.b_field': {
+                            '>=': 3.7
+                        }
+                    },
+                    {
+                        'oms_attributes.injection_scheme': {
+                            like: '25ns%'
+                        }
+                    },
+                    {
+                        'oms_attributes.hlt_key': {
+                            notlike: '%WMass%'
+                        }
+                    }
+                ]
+            };
+            let final_json = await get_jsons_for_dataset_filter(
+                dataset_filter,
+                run_filter
+            );
+
+            console.log('finished');
+            fs.writeFileSync(
+                `./generated_json${year}without_deadtime.json`,
+                JSON.stringify(final_json),
+                'utf8'
+            );
+        });
+    }
 });
 
-const get_json_for_dataset = async dataset_name => {
+const get_jsons_for_dataset_filter = async (dataset_filter, run_filter) => {
     return new Promise(async (resolve, reject) => {
-        const run_numbers = await get_all_distinct_run_numbers_for_dataset(
-            dataset_name
-        );
         const generated_json = {};
-        const promises = run_numbers.map(run_number => async () => {
-            try {
-                const ranges = await generate_golden_json_for_dataset(
-                    run_number,
-                    dataset_name,
-                    criteria_for_status_flags,
-                    criteria_for_dcs
-                );
-                if (ranges.length > 0) {
-                    console.log(ranges);
-                    generated_json[run_number] = ranges;
+        const datasets_that_matched = await get_datasets_with_filter(
+            dataset_filter,
+            run_filter
+        );
+        const promises = datasets_that_matched.map(
+            ({ run_number, name }) => async () => {
+                try {
+                    const ranges = await generate_golden_json_for_dataset({
+                        run_number,
+                        dataset_name: name,
+                        rr_columns_required_to_be_good,
+                        oms_columns_required_to_be_good
+                    });
+                    if (ranges.length > 0) {
+                        console.log(ranges);
+                        generated_json[run_number] = ranges;
+                    }
+                } catch (e) {
+                    console.log(`Not generated for run: ${run_number}`);
+                    console.log(e);
                 }
-            } catch (e) {
-                console.log(`Not generated for run: ${run_number}`);
-                console.log(e);
             }
-        });
-        const number_of_workers = 1;
+        );
+        const number_of_workers = 2;
         const asyncQueue = queue(
             async promise => await promise(),
             number_of_workers
         );
         asyncQueue.drain = async () => {
-            console.log(`finished ${dataset_name}`);
+            console.log(`finished`);
             resolve(generated_json);
         };
 

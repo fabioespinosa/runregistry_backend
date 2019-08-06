@@ -3,3 +3,4 @@
 /cron_datasets/userkey.pem
 /cron_datasets/usercert.pem
 /uploader/runs
+/uploader/fills

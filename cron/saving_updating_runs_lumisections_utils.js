@@ -48,6 +48,51 @@ exports.get_OMS_lumisections = handleErrors(async run_number => {
     let oms_lumisections = oms_lumisection_response.data.data;
     // Deconstruct attributes inside oms_lumisections:
     oms_lumisections = oms_lumisections.map(({ attributes }) => attributes);
+    // We add luminosity information
+    oms_lumisections = oms_lumisections.map(
+        ({ recorded_lumi, delivered_lumi }, index, oms_lumisections) => {
+            // If any of them is null, then the per_lumi are all null
+            if (recorded_lumi === null || delivered_lumi === null) {
+                return {
+                    ...oms_lumisections[index],
+                    recorded_lumi_per_lumi: null,
+                    delivered_lumi_per_lumi: null,
+                    live_lumi_per_lumi: null
+                };
+            }
+            // we parse them to number:
+            recorded_lumi = +recorded_lumi;
+            delivered_lumi = +delivered_lumi;
+            // recorded_lumi and delivered_lumi are integrated, we have to substract the one in lumisection before to get real value.
+            let recorded_lumi_per_lumi;
+            let delivered_lumi_per_lumi;
+            // If we are at the last lumisection then recorde_lumi_per_lumi and delivered_lumi are 0
+            if (index === oms_lumisections.length - 1) {
+                recorded_lumi_per_lumi = 0;
+                delivered_lumi_per_lumi = 0;
+            } else {
+                // If we are in any other lumisection then we have to subtract the current value from the next lumisection to get the number of the current LS
+                const next_lumisection = oms_lumisections[index + 1];
+                recorded_lumi_per_lumi =
+                    next_lumisection.recorded_lumi - recorded_lumi;
+                delivered_lumi_per_lumi =
+                    next_lumisection.delivered_lumi - delivered_lumi;
+            }
+            // live lumi is the fraction of recorded/delivered:
+            let live_lumi_per_lumi = null;
+            if (delivered_lumi_per_lumi !== 0) {
+                live_lumi_per_lumi =
+                    recorded_lumi_per_lumi / delivered_lumi_per_lumi;
+            }
+            return {
+                ...oms_lumisections[index],
+                recorded_lumi_per_lumi,
+                delivered_lumi_per_lumi,
+                live_lumi_per_lumi
+            };
+        }
+    );
+
     return oms_lumisections;
 }, 'Error getting lumisection attributes for the run');
 

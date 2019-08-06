@@ -2,7 +2,10 @@ const {
     get_rr_lumisections_for_dataset,
     get_oms_lumisections_for_dataset
 } = require('./lumisection');
-const sequelize = require('../models').sequelize;
+const {
+    calculate_dataset_filter_and_include
+} = require('../controllers/dataset');
+const { sequelize, Sequelize } = require('../models');
 const { Dataset, Run } = require('../models');
 
 // We need to go from [1,2,3,4,10,11,12] to [[1,4], [10,12]]:
@@ -33,6 +36,25 @@ const convert_array_of_list_to_array_of_ranges = list_of_good_lumisections => {
     return array_of_ranges;
 };
 
+// Given a filter for datasets (and runs) it finds the datasets which match
+exports.get_datasets_with_filter = async (dataset_filter, run_filter) => {
+    const [final_filter, include] = calculate_dataset_filter_and_include(
+        dataset_filter,
+        run_filter
+    );
+    // We remove the attributes from Run and DatasetTripletCache (since we are only interested in the run_numbers):
+    include[0].attributes = [];
+    include[1].attributes = [];
+    return await Dataset.findAll({
+        attributes: ['Dataset.run_number', 'Dataset.name'],
+        where: final_filter,
+        order: ['run_number'],
+        include,
+        group: ['Dataset.run_number', 'Dataset.name'],
+        raw: true
+    });
+};
+
 exports.get_all_distinct_run_numbers_for_dataset = async dataset_name => {
     let run_numbers = await sequelize.query(
         `
@@ -48,12 +70,12 @@ exports.get_all_distinct_run_numbers_for_dataset = async dataset_name => {
     return run_numbers;
 };
 
-exports.generate_golden_json_for_dataset = async (
+exports.generate_golden_json_for_dataset = async ({
     run_number,
     dataset_name,
     rr_columns_required_to_be_good,
     oms_columns_required_to_be_good
-) => {
+}) => {
     // rr_columns_required_to_be_good must be: ['dt-dt', 'csc-csc','tracker-pix','tracker-strip']
     if (
         !rr_columns_required_to_be_good ||
@@ -88,7 +110,10 @@ exports.generate_golden_json_for_dataset = async (
         run_number,
         dataset_name
     );
-    if (rr_lumisections.length !== oms_lumisections.length) {
+    if (
+        rr_lumisections.length !== oms_lumisections.length &&
+        dataset_name !== 'online'
+    ) {
         throw `OMS lumisections and RR lumisections do not match for dataset ${dataset_name}, run: ${run_number}, please reset the run's lumisections, in worst case delete datasets and signoff run again`;
     }
     const good_lumisections = [];
@@ -109,6 +134,12 @@ exports.generate_golden_json_for_dataset = async (
             }
         });
         const oms_lumisection = oms_lumisections[index];
+        // We remove deadtime:
+        const { live_lumi_per_lumi } = oms_lumisection;
+
+        if (live_lumi_per_lumi === 0) {
+            lumisection_overall_status = false;
+        }
         oms_columns_required_to_be_good.forEach(duplet => {
             const column = duplet[0];
             const desired_value = duplet[1];

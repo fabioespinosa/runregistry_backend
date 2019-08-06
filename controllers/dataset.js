@@ -330,7 +330,7 @@ exports.appearedInDQMGUI = async (req, res) => {
 };
 
 exports.getDatasetsFilteredOrdered = async (req, res) => {
-    const [filter, include] = calculate_dataset_filter_and_include(
+    const [filter, include] = exports.calculate_dataset_filter_and_include(
         req.body.filter
     );
     // If a user filters by anything else:
@@ -537,7 +537,7 @@ exports.duplicate_datasets = async (req, res) => {
         workspaces_to_duplicate_into
     } = req.body;
 
-    const [filter, include] = calculate_dataset_filter_and_include(
+    const [filter, include] = exports.calculate_dataset_filter_and_include(
         req.body.filter
     );
 
@@ -675,7 +675,7 @@ exports.getUniqueDatasetNames = async (req, res) => {
     res.json(unique_dataset_names);
 };
 
-const calculate_dataset_filter_and_include = client_filter => {
+exports.calculate_dataset_filter_and_include = (client_filter, run_filter) => {
     // A user can filter on triplets, or on any other field
     // If the user filters by triplets, then :
     let triplet_summary_filter = {};
@@ -690,12 +690,22 @@ const calculate_dataset_filter_and_include = client_filter => {
         conversion_operator
     );
 
+    if (run_filter) {
+        run_filter = {
+            ...changeNameOfAllKeys(run_filter, conversion_operator),
+            deleted: false
+        };
+    } else {
+        run_filter = {};
+    }
+
     let filter = changeNameOfAllKeys(client_filter, conversion_operator);
     // If its filtering by run class, then include it in run filter
     let include = [
         {
             model: Run,
-            attributes: ['rr_attributes']
+            attributes: ['rr_attributes'],
+            where: run_filter
         },
         {
             model: DatasetTripletCache,

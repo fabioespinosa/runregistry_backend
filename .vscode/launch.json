@@ -14,7 +14,48 @@
         {
             "type": "node",
             "request": "launch",
+            "name": "Current_file2",
+            "program": "${file}",
+            "skipFiles": ["<node_internals>/**"]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Current_file3",
+            "program": "${file}",
+            "skipFiles": ["<node_internals>/**"]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Current_file4",
+            "program": "${file}",
+            "skipFiles": ["<node_internals>/**"]
+        },
+        {
+            "type": "node",
+            "request": "launch",
             "name": "API",
+            "program": "${workspaceFolder}/app.js",
+            "env": {
+                "NODE_ENV": "development"
+            },
+            "skipFiles": ["<node_internals>/**"]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "API_on_different_port",
+            "program": "${workspaceFolder}/app.js",
+            "env": {
+                "NODE_ENV": "development"
+            },
+            "skipFiles": ["<node_internals>/**"]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "API_on_different_port2",
             "program": "${workspaceFolder}/app.js",
             "env": {
                 "NODE_ENV": "development"

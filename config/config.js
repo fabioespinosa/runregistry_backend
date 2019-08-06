@@ -2,7 +2,7 @@ module.exports = {
     development: {
         username: 'hackathon',
         password: '',
-        database: 'hackathon6',
+        database: 'runregistry_database',
         host: '127.0.0.1',
         logging: false,
         dialect: 'postgres',
@@ -146,6 +146,14 @@ module.exports = {
         'beam1_stable',
         'hbhec_ready',
         'beam2_stable',
-        'beam2_present'
+        'beam2_present',
+        // We will now save luminosity:
+        'init_lumi',
+        'delivered_lumi',
+        'recorded_lumi',
+        'end_lumi',
+        'recorded_lumi_per_lumi',
+        'delivered_lumi_per_lumi',
+        'live_lumi_per_lumi'
     ]
 };

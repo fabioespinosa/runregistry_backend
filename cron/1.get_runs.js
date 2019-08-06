@@ -96,6 +96,7 @@ if (process.env.ENV === 'production' || process.env.ENV === 'staging') {
 handleErrors(fetch_runs, 'Error fetching new runs')();
 
 // makes left outer join between fetched_runs and last_saved_runs, returns the difference of runs (the ones which have not been saved)
+// TODO: FIX, the last_update is not ordered by run_number
 const calculate_new_runs = (fetched_runs, last_saved_runs) => {
     const new_runs = [];
     fetched_runs.forEach(fetched_run => {
