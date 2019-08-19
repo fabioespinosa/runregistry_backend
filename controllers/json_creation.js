@@ -1,3 +1,4 @@
+const changeNameOfAllKeys = require('change-name-of-all-keys');
 const {
     get_rr_lumisections_for_dataset,
     get_oms_lumisections_for_dataset
@@ -6,29 +7,44 @@ const {
     calculate_dataset_filter_and_include
 } = require('../controllers/dataset');
 const { sequelize, Sequelize } = require('../models');
-const { Dataset, Run } = require('../models');
+const { Dataset, Run, DatasetTripletCache } = require('../models');
 
+const { Op } = Sequelize;
+const conversion_operator = {
+    and: Op.and,
+    or: Op.or,
+    '>': Op.gt,
+    '<': Op.lt,
+    '>=': Op.gte,
+    '<=': Op.lte,
+    like: Op.iLike,
+    notlike: Op.notLike,
+    '=': Op.eq,
+    '<>': Op.ne,
+    // In uppercase as well:
+    AND: Op.and,
+    OR: Op.or,
+    LIKE: Op.iLike,
+    NOTLIKE: Op.notLike
+};
 // We need to go from [1,2,3,4,10,11,12] to [[1,4], [10,12]]:
-const convert_array_of_list_to_array_of_ranges = list_of_good_lumisections => {
+const convert_array_of_list_to_array_of_ranges = list_of_lumisections => {
     const array_of_ranges = [];
-    list_of_good_lumisections.forEach((lumisection_number, index) => {
+    list_of_lumisections.forEach((lumisection_number, index) => {
         if (array_of_ranges.length === 0) {
             array_of_ranges.push([lumisection_number, lumisection_number]);
         }
         // If we are not in the end of the array:
-        if (index !== list_of_good_lumisections.length - 1) {
+        if (index !== list_of_lumisections.length - 1) {
             // If the next lumisection is equal to the current lumisection +1 (they both belong to the same range)
-            if (
-                list_of_good_lumisections[index + 1] ===
-                lumisection_number + 1
-            ) {
+            if (list_of_lumisections[index + 1] === lumisection_number + 1) {
                 array_of_ranges[array_of_ranges.length - 1][1] =
                     lumisection_number + 1;
             } else {
                 // If not, we are at the end of the current range, therefore we need to insert a new range, starting from the next lumisection in the array which is +1 the current position:
                 array_of_ranges.push([
-                    list_of_good_lumisections[index + 1],
-                    list_of_good_lumisections[index + 1]
+                    list_of_lumisections[index + 1],
+                    list_of_lumisections[index + 1]
                 ]);
             }
         }
@@ -53,21 +69,6 @@ exports.get_datasets_with_filter = async (dataset_filter, run_filter) => {
         group: ['Dataset.run_number', 'Dataset.name'],
         raw: true
     });
-};
-
-exports.get_all_distinct_run_numbers_for_dataset = async dataset_name => {
-    let run_numbers = await sequelize.query(
-        `
-        SELECT distinct run_number from "Dataset" where "Dataset".name = :dataset_name`,
-        {
-            type: sequelize.QueryTypes.SELECT,
-            replacements: {
-                dataset_name
-            }
-        }
-    );
-    run_numbers = run_numbers.map(({ run_number }) => run_number);
-    return run_numbers;
 };
 
 exports.generate_golden_json_for_dataset = async ({
@@ -96,6 +97,7 @@ exports.generate_golden_json_for_dataset = async ({
         ]
     });
     if (dataset.Run.oms_attributes.recorded_lumi <= 0.08) {
+        // return 0;
         return [];
     }
     if (dataset === null) {
@@ -117,6 +119,9 @@ exports.generate_golden_json_for_dataset = async ({
         throw `OMS lumisections and RR lumisections do not match for dataset ${dataset_name}, run: ${run_number}, please reset the run's lumisections, in worst case delete datasets and signoff run again`;
     }
     const good_lumisections = [];
+
+    // let counter = 0;
+
     rr_lumisections.forEach((rr_lumisection, index) => {
         const lumisection_number = index + 1;
         let lumisection_overall_status = true;
@@ -134,12 +139,15 @@ exports.generate_golden_json_for_dataset = async ({
             }
         });
         const oms_lumisection = oms_lumisections[index];
+
+        // -START THIS SHOULD BE DONE VIA JSON LOGIC:
         // We remove deadtime:
         const { live_lumi_per_lumi } = oms_lumisection;
 
         if (live_lumi_per_lumi === 0) {
             lumisection_overall_status = false;
         }
+        // -END THIS SHOULD BE DONE VIA JSON LOGIC
         oms_columns_required_to_be_good.forEach(duplet => {
             const column = duplet[0];
             const desired_value = duplet[1];
@@ -155,7 +163,216 @@ exports.generate_golden_json_for_dataset = async ({
             // If it is still true, it means it was true for all
             // index is 0-based, but lumisection indexing starts at 1, so we add 1:
             good_lumisections.push(index + 1);
+
+            // counter += 1;
         }
     });
     return convert_array_of_list_to_array_of_ranges(good_lumisections);
+    // return counter;
 };
+
+exports.calculate_number_of_lumisections_from_json = json => {
+    let number_of_lumisections = 0;
+    for (const [run, ranges] of Object.entries(json)) {
+        for (const [range_start, range_end] of ranges) {
+            const lumisections_in_range = range_end - range_start + 1;
+            number_of_lumisections += lumisections_in_range;
+        }
+    }
+    return number_of_lumisections;
+};
+
+exports.calculate_json_based_on_ranges = async (req, res) => {
+    const oms_columns_required_to_be_good = [
+        ['cms_active', true],
+        ['bpix_ready', true],
+        ['fpix_ready', true],
+        ['tibtid_ready', true],
+        ['tecm_ready', true],
+        ['tecp_ready', true],
+        // ['castor_ready', true],
+        ['tob_ready', true],
+        ['ebm_ready', true],
+        ['ebp_ready', true],
+        ['eem_ready', true],
+        ['eep_ready', true],
+        ['esm_ready', true],
+        ['esp_ready', true],
+        ['hbhea_ready', true],
+        ['hbheb_ready', true],
+        ['hbhec_ready', true],
+        ['hf_ready', true],
+        ['ho_ready', true],
+        ['dtm_ready', true],
+        ['dtp_ready', true],
+        ['dt0_ready', true],
+        ['cscm_ready', true],
+        ['cscp_ready', true],
+        ['rpc_ready', true],
+        ['beam1_present', true],
+        ['beam2_present', true],
+        ['beam1_stable', true],
+        ['beam2_stable', true]
+    ];
+
+    const rr_columns_required_to_be_good = [
+        // ['cms-cms', 'GOOD'],
+        ['dt-dt', 'GOOD'],
+        ['csc-csc', 'GOOD'],
+        ['l1t-l1tcalo', 'GOOD'],
+        ['l1t-l1tmu', 'GOOD'],
+        ['hlt-hlt', 'GOOD'],
+        ['tracker-pixel', 'GOOD'],
+        ['tracker-strip', 'GOOD'],
+        ['tracker-track', 'GOOD'],
+        ['ecal-ecal', 'GOOD'],
+        ['ecal-es', 'GOOD'],
+        ['hcal-hcal', 'GOOD'],
+        ['egamma-egamma', 'GOOD'],
+        ['muon-muon', 'GOOD'],
+        ['jetmet-jetmet', 'GOOD'],
+        ['lumi-lumi', 'GOOD'],
+        // low lumi should be BAD (as it is )
+        ['dc-lowlumi', 'BAD']
+    ];
+
+    const year = 2018;
+    const filter = {
+        run_number: {
+            '>=': 315257
+        },
+        or: [
+            { name: `/PromptReco/Collisions${year}A/DQM` },
+            { name: `/PromptReco/Collisions${year}B/DQM` },
+            { name: `/PromptReco/Collisions${year}C/DQM` },
+            { name: `/PromptReco/Collisions${year}D/DQM` },
+            { name: `/PromptReco/Collisions${year}E/DQM` },
+            { name: `/PromptReco/Collisions${year}F/DQM` },
+            { name: `/PromptReco/Collisions${year}G/DQM` },
+            { name: `/PromptReco/Collisions${year}H/DQM` },
+            { name: `/PromptReco/Collisions${year}I/DQM` }
+        ]
+    };
+
+    const attributes = [];
+
+    oms_columns_required_to_be_good.forEach(column => {
+        const [column_name, desired_value] = column;
+        const upper_case_desired_value = `${desired_value}`.toUpperCase();
+        const formatted_name = `${column_name}.${upper_case_desired_value}`;
+        filter[`dcs_summary.${formatted_name}`] = {
+            '>': 0
+        };
+        attributes.push([
+            sequelize.json(`dcs_ranges.${formatted_name}`),
+            `dcs_ranges.${formatted_name}`
+        ]);
+    });
+
+    rr_columns_required_to_be_good.forEach(column => {
+        const [column_name, desired_value] = column;
+        const formatted_name = `${column_name}.${desired_value}`;
+        filter[`triplet_summary.${formatted_name}`] = {
+            '>': 0
+        };
+        attributes.push([
+            sequelize.json(`rr_ranges.${formatted_name}`),
+            `rr_ranges.${formatted_name}`
+        ]);
+    });
+
+    const sequelize_filter = changeNameOfAllKeys(filter, conversion_operator);
+    const ranges_of_runs = await DatasetTripletCache.findAll({
+        attributes: ['run_number', 'name', ...attributes],
+        where: sequelize_filter,
+        raw: true
+    });
+
+    const json = exports.calculate_json_with_many_ranges(ranges_of_runs);
+    res.json(json);
+};
+
+exports.calculate_json_with_many_ranges = ranges_of_runs => {
+    const final_json = {};
+    ranges_of_runs.forEach(run => {
+        // It require run_number and name are the only 2 selection other than dcs_ranges and rr_ranges:
+        const { run_number, name } = run;
+        delete run.run_number;
+        delete run.name;
+        let final_array = [];
+        for (let [column_name, ranges] of Object.entries(run)) {
+            ranges = JSON.parse(ranges);
+            if (!Array.isArray(ranges)) {
+                throw `Range of ${column_name} in ${run_number}, ${name} is not an array`;
+            }
+            final_array = recalculate_ranges_with_new_ranges(
+                final_array,
+                ranges
+            );
+        }
+        if (final_array.length > 0) {
+            final_json[run_number] = final_array;
+        }
+    });
+    return final_json;
+};
+
+const recalculate_ranges_with_new_ranges = (current_ranges, new_ranges) => {
+    if (!Array.isArray(current_ranges) || !Array.isArray(new_ranges)) {
+        throw `Ranges need to be arrays`;
+    }
+    if (current_ranges.length === 0) {
+        return new_ranges;
+    }
+
+    const resulting_ranges = [];
+    const first_lumisection_of_old_ranges = current_ranges[0][0];
+    const last_lumisection_of_old_ranges =
+        current_ranges[current_ranges.length - 1][1];
+
+    new_ranges.forEach(range => {
+        const [start_lumisection, end_lumisection] = range;
+
+        // We use for 'of' to allow 'break'
+        for (let old_range of current_ranges) {
+            const [start_lumisection_old, end_lumisection_old] = old_range;
+
+            // If the new range is more specific, we stick with the new range:
+            if (
+                start_lumisection >= start_lumisection_old &&
+                end_lumisection <= end_lumisection_old
+            ) {
+                // the new range is shorter, so we stick with the new range
+                resulting_ranges.push(range);
+                // range_considered = true;
+            } else if (
+                // If the new range contains the previous range
+                start_lumisection <= start_lumisection_old &&
+                end_lumisection >= end_lumisection_old
+            ) {
+                resulting_ranges.push(old_range);
+            }
+            // If there are some lumisections below (not included in current range) and then some above (included) with current range
+            else if (
+                start_lumisection <= start_lumisection_old &&
+                end_lumisection >= start_lumisection_old
+            ) {
+                resulting_ranges.push([start_lumisection_old, end_lumisection]);
+                // range_considered = true;
+            }
+            // If there are some lumisections in the current range and then some above, we stick with the stricter limit (the new lower limit) and the
+            else if (
+                start_lumisection <= end_lumisection_old &&
+                end_lumisection >= end_lumisection_old
+            ) {
+                resulting_ranges.push([start_lumisection, end_lumisection_old]);
+                // range_considered = true;
+            }
+        }
+    });
+    return resulting_ranges;
+};
+
+// Test case:
+// const new = [[1,19], [21, 45]]
+// const old = [[19,40]]

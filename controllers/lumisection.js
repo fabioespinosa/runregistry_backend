@@ -11,6 +11,7 @@ const {
 } = require('../models');
 const {
     oms_lumisection_whitelist,
+    oms_lumisection_luminosity_whitelist,
     online_components
 } = require('../config/config');
 const { OMS_URL, OMS_LUMISECTIONS } = require('../config/config')[
@@ -105,9 +106,13 @@ exports.create_oms_lumisections = async (
     req,
     transaction
 ) => {
+    const whitelist_including_luminosity = [
+        ...oms_lumisection_whitelist,
+        ...oms_lumisection_luminosity_whitelist
+    ];
     const lumisection_ranges = await exports.getLumisectionRanges(
         lumisections,
-        oms_lumisection_whitelist
+        whitelist_including_luminosity
     );
 
     const saved_ranges = lumisection_ranges.map(async lumisection_range => {
@@ -230,10 +235,15 @@ exports.update_oms_lumisections = async (
         run_number,
         dataset_name
     );
+
+    const whitelist_including_luminosity = [
+        ...oms_lumisection_whitelist,
+        ...oms_lumisection_luminosity_whitelist
+    ];
     const new_ls_ranges = exports.getNewLumisectionRanges(
         previous_lumisections,
         new_lumisections,
-        oms_lumisection_whitelist
+        whitelist_including_luminosity
     );
     const saved_ranges = new_ls_ranges.map(async lumisection_range => {
         const { start, end } = lumisection_range;
@@ -592,19 +602,6 @@ exports.getLumisectionRanges = (lumisections, lumisection_attributes) => {
     return ls_ranges;
 };
 
-exports.getLumisectionsForRunFromOMS = async (req, res) => {
-    const { run_number } = req.params;
-    let {
-        data: { data: lumisections }
-    } = await axios.get(`${OMS_URL}/${OMS_LUMISECTIONS(run_number)}`);
-    lumisections = lumisections.map(({ attributes }) => attributes);
-    const ls_ranges = exports.getLumisectionRanges(
-        lumisections,
-        oms_lumisection_whitelist
-    );
-    res.json(ls_ranges);
-};
-
 // --compressed:
 // SELECT id_dataset, lumisection_number, mergejsonb(lumisection_metadata ORDER BY version)
 // FROM(
@@ -714,6 +711,7 @@ exports.get_rr_and_oms_lumisection_ranges = async (req, res) => {
             return { ...oms_lumisection, ...rr_lumisections[index] };
         });
     }
+    // TODO: FIX THE WHITELIST FOR JOINT LUMISECTIONS (TO REMOVE LUMINOSITY SO THEY COLLAPSE INTO PROPER RANGES)
     const ls_ranges = exports.getLumisectionRanges(joint_lumisections, ['*']);
     res.json(ls_ranges);
 };
@@ -746,7 +744,10 @@ exports.get_oms_lumisection_ranges = async (req, res) => {
         run_number,
         dataset_name || 'online'
     );
-    const ls_ranges = exports.getLumisectionRanges(oms_lumisections, ['*']);
+    const ls_ranges = exports.getLumisectionRanges(
+        oms_lumisections,
+        oms_lumisection_whitelist
+    );
     res.json(ls_ranges);
 };
 

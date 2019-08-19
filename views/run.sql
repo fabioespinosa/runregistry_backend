@@ -2,6 +2,7 @@ CREATE EXTENSION
 IF NOT EXISTS pgcrypto;
 BEGIN;
     DROP VIEW IF EXISTS "RunView";
+    DROP VIEW IF EXISTS "AggregatedLumisection";
     DROP AGGREGATE IF EXISTS oms_attributes
     (jsonb);
 DROP AGGREGATE IF EXISTS rr_attributes
@@ -67,5 +68,40 @@ SELECT "Event"."comment", "Event"."by" , "OMSLumisectionEvent"."version" as "ver
 
 
     on "oms"."oms_run_number" = "rr"."run_number" and "oms"."oms_name" = "rr"."name" and "rr"."lumisection_number" = "oms"."oms_lumisection_number";
+
+
+CREATE OR REPLACE VIEW "AggregatedLumisection" as
+select "run_number", "name", "lumisection_number", "rr_lumisection", "oms_lumisection", "run_rr_attributes", "run_oms_attributes"
+from
+    (SELECT "run_number", "name", "lumisection_number", mergejsonb("jsonb") as "rr_lumisection"
+    from "LumisectionEventAssignation"
+        inner join (
+SELECT "LumisectionEvent"."version" as "version2", "run_number", "name", "jsonb"
+        from "LumisectionEvent" inner join "JSONBDeduplication" ON "LumisectionEvent"."lumisection_metadata_id" = "JSONBDeduplication"."id" inner join "Event" on "LumisectionEvent"."version" = "Event"."version"
+        ORDER BY "LumisectionEvent"."version" DESC) as "Merged" on "LumisectionEventAssignation"."version" = "Merged"."version2"
+    group by "run_number", "name", "lumisection_number"
+        
+        ) as "rr"
+
+
+    inner join
+
+    (SELECT "run_number" as "oms_run_number", "name" as "oms_name", "lumisection_number" as "oms_lumisection_number", mergejsonb("jsonb") as "oms_lumisection"
+    from "OMSLumisectionEventAssignation"
+        inner join(
+SELECT "OMSLumisectionEvent"."version" as "version3", "run_number", "name", "jsonb"
+        from "OMSLumisectionEvent" inner join "JSONBDeduplication" ON "OMSLumisectionEvent"."lumisection_metadata_id" = "JSONBDeduplication"."id" inner join "Event" on "OMSLumisectionEvent"."version" = "Event"."version"
+        ORDER BY "OMSLumisectionEvent"."version" DESC) as "OMSMerged" on "OMSLumisectionEventAssignation"."version" = "OMSMerged"."version3"
+    group by "run_number", "oms_name", "oms_lumisection_number"
+        ) as "oms"
+    on "oms"."oms_run_number" = "rr"."run_number" and "oms"."oms_name" = "rr"."name" and "rr"."lumisection_number" = "oms"."oms_lumisection_number"
+
+    inner join
+
+    (SELECT "run_number" as "run_run_number", "rr_attributes" as "run_rr_attributes", "oms_attributes" as "run_oms_attributes"
+    from "Run") as "run"
+
+    on "rr"."run_number" = "run"."run_run_number";
+
 
 COMMIT;

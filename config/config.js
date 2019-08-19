@@ -11,10 +11,10 @@ module.exports = {
             freezeTableName: true
         },
         pool: {
-            max: 5,
+            max: 30,
             min: 0,
             idle: 20000,
-            acquire: 20000
+            acquire: 2000000
         },
         WAITING_DQM_GUI_CONSTANT: 'waiting dqm gui',
         API_URL: 'http://localhost:9500',
@@ -146,8 +146,9 @@ module.exports = {
         'beam1_stable',
         'hbhec_ready',
         'beam2_stable',
-        'beam2_present',
-        // We will now save luminosity:
+        'beam2_present'
+    ],
+    oms_lumisection_luminosity_whitelist: [
         'init_lumi',
         'delivered_lumi',
         'recorded_lumi',

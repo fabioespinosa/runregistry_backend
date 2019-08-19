@@ -10,6 +10,9 @@ module.exports = (sequelize, DataTypes) => {
             },
             name: { type: DataTypes.TEXT, allowNull: false, primaryKey: true },
             triplet_summary: { type: DataTypes.JSONB, allowNull: false },
+            dcs_summary: { type: DataTypes.JSONB, allowNull: false },
+            rr_ranges: { type: DataTypes.JSONB, allowNull: false },
+            dcs_ranges: { type: DataTypes.JSONB, allowNull: false },
             version: { type: DataTypes.INTEGER, allowNull: false }
         },
         {

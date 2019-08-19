@@ -17,8 +17,8 @@ const rr_columns_required_to_be_good = [
     ['tracker-strip', 'GOOD'],
     ['tracker-track', 'GOOD'],
     ['ecal-ecal', 'GOOD'],
-    ['hcal-hcal', 'GOOD'],
     ['ecal-es', 'GOOD'],
+    ['hcal-hcal', 'GOOD'],
     ['egamma-egamma', 'GOOD'],
     ['muon-muon', 'GOOD'],
     ['jetmet-jetmet', 'GOOD'],
@@ -60,7 +60,7 @@ const oms_columns_required_to_be_good = [
 ];
 
 describe('Generate golden json', () => {
-    for (let year = 2015; year <= 2018; year++) {
+    for (let year = 2018; year <= 2018; year++) {
         // const year = 2017;
         // const dataset_nameA = 'online';
         it('Fails with no array', async () => {
@@ -79,11 +79,11 @@ describe('Generate golden json', () => {
                             { name: `/PromptReco/Collisions${year}B/DQM` },
                             { name: `/PromptReco/Collisions${year}C/DQM` },
                             { name: `/PromptReco/Collisions${year}D/DQM` },
-                            { name: `/PromptReco/Collisions${year}A/DQM` },
                             { name: `/PromptReco/Collisions${year}E/DQM` },
                             { name: `/PromptReco/Collisions${year}F/DQM` },
                             { name: `/PromptReco/Collisions${year}G/DQM` },
-                            { name: `/PromptReco/Collisions${year}H/DQM` }
+                            { name: `/PromptReco/Collisions${year}H/DQM` },
+                            { name: `/PromptReco/Collisions${year}I/DQM` }
                         ]
                     }
                 ]
@@ -125,7 +125,7 @@ describe('Generate golden json', () => {
 
             console.log('finished');
             fs.writeFileSync(
-                `./generated_json${year}without_deadtime.json`,
+                `./generated_json${year}.json`,
                 JSON.stringify(final_json),
                 'utf8'
             );
@@ -140,6 +140,7 @@ const get_jsons_for_dataset_filter = async (dataset_filter, run_filter) => {
             dataset_filter,
             run_filter
         );
+        // let counter = 0;
         const promises = datasets_that_matched.map(
             ({ run_number, name }) => async () => {
                 try {
@@ -149,6 +150,8 @@ const get_jsons_for_dataset_filter = async (dataset_filter, run_filter) => {
                         rr_columns_required_to_be_good,
                         oms_columns_required_to_be_good
                     });
+
+                    // counter += ranges;
                     if (ranges.length > 0) {
                         console.log(ranges);
                         generated_json[run_number] = ranges;
@@ -166,6 +169,7 @@ const get_jsons_for_dataset_filter = async (dataset_filter, run_filter) => {
         );
         asyncQueue.drain = async () => {
             console.log(`finished`);
+            // console.log(counter);
             resolve(generated_json);
         };
 
