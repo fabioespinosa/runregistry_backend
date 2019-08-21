@@ -25,6 +25,7 @@
         "get-attributes-specified-from-array": "^1.0.1",
         "get-object-with-attributes-that-changed": "^1.0.2",
         "json-logic-js": "^1.2.2",
+        "json-logic-to-sql-compiler": "^1.0.4",
         "lodash": "^4.17.11",
         "mocha": "^6.0.2",
         "morgan": "^1.9.1",

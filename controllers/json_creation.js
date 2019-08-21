@@ -1,4 +1,5 @@
 const changeNameOfAllKeys = require('change-name-of-all-keys');
+const jsonLogicToSql = require('json-logic-to-sql-compiler');
 const {
     get_rr_lumisections_for_dataset,
     get_oms_lumisections_for_dataset
@@ -183,109 +184,9 @@ exports.calculate_number_of_lumisections_from_json = json => {
 };
 
 exports.calculate_json_based_on_ranges = async (req, res) => {
-    const oms_columns_required_to_be_good = [
-        ['cms_active', true],
-        ['bpix_ready', true],
-        ['fpix_ready', true],
-        ['tibtid_ready', true],
-        ['tecm_ready', true],
-        ['tecp_ready', true],
-        // ['castor_ready', true],
-        ['tob_ready', true],
-        ['ebm_ready', true],
-        ['ebp_ready', true],
-        ['eem_ready', true],
-        ['eep_ready', true],
-        ['esm_ready', true],
-        ['esp_ready', true],
-        ['hbhea_ready', true],
-        ['hbheb_ready', true],
-        ['hbhec_ready', true],
-        ['hf_ready', true],
-        ['ho_ready', true],
-        ['dtm_ready', true],
-        ['dtp_ready', true],
-        ['dt0_ready', true],
-        ['cscm_ready', true],
-        ['cscp_ready', true],
-        ['rpc_ready', true],
-        ['beam1_present', true],
-        ['beam2_present', true],
-        ['beam1_stable', true],
-        ['beam2_stable', true]
-    ];
-
-    const rr_columns_required_to_be_good = [
-        // ['cms-cms', 'GOOD'],
-        ['dt-dt', 'GOOD'],
-        ['csc-csc', 'GOOD'],
-        ['l1t-l1tcalo', 'GOOD'],
-        ['l1t-l1tmu', 'GOOD'],
-        ['hlt-hlt', 'GOOD'],
-        ['tracker-pixel', 'GOOD'],
-        ['tracker-strip', 'GOOD'],
-        ['tracker-track', 'GOOD'],
-        ['ecal-ecal', 'GOOD'],
-        ['ecal-es', 'GOOD'],
-        ['hcal-hcal', 'GOOD'],
-        ['egamma-egamma', 'GOOD'],
-        ['muon-muon', 'GOOD'],
-        ['jetmet-jetmet', 'GOOD'],
-        ['lumi-lumi', 'GOOD'],
-        // low lumi should be BAD (as it is )
-        ['dc-lowlumi', 'BAD']
-    ];
-
-    const year = 2018;
-    const filter = {
-        run_number: {
-            '>=': 315257
-        },
-        or: [
-            { name: `/PromptReco/Collisions${year}A/DQM` },
-            { name: `/PromptReco/Collisions${year}B/DQM` },
-            { name: `/PromptReco/Collisions${year}C/DQM` },
-            { name: `/PromptReco/Collisions${year}D/DQM` },
-            { name: `/PromptReco/Collisions${year}E/DQM` },
-            { name: `/PromptReco/Collisions${year}F/DQM` },
-            { name: `/PromptReco/Collisions${year}G/DQM` },
-            { name: `/PromptReco/Collisions${year}H/DQM` },
-            { name: `/PromptReco/Collisions${year}I/DQM` }
-        ]
-    };
-
-    const attributes = [];
-
-    oms_columns_required_to_be_good.forEach(column => {
-        const [column_name, desired_value] = column;
-        const upper_case_desired_value = `${desired_value}`.toUpperCase();
-        const formatted_name = `${column_name}.${upper_case_desired_value}`;
-        filter[`dcs_summary.${formatted_name}`] = {
-            '>': 0
-        };
-        attributes.push([
-            sequelize.json(`dcs_ranges.${formatted_name}`),
-            `dcs_ranges.${formatted_name}`
-        ]);
-    });
-
-    rr_columns_required_to_be_good.forEach(column => {
-        const [column_name, desired_value] = column;
-        const formatted_name = `${column_name}.${desired_value}`;
-        filter[`triplet_summary.${formatted_name}`] = {
-            '>': 0
-        };
-        attributes.push([
-            sequelize.json(`rr_ranges.${formatted_name}`),
-            `rr_ranges.${formatted_name}`
-        ]);
-    });
-
-    const sequelize_filter = changeNameOfAllKeys(filter, conversion_operator);
-    const ranges_of_runs = await DatasetTripletCache.findAll({
-        attributes: ['run_number', 'name', ...attributes],
-        where: sequelize_filter,
-        raw: true
+    const sql = jsonLogicToSql(String(req.body.json_logic));
+    const ranges_of_runs = await sequelize.query(sql, {
+        type: sequelize.QueryTypes.SELECT
     });
 
     const json = exports.calculate_json_with_many_ranges(ranges_of_runs);
@@ -326,17 +227,12 @@ const recalculate_ranges_with_new_ranges = (current_ranges, new_ranges) => {
     }
 
     const resulting_ranges = [];
-    const first_lumisection_of_old_ranges = current_ranges[0][0];
-    const last_lumisection_of_old_ranges =
-        current_ranges[current_ranges.length - 1][1];
-
     new_ranges.forEach(range => {
         const [start_lumisection, end_lumisection] = range;
 
         // We use for 'of' to allow 'break'
-        for (let old_range of current_ranges) {
+        current_ranges.forEach(old_range => {
             const [start_lumisection_old, end_lumisection_old] = old_range;
-
             // If the new range is more specific, we stick with the new range:
             if (
                 start_lumisection >= start_lumisection_old &&
@@ -344,7 +240,6 @@ const recalculate_ranges_with_new_ranges = (current_ranges, new_ranges) => {
             ) {
                 // the new range is shorter, so we stick with the new range
                 resulting_ranges.push(range);
-                // range_considered = true;
             } else if (
                 // If the new range contains the previous range
                 start_lumisection <= start_lumisection_old &&
@@ -358,7 +253,6 @@ const recalculate_ranges_with_new_ranges = (current_ranges, new_ranges) => {
                 end_lumisection >= start_lumisection_old
             ) {
                 resulting_ranges.push([start_lumisection_old, end_lumisection]);
-                // range_considered = true;
             }
             // If there are some lumisections in the current range and then some above, we stick with the stricter limit (the new lower limit) and the
             else if (
@@ -366,9 +260,8 @@ const recalculate_ranges_with_new_ranges = (current_ranges, new_ranges) => {
                 end_lumisection >= end_lumisection_old
             ) {
                 resulting_ranges.push([start_lumisection, end_lumisection_old]);
-                // range_considered = true;
             }
-        }
+        });
     });
     return resulting_ranges;
 };

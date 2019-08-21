@@ -25,7 +25,7 @@
         { "==": [{ "var": "lumisection.rr.hlt-hlt" }, "GOOD"] },
         { "==": [{ "var": "lumisection.rr.tracker-pixel" }, "GOOD"] },
         { "==": [{ "var": "lumisection.rr.tracker-strip" }, "GOOD"] },
-        { "==": [{ "var": "lumisection.rr.tracker-tracking" }, "GOOD"] },
+        { "==": [{ "var": "lumisection.rr.tracker-track" }, "GOOD"] },
         { "==": [{ "var": "lumisection.rr.ecal-ecal" }, "GOOD"] },
         { "==": [{ "var": "lumisection.rr.ecal-es" }, "GOOD"] },
         { "==": [{ "var": "lumisection.rr.hcal-hcal" }, "GOOD"] },
