@@ -36,7 +36,7 @@ module.exports = {
     staging: {
         username: 'admin',
         password: 'changeme',
-        database: 'final_rr',
+        database: 'runregistry_database',
         logging: false,
         host: 'dbod-rr4-dev.cern.ch',
         dialect: 'postgres',
