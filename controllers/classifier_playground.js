@@ -5,6 +5,18 @@ const { get_oms_lumisections_for_dataset } = require('./lumisection');
 const {
     reduce_ls_attributes
 } = require('../cron/saving_updating_runs_lumisections_utils');
+
+exports.testArbitraryClassifier = async (req, res) => {
+    let { data, json_logic } = req.body;
+    json_logic = JSON.parse(json_logic);
+    const result = return_classifier_evaluated_tuple(data, json_logic);
+
+    res.json({
+        result,
+        data
+    });
+};
+
 exports.testClassifier = async (req, res) => {
     const run_number = req.body.run.run_number;
     const previously_saved_run = await Run.findByPk(run_number);
@@ -56,6 +68,9 @@ exports.getRunInfo = async (req, res) => {
 // returns [rule, passed], for example [{"==": [{"var": "beam1_present"}, false]}, true], which means the variable beam1_present was indeed false
 const return_classifier_evaluated_tuple = (run_data, classifier_rules) => {
     const evaluated_tuples = [];
+    if (!Array.isArray(classifier_rules)) {
+        classifier_rules = [classifier_rules];
+    }
     classifier_rules.forEach(rule => {
         Object.keys(rule).forEach(key => {
             if (key === 'if') {

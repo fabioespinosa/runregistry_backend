@@ -10,4 +10,8 @@ module.exports = app => {
         '/classifier_playground',
         catchAPI(ClassifierPlayground.testClassifier)
     );
+    app.post(
+        '/classifier_playground_arbitrary',
+        catchAPI(ClassifierPlayground.testArbitraryClassifier)
+    );
 };

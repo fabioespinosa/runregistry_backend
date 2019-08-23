@@ -193,8 +193,7 @@ exports.new = async (req, res) => {
             );
         }
         await transaction.commit();
-        // Enable again:
-        // await fill_dataset_triplet_cache();
+        await fill_dataset_triplet_cache();
         res.json(datasetEvent);
     } catch (err) {
         console.log(err.message);
@@ -704,13 +703,13 @@ exports.calculate_dataset_filter_and_include = (client_filter, run_filter) => {
     let include = [
         {
             model: Run,
-            attributes: ['rr_attributes'],
+            attributes: ['rr_attributes', 'oms_attributes'],
             where: run_filter
         },
         {
             model: DatasetTripletCache,
             where: triplet_summary_filter,
-            attributes: ['triplet_summary']
+            attributes: ['triplet_summary', 'dcs_summary']
         }
     ];
     if (typeof filter['rr_attributes.class'] !== 'undefined') {

@@ -189,17 +189,27 @@ exports.calculate_json_based_on_ranges = async (req, res) => {
         type: sequelize.QueryTypes.SELECT
     });
 
-    const json = exports.calculate_json_with_many_ranges(ranges_of_runs);
-    res.json(json);
+    const {
+        final_json,
+        dataset_in_run_in_json
+    } = exports.calculate_json_with_many_ranges(ranges_of_runs);
+    res.json({ final_json, dataset_in_run_in_json });
 };
 
 exports.calculate_json_with_many_ranges = ranges_of_runs => {
     const final_json = {};
+    const dataset_in_run_in_json = {};
     ranges_of_runs.forEach(run => {
         // It require run_number and name are the only 2 selection other than dcs_ranges and rr_ranges:
         const { run_number, name } = run;
         delete run.run_number;
         delete run.name;
+
+        if (typeof dataset_in_run_in_json[run_number] !== 'undefined') {
+            throw 'There exists mutliplet datasets for that json logic filter. please include a filter that accepts only 1 dataset per run';
+        }
+        dataset_in_run_in_json[run_number] = name;
+
         let final_array = [];
         for (let [column_name, ranges] of Object.entries(run)) {
             ranges = JSON.parse(ranges);
@@ -215,7 +225,7 @@ exports.calculate_json_with_many_ranges = ranges_of_runs => {
             final_json[run_number] = final_array;
         }
     });
-    return final_json;
+    return { final_json, dataset_in_run_in_json };
 };
 
 const recalculate_ranges_with_new_ranges = (current_ranges, new_ranges) => {
@@ -230,7 +240,6 @@ const recalculate_ranges_with_new_ranges = (current_ranges, new_ranges) => {
     new_ranges.forEach(range => {
         const [start_lumisection, end_lumisection] = range;
 
-        // We use for 'of' to allow 'break'
         current_ranges.forEach(old_range => {
             const [start_lumisection_old, end_lumisection_old] = old_range;
             // If the new range is more specific, we stick with the new range:
