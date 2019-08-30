@@ -14,4 +14,9 @@ module.exports = app => {
         '/classifier_playground_arbitrary',
         catchAPI(ClassifierPlayground.testArbitraryClassifier)
     );
+
+    app.post(
+        '/classifier_playground/test_lumisection',
+        catchAPI(ClassifierPlayground.testLumisection)
+    );
 };

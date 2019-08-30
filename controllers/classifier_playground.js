@@ -1,21 +1,11 @@
 const json_logic = require('json-logic-js');
+const sequelize = require('../models').sequelize;
 const Run = require('../models').Run;
 
 const { get_oms_lumisections_for_dataset } = require('./lumisection');
 const {
     reduce_ls_attributes
 } = require('../cron/saving_updating_runs_lumisections_utils');
-
-exports.testArbitraryClassifier = async (req, res) => {
-    let { data, json_logic } = req.body;
-    json_logic = JSON.parse(json_logic);
-    const result = return_classifier_evaluated_tuple(data, json_logic);
-
-    res.json({
-        result,
-        data
-    });
-};
 
 exports.testClassifier = async (req, res) => {
     const run_number = req.body.run.run_number;
@@ -94,4 +84,57 @@ const return_classifier_evaluated_tuple = (run_data, classifier_rules) => {
         });
     });
     return evaluated_tuples;
+};
+
+// JSON creation:
+exports.testArbitraryClassifier = async (req, res) => {
+    let { data, json_logic } = req.body;
+    json_logic = JSON.parse(json_logic);
+    const result = return_classifier_evaluated_tuple(data, json_logic);
+
+    res.json({
+        result,
+        data
+    });
+};
+
+exports.testLumisection = async (req, res) => {
+    const { run_number, name, lumisection_number } = req.body;
+    const [ls] = await sequelize.query(
+        `
+        SELECT * FROM "AggregatedLumisection"
+        WHERE run_number = :run_number 
+        AND name = :name
+        AND lumisection_number = :lumisection_number
+    `,
+        {
+            type: sequelize.QueryTypes.SELECT,
+            replacements: {
+                run_number,
+                name,
+                lumisection_number
+            }
+        }
+    );
+
+    // Ignore comment and cause in triplets, just keep the status:
+    const rr_lumisection = {};
+    for (const [key, val] of Object.entries(ls.rr_lumisection)) {
+        rr_lumisection[key] = val.status;
+    }
+
+    const formatted_lumisection = {
+        dataset: { ...ls.dataset_attributes, name: ls.name },
+        run: {
+            oms: ls.run_oms_attributes,
+            rr: ls.run_rr_attributes,
+            run_number: ls.run_number
+        },
+        lumisection: {
+            oms: ls.oms_lumisection,
+            rr: rr_lumisection
+        }
+    };
+    req.body.data = formatted_lumisection;
+    exports.testArbitraryClassifier(req, res);
 };
