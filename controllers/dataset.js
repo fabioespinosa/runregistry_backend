@@ -1,3 +1,4 @@
+const queue = require('async').queue;
 const changeNameOfAllKeys = require('change-name-of-all-keys');
 const Sequelize = require('../models').Sequelize;
 const sequelize = require('../models').sequelize;
@@ -114,9 +115,7 @@ exports.update_or_create_dataset = async (
         if (local_transaction) {
             await transaction.rollback();
         }
-        throw `Error updating/saving dataset ${dataset_name} of run: ${run_number}, ${
-            err.message
-        }`;
+        throw `Error updating/saving dataset ${dataset_name} of run: ${run_number}, ${err.message}`;
     }
 };
 
@@ -553,8 +552,7 @@ exports.duplicate_datasets = async (req, res) => {
     let transaction;
     try {
         transaction = await sequelize.transaction();
-
-        const promises = datasets_to_copy.map(async dataset => {
+        const promises = datasets_to_copy.map(dataset => async () => {
             const { run_number } = dataset;
             // We go through the state of every workspace, if the user included that workspace in the "copy" tool, then we copy that. If not, then we don't
             // If the user didn't include a workspace, then the duplicated dataset will not appear in such workspace (because there is no state there)
@@ -604,17 +602,84 @@ exports.duplicate_datasets = async (req, res) => {
             );
         });
 
+        const number_of_workers = 1;
+        const asyncQueue = queue(
+            async dataset => await dataset(),
+            number_of_workers
+        );
+
+        asyncQueue.drain = async () => {
+            await transaction.commit();
+            // You can only fill the cache when transaction has commited:
+            await fill_dataset_triplet_cache();
+            console.log(`${datasets_to_copy.length} duplicated`);
+            const saved_datasets_promises = datasets_to_copy.map(
+                async ({ run_number }) => {
+                    const saved_dataset = await Dataset.findOne({
+                        where: {
+                            run_number,
+                            name: target_dataset_name
+                        },
+                        include: [
+                            {
+                                model: Run,
+                                attributes: ['rr_attributes']
+                            },
+                            { model: DatasetTripletCache }
+                        ]
+                    });
+                    return saved_dataset;
+                }
+            );
+            const saved_datasets = await Promise.all(saved_datasets_promises);
+            res.json(saved_datasets);
+        };
+
+        asyncQueue.push(promises);
+    } catch (err) {
+        console.log('Error duplicating datasets');
+        console.log(err);
+        await transaction.rollback();
+        throw `Error duplicating datasets: ${err.message}`;
+    }
+};
+
+exports.change_multiple_states = async (req, res) => {
+    const { new_state, workspace_to_change_state_in } = req.body;
+    const [filter, include] = exports.calculate_dataset_filter_and_include(
+        req.body.filter
+    );
+
+    const datasets_to_change_state = await Dataset.findAll({
+        where: filter,
+        include
+    });
+    if (datasets_to_change_state.length === 0) {
+        throw `No dataset found for filter criteria`;
+    }
+
+    let transaction;
+    try {
+        transaction = await sequelize.transaction();
+        const promises = datasets_to_change_state.map(async dataset => {
+            const { name, run_number } = dataset;
+
+            await exports.update_or_create_dataset(
+                name,
+                run_number,
+                { [`${workspace_to_change_state_in}_state`]: new_state },
+                req,
+                transaction
+            );
+        });
         await Promise.all(promises);
         await transaction.commit();
-        // You can only fill the cache when transaction has commited:
-        await fill_dataset_triplet_cache();
-
-        const saved_datasets_promises = datasets_to_copy.map(
+        const saved_datasets_promises = datasets_to_change_state.map(
             async ({ run_number, name }) => {
                 const saved_dataset = await Dataset.findOne({
                     where: {
                         run_number,
-                        name: target_dataset_name
+                        name
                     },
                     include: [
                         {
@@ -630,7 +695,7 @@ exports.duplicate_datasets = async (req, res) => {
         const saved_datasets = await Promise.all(saved_datasets_promises);
         res.json(saved_datasets);
     } catch (err) {
-        console.log('Error duplicating datasets');
+        console.log('Error changing states');
         console.log(err);
         await transaction.rollback();
         throw `Error duplicating datasets: ${err.message}`;

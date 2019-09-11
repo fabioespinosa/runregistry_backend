@@ -12,4 +12,9 @@ module.exports = app => {
         auth,
         catchAPI(Dataset.duplicate_datasets)
     );
+    app.post(
+        '/dc_tools/dataset_update',
+        auth,
+        catchAPI(Dataset.change_multiple_states)
+    );
 };

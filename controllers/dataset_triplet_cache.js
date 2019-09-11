@@ -6,43 +6,40 @@ const { Op } = Sequelize;
 const number_of_datasets_per_batch = 50;
 
 exports.fill_dataset_triplet_cache = async transaction => {
-    const max_version = (await DatasetTripletCache.max('version')) || 0;
-    const count = await Dataset.count({
-        where: {
-            version: {
-                [Op.gt]: max_version
+    return new Promise(async (resolve, reject) => {
+        const max_version = (await DatasetTripletCache.max('version')) || 0;
+        const count = await Dataset.count({
+            where: {
+                version: {
+                    [Op.gt]: max_version
+                }
             }
-        }
-    });
-
-    const number_of_batches = Math.ceil(count / number_of_datasets_per_batch);
-    const async_functions = [];
-    let number_of_processed_datasets = 0;
-    for (let i = 0; i < number_of_batches; i++) {
-        async_functions.push(async () => {
-            const dataset_batch = await Dataset.findAll({
-                where: {
-                    version: {
-                        [Op.gt]: max_version
-                    }
-                },
-                order: [['version', 'ASC'], ['run_number', 'ASC']],
-                limit: number_of_datasets_per_batch,
-                offset: i * number_of_datasets_per_batch
-            });
-            const processed_datasets = await exports.processDatasets(
-                dataset_batch,
-                transaction
-            );
-            number_of_processed_datasets += processed_datasets.length;
         });
-    }
-    if (number_of_batches < 10) {
-        await Promise.all(async_functions.map(async => async()));
-        console.log(
-            `Cache generated for ${number_of_processed_datasets} datasets`
+
+        const number_of_batches = Math.ceil(
+            count / number_of_datasets_per_batch
         );
-    } else {
+        const async_functions = [];
+        let number_of_processed_datasets = 0;
+        for (let i = 0; i < number_of_batches; i++) {
+            async_functions.push(async () => {
+                const dataset_batch = await Dataset.findAll({
+                    where: {
+                        version: {
+                            [Op.gt]: max_version
+                        }
+                    },
+                    order: [['version', 'ASC'], ['run_number', 'ASC']],
+                    limit: number_of_datasets_per_batch,
+                    offset: i * number_of_datasets_per_batch
+                });
+                const processed_datasets = await exports.processDatasets(
+                    dataset_batch,
+                    transaction
+                );
+                number_of_processed_datasets += processed_datasets.length;
+            });
+        }
         console.log(`Processing for ${count} datasets.`);
         const asyncQueue = queue(
             async dataset_batch => await dataset_batch(),
@@ -52,14 +49,16 @@ exports.fill_dataset_triplet_cache = async transaction => {
             console.log(
                 `Cache generated for ${number_of_processed_datasets} datasets`
             );
+            resolve();
         };
         asyncQueue.error = err => {
             console.log('Error: ');
             console.log(err);
+            reject();
             throw err;
         };
         await asyncQueue.push(async_functions);
-    }
+    });
 };
 
 exports.processDatasets = async (
@@ -71,7 +70,7 @@ exports.processDatasets = async (
     if (transaction) {
         options.transaction = transaction;
     }
-    return dataset_batch.map(async dataset => {
+    const promises = dataset_batch.map(async dataset => {
         try {
             const { name, run_number } = dataset;
             const merged_lumisections = await sequelize.query(
@@ -133,9 +132,7 @@ exports.processDatasets = async (
             return;
         } catch (err) {
             console.log(
-                `Failed for dataset ${dataset.name} of run ${
-                    dataset.run_number
-                }`
+                `Failed for dataset ${dataset.name} of run ${dataset.run_number}`
             );
             if (!number_of_tries || number_of_tries < 5) {
                 if (typeof number_of_tries === 'undefined') {
@@ -152,14 +149,13 @@ exports.processDatasets = async (
                 );
             } else {
                 console.log(
-                    `Failed completely for ${dataset.name} of run ${
-                        dataset.run_number
-                    }`
+                    `Failed completely for ${dataset.name} of run ${dataset.run_number}`
                 );
                 console.log(err);
             }
         }
     });
+    return await Promise.all(promises);
 };
 
 exports.fill_for_unfilled_datasets = async transaction => {
