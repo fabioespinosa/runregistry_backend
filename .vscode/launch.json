@@ -38,7 +38,8 @@
             "name": "API",
             "program": "${workspaceFolder}/app.js",
             "env": {
-                "NODE_ENV": "development"
+                "ENV": "production",
+                "NODE_ENV": "production"
             },
             "skipFiles": ["<node_internals>/**"]
         },
