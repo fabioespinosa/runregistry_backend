@@ -21,7 +21,7 @@ exports.catchAPIErrorHotShot = fn => (req, res, next) =>
 exports.expressError = (err, req, res, next) => {
     console.log(err.message || err);
     console.log(err);
-    res.status(400).json({ err: err.message || err });
+    res.status(500).json({ err: err.message || err });
 };
 
 // We want the error to fail so that a run does not get saved/updated
