@@ -153,9 +153,9 @@ exports.getOne = async (req, res) => {
     res.json(run);
 };
 
-exports.get50 = async (req, res) => {
+exports.getLastUpdated50 = async (req, res) => {
     const runs = await Run.findAll({
-        order: [['run_number', 'DESC']],
+        order: [['oms_attributes.last_update', 'DESC']],
         limit: 50
     });
     res.json(runs);

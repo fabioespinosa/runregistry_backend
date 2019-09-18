@@ -23,10 +23,8 @@ const fetch_runs = async (
 ) => {
     const oms_url = `${OMS_URL}/${OMS_RUNS(fetch_amount)}`;
     // insert cookie that will authenticate OMS request:
-    if (
-        first_time
-        // && process.env.ENV === 'production'
-    ) {
+    let headers;
+    if (first_time) {
         headers = {
             Cookie: await getCookie({ url: oms_url, certificate: cert, key })
         };
@@ -48,20 +46,20 @@ const fetch_runs = async (
         ? all_fetched_runs
         : all_fetched_runs.slice(fetch_amount / 2);
 
-    const { data: last_saved_runs } = await axios.get(`${API_URL}/runs_50`);
+    const { data: last_saved_runs } = await axios.get(
+        `${API_URL}/runs_lastupdated_50`
+    );
     const new_runs = calculate_new_runs(fetched_runs, last_saved_runs);
 
     // If all runs are new, it means there might've been other previous runs which have not been saved (the arrays are not equal in length)
     // Therefore, it is good to call recursively until at least some run that is fetched was previously fetched and saved, and then save them all.
-    if (
-        new_runs.length === fetched_runs.length &&
-        all_fetched_runs.length < 400
-    ) {
+    if (new_runs.length === fetched_runs.length) {
         console.log(
             `All fetched runs are new, fetching ${fetch_amount * 2} runs...`
         );
         await fetch_runs(fetch_amount * 2, false);
     } else {
+        // Here we calculate the new_runs with ALL runs, instead of above with only the fetched runs:
         const runs_to_be_saved = calculate_new_runs(
             all_fetched_runs,
             last_saved_runs
@@ -91,14 +89,14 @@ if (process.env.ENV === 'production' || process.env.ENV === 'staging') {
         handleErrors(fetch_runs, 'Error fetching new runs ')
     ).start();
 }
-
 // If in a dev environment we want to do this at least once:
 handleErrors(fetch_runs, 'Error fetching new runs')();
 
 // makes left outer join between fetched_runs and last_saved_runs, returns the difference of runs (the ones which have not been saved)
-// TODO: FIX, the last_update is not ordered by run_number
+// Case when run from way in the past is updated, it will think it is a new run, since it doesnt appear in the fetch of the local 50 runs,
 const calculate_new_runs = (fetched_runs, last_saved_runs) => {
     const new_runs = [];
+
     fetched_runs.forEach(fetched_run => {
         let exists = false;
         // Check if it exists in the already saved runs:
@@ -107,7 +105,7 @@ const calculate_new_runs = (fetched_runs, last_saved_runs) => {
                 exists = true;
             }
         });
-        // If it does not exist in alreay saved run, check if it exists in the recently created array.
+        // If it does not exist in alreay saved runs, check if it exists in the recently created array.
         if (!exists) {
             let already_saved = false;
             new_runs.forEach(run => {
@@ -115,8 +113,14 @@ const calculate_new_runs = (fetched_runs, last_saved_runs) => {
                     already_saved = true;
                 }
             });
+
             if (!already_saved) {
-                new_runs.push(fetched_run);
+                // IF THE run_number of the run is way in the past (prior to the last of the already saved runs) then this is not a new run, but a run to update
+                // The oldest run_number saved (aka the minimum possible run number from the sample fetched):
+                const min_run_number = get_min_run_number(last_saved_runs);
+                if (fetched_run.run_number > min_run_number) {
+                    new_runs.push(fetched_run);
+                }
             }
         }
     });
@@ -127,21 +131,37 @@ const calculate_new_runs = (fetched_runs, last_saved_runs) => {
 const calculate_runs_to_update = (fetched_runs, last_saved_runs) => {
     const runs_to_update = [];
     fetched_runs.forEach(fetched_run => {
-        last_saved_runs.forEach(existing_run => {
-            // if runs are the same (i.e. same run_number), check last_update
-            if (+fetched_run.run_number === +existing_run.run_number) {
-                const last_updated_existing_run = new Date(
-                    existing_run.oms_attributes.last_update
-                );
-                const last_updated_fetched_run = new Date(
-                    fetched_run.last_update
-                );
-                // If the last_update of fetched run is greater than that of previously saved run, we need to update the run
-                if (last_updated_fetched_run > last_updated_existing_run) {
-                    runs_to_update.push(fetched_run);
+        // If the run_number is less than the minimum of the already saved runs, then it is one from the past, which needs to be updated. Else we compare timestamps
+        const min_run_number = get_min_run_number(last_saved_runs);
+        if (fetched_run.run_number < min_run_number) {
+            runs_to_update.push(fetched_run);
+        } else {
+            // If the run_number is inside the existing already saved runs, then we check for the timestamp:
+            last_saved_runs.forEach(existing_run => {
+                // if runs are the same (i.e. same run_number), check last_update
+                if (+fetched_run.run_number === +existing_run.run_number) {
+                    const last_updated_existing_run = new Date(
+                        existing_run.oms_attributes.last_update
+                    );
+                    const last_updated_fetched_run = new Date(
+                        fetched_run.last_update
+                    );
+                    // If the last_update of fetched run is greater than that of previously saved run, we need to update the run
+                    if (last_updated_fetched_run > last_updated_existing_run) {
+                        runs_to_update.push(fetched_run);
+                    }
                 }
-            }
-        });
+            });
+        }
     });
     return runs_to_update;
+};
+
+const get_min_run_number = array_of_runs => {
+    const min_run_number = array_of_runs.reduce(
+        (min_run_number, run) =>
+            run.run_number < min_run_number ? run.run_number : min_run_number,
+        array_of_runs[0].run_number
+    );
+    return min_run_number;
 };

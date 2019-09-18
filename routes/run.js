@@ -5,7 +5,7 @@ const { catchAPIError: catchAPI } = require('../utils/error_handlers');
 module.exports = app => {
     app.get('/runs/:run_number', catchAPI(Run.getOne));
     app.get('/runs/', catchAPI(Run.get));
-    app.get('/runs_50', catchAPI(Run.get50));
+    app.get('/runs_lastupdated_50', catchAPI(Run.getLastUpdated50));
     app.get('/run_with_history/:run_number', catchAPI(Run.getRunWithHistory));
     app.post('/runs/', catchAPI(Run.new));
     app.get(
