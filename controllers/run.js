@@ -298,10 +298,11 @@ exports.automatic_run_update = async (req, res) => {
             req.body.rr_attributes
         );
         const new_rr_attributes_length = Object.keys(new_rr_attributes).length;
-        const new_oms_attributes = Object.keys(new_oms_attributes).length;
+        const new_oms_attributes_length = Object.keys(new_oms_attributes)
+            .length;
         // If there was actually something to update in the RR attributes, we update it, if it was a change in oms_attributes, we don't update it (since it doesn't affect RR attributes)
         if (
-            new_rr_attributes_length + new_oms_attributes > 0 ||
+            new_rr_attributes_length + new_oms_attributes_length > 0 ||
             was_run_updated
         ) {
             const runEvent = await update_or_create_run(
