@@ -16,6 +16,8 @@ const { save_runs, update_runs } = require('./2.save_or_update_runs');
 const cert = `${__dirname}/../certs/usercert.pem`;
 const key = `${__dirname}/../certs/userkey.pem`;
 
+let headers;
+
 // Will call itself recursively if all runs are new
 const fetch_runs = async (
     fetch_amount = RUNS_PER_API_CALL,
@@ -23,7 +25,7 @@ const fetch_runs = async (
 ) => {
     const oms_url = `${OMS_URL}/${OMS_RUNS(fetch_amount)}`;
     // insert cookie that will authenticate OMS request:
-    let headers;
+
     if (first_time) {
         headers = {
             Cookie: await getCookie({ url: oms_url, certificate: cert, key })

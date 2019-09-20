@@ -477,30 +477,29 @@ exports.moveRun = async (req, res) => {
         throw `There is no run lumisection data for run ${run_number}, therefore it cannot be signed off`;
     }
     // Check for NO VALUE FOUND lumisections:
-    // for (let i = 0; i < rr_lumisections.length; i++) {
-    //     const current_lumisection = rr_lumisections[i];
-    //     for (const [key, val] of Object.entries(current_lumisection)) {
-    //         if (
-    //             // Revise
-    //             key.includes('_triplet') &&
-    //             (to_state === 'SIGNOFF' || to_state === 'COMPLETED')
-    //         ) {
-    //             if (
-    //                 val.status === '' ||
-    //                 val.status === 'EMPTY' ||
-    //                 val.status === 'NO VALUE FOUND'
-    //             ) {
-    //                 // Revise:
-    //                 throw `There is a ${
-    //                     val.status === '' ? 'empty' : val.status
-    //                 } lumisection at position ${i +
-    //                     1} of this run in component ${
-    //                     key.split('_triplet')[0]
-    //                 }. `;
-    //             }
-    //         }
-    //     }
-    // }
+    for (let i = 0; i < rr_lumisections.length; i++) {
+        const current_lumisection = rr_lumisections[i];
+        for (const [key, val] of Object.entries(current_lumisection)) {
+            if (
+                // Revise
+                key.includes('-') &&
+                (to_state === 'SIGNOFF' || to_state === 'COMPLETED')
+            ) {
+                if (
+                    val.status === '' ||
+                    val.status === 'EMPTY' ||
+                    val.status === 'NO VALUE FOUND'
+                ) {
+                    const subsystem = key.split('-')[1];
+                    const ls_position = i + 1;
+                    // Revise:
+                    throw `There is a ${
+                        val.status === '' ? 'empty' : val.status
+                    } lumisection at position ${ls_position} of this run in component ${subsystem}. Please wait until this component is updated automatically, or ask ${subsystem} expert, then change the value.`;
+                }
+            }
+        }
+    }
     //      Check if run class is empty:
     if (run.dataValues.rr_attributes.class === '') {
         throw 'The class of run must not be empty ';
