@@ -93,24 +93,41 @@ module.exports = {
     },
 
     // The online components are also the rr_lumisection_whitelist
-    online_components: [
-        'castor',
-        'cms',
-        'csc',
-        'ctpps',
-        'dt',
-        'ecal',
-        'es',
-        'hcal',
-        'hlt',
-        'l1t',
-        'l1tcalo',
-        'l1tmu',
-        'lumi',
-        'pix',
-        'rpc',
-        'strip'
-    ],
+    certifiable_offline_components: {
+        btag: ['btag'],
+        castor: ['castor'],
+        cms: ['cms'],
+        csc: ['csc'],
+        ctpps: ['ctpps'],
+        dc: ['lowlumi'],
+        dt: ['dt'],
+        ecal: ['ecal', 'es'],
+        egamma: ['egamma'],
+        hcal: ['hcal'],
+        hlt: ['hlt'],
+        jetmet: ['jetmet'],
+        l1t: ['l1t', 'l1tmu', 'l1tcalo'],
+        lumi: ['lumi'],
+        muon: ['muon'],
+        rpc: ['rpc'],
+        tau: ['tau'],
+        tracker: ['track', 'pixel', 'strip']
+    },
+
+    certifiable_online_components: {
+        castor: ['castor'],
+        cms: ['cms'],
+        csc: ['csc'],
+        ctpps: ['ctpps'],
+        dt: ['dt'],
+        ecal: ['ecal', 'es'],
+        hcal: ['hcal'],
+        hlt: ['hlt'],
+        l1t: ['l1t', 'l1tcalo', 'l1tmu'],
+        lumi: ['lumi'],
+        rpc: ['rpc'],
+        tracker: ['pixel', 'strip']
+    },
     // This are the attributes we save from OMS lumisections:
     oms_lumisection_whitelist: [
         'rp_time_ready',

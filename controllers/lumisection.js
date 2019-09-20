@@ -11,8 +11,7 @@ const {
 } = require('../models');
 const {
     oms_lumisection_whitelist,
-    oms_lumisection_luminosity_whitelist,
-    online_components
+    oms_lumisection_luminosity_whitelist
 } = require('../config/config');
 const { OMS_URL, OMS_LUMISECTIONS } = require('../config/config')[
     process.env.ENV || 'development'

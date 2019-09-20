@@ -5,9 +5,7 @@ const changeNameOfAllKeys = require('change-name-of-all-keys');
 const Sequelize = require('../models').Sequelize;
 const sequelize = require('../models').sequelize;
 
-const { OMS_URL, OMS_SPECIFIC_RUN } = require('../config/config')[
-    process.env.ENV || 'development'
-];
+const { certifiable_online_components } = require('../config/config');
 const {
     create_oms_lumisections,
     create_rr_lumisections,
@@ -480,9 +478,11 @@ exports.moveRun = async (req, res) => {
     for (let i = 0; i < rr_lumisections.length; i++) {
         const current_lumisection = rr_lumisections[i];
         for (const [key, val] of Object.entries(current_lumisection)) {
+            const [workspace, column] = key.split('-');
+
             if (
-                // Revise
-                key.includes('-') &&
+                certifiable_online_components[workspace] &&
+                certifiable_online_components[workspace].includes(column) &&
                 (to_state === 'SIGNOFF' || to_state === 'COMPLETED')
             ) {
                 if (
@@ -492,10 +492,9 @@ exports.moveRun = async (req, res) => {
                 ) {
                     const subsystem = key.split('-')[1];
                     const ls_position = i + 1;
-                    // Revise:
-                    throw `There is a ${
-                        val.status === '' ? 'empty' : val.status
-                    } lumisection at position ${ls_position} of this run in component ${subsystem}. Please wait until this component is updated automatically, or ask ${subsystem} expert, then change the value.`;
+                    const empty_verbose = val.status || 'empty'; // Will make empty string coerce to 'empty'
+                    throw `There is a ${empty_verbose} lumisection at position ${ls_position} of this run in component ${subsystem}. 
+                           Please wait until this component is updated automatically (<5 mins), or ask ${subsystem} expert, then change the value in the 'manage' menu.`;
                 }
             }
         }
