@@ -59,6 +59,13 @@ module.exports = (sequelize, DataTypes) => {
             },
             onDelete: 'RESTRICT'
         });
+        Settings.belongsTo(models.JsonClassifierList, {
+            foreignKey: {
+                name: 'JCL_id',
+                allowNull: false
+            },
+            onDelete: 'RESTRICT'
+        })
     };
     return Settings;
 };

@@ -24,6 +24,10 @@ const {
     OfflineDatasetClassifierEntries,
     OfflineDatasetClassifierList,
 
+    JsonClassifier,
+    JsonClassifierEntries,
+    JsonClassifierList,
+
     Workspace,
     WorkspaceColumn
 } = require('../models');
@@ -53,6 +57,12 @@ const ClassifierTypes = {
         Entries: OfflineDatasetClassifierEntries,
         List: OfflineDatasetClassifierList,
         id: 'ODCL_id'
+    },
+    json_classifier: {
+        Classifier: JsonClassifier,
+        Entries: JsonClassifierEntries,
+        List: JsonClassifierList,
+        id: 'JCL_id'
     }
 };
 

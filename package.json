@@ -6,7 +6,8 @@
     "scripts": {
         "dev": "export NODE_ENV=development && nodemon app.js",
         "test": "NODE_ENV=development nodemon --exec 'mocha -R min'",
-        "test_once": "mocha -R min"
+        "test_once": "mocha -R min",
+        "migrate": "./node_modules/.bin/sequelize db:migrate"
     },
     "keywords": [],
     "author": "",

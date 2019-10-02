@@ -479,7 +479,7 @@ exports.moveRun = async (req, res) => {
         const current_lumisection = rr_lumisections[i];
         for (const [key, val] of Object.entries(current_lumisection)) {
             const [workspace, column] = key.split('-');
-
+            // Only validate for GLOBAL WORKSPACE (or certifiable component's)
             if (
                 certifiable_online_components[workspace] &&
                 certifiable_online_components[workspace].includes(column) &&

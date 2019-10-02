@@ -76,7 +76,8 @@ module.exports = async () => {
             'INSERT INTO "DatasetClassifierList" ("id") VALUES (1) ON CONFLICT DO NOTHING;',
             'INSERT INTO "OfflineDatasetClassifierList" ("id") VALUES (1) ON CONFLICT DO NOTHING;',
             'INSERT INTO "PermissionList" ("id") VALUES (1) ON CONFLICT DO NOTHING;',
-            'INSERT INTO "DatasetsAcceptedList" ("id") VALUES (1) ON CONFLICT DO NOTHING;'
+            'INSERT INTO "DatasetsAcceptedList" ("id") VALUES (1) ON CONFLICT DO NOTHING;',
+            'INSERT INTO "JsonClassifierList" ("id") VALUES (1) ON CONFLICT DO NOTHING;'
         ];
         const insert_1_into_lists_promises = insert_1_into_lists.map(query => {
             return sequelize.query(query, { transaction });
@@ -91,7 +92,7 @@ module.exports = async () => {
             // If Settings are empty, we need to fill them with highest id in all tables:
             await sequelize.query(
                 `
-                INSERT INTO "Settings" (id, metadata, "createdAt","CCL_id", "CPCL_id", "DCL_id","ODCL_id", "PL_id", "DAL_id")
+                INSERT INTO "Settings" (id, metadata, "createdAt","CCL_id", "CPCL_id", "DCL_id","ODCL_id", "PL_id", "DAL_id", "JCL_id")
                 VALUES 
                 (
                 (SELECT COALESCE((SELECT MAX("id") from "Settings"), 0)+1),
@@ -102,7 +103,8 @@ module.exports = async () => {
                 (SELECT MAX("id") FROM "DatasetClassifierList"),
                 (SELECT MAX("id") FROM "OfflineDatasetClassifierList"),
                 (SELECT MAX("id") FROM "PermissionList"),
-                (SELECT MAX("id") FROM "DatasetsAcceptedList")
+                (SELECT MAX("id") FROM "DatasetsAcceptedList"),
+                (SELECT MAX("id") FROM "JsonClassifierList")
                 );
                 `,
                 { transaction }
