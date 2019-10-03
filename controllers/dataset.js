@@ -649,7 +649,9 @@ exports.change_multiple_states = async (req, res) => {
     const [filter, include] = exports.calculate_dataset_filter_and_include(
         req.body.filter
     );
-
+    if (!['COMPLETED', 'SIGNOFF', 'OPEN'].includes(new_state)) {
+        throw 'The new state must be either COMPLETED, SIGNOFF or OPEN';
+    }
     const datasets_to_change_state = await Dataset.findAll({
         where: filter,
         include
