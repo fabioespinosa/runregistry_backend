@@ -1,11 +1,14 @@
 const json_logic = require('json-logic-js');
 const sequelize = require('../models').sequelize;
-const Run = require('../models').Run;
+const { Run, AggregatedLumisection } = require('../models');
 
-const { get_oms_lumisections_for_dataset } = require('./lumisection');
 const {
     reduce_ls_attributes
 } = require('../cron/saving_updating_runs_lumisections_utils');
+const {
+    get_oms_lumisections_for_dataset,
+    format_lumisection
+} = require('./lumisection');
 
 exports.testClassifier = async (req, res) => {
     const run_number = req.body.run.run_number;
@@ -26,7 +29,10 @@ exports.testClassifier = async (req, res) => {
         ...reduced_lumisection_attributes
     };
     const classifier = JSON.parse(req.body.classifier);
-    const result = return_classifier_evaluated_tuple(run, classifier.if);
+    const result = exports.return_classifier_evaluated_tuple(
+        run,
+        classifier.if
+    );
     res.json({
         result,
         run_data: run
@@ -56,7 +62,8 @@ exports.getRunInfo = async (req, res) => {
 };
 
 // returns [rule, passed], for example [{"==": [{"var": "beam1_present"}, false]}, true], which means the variable beam1_present was indeed false
-const return_classifier_evaluated_tuple = (run_data, classifier_rules) => {
+exports.return_classifier_evaluated_tuple = (run_data, classifier_rules) => {
+    // let classifier_rules = { ...classifier_rules_parameter }; // make copy
     const evaluated_tuples = [];
     if (!Array.isArray(classifier_rules)) {
         classifier_rules = [classifier_rules];
@@ -66,10 +73,16 @@ const return_classifier_evaluated_tuple = (run_data, classifier_rules) => {
             if (key === 'if') {
             } else if (key === 'or' || key === 'and') {
                 const if_rule = { if: [rule] };
-                let result = json_logic.apply(if_rule, run_data);
+                let result;
+                try {
+                    result = json_logic.apply(if_rule, run_data);
+                } catch (e) {
+                    console.log(e);
+                    throw e;
+                }
                 result = result === true; // Make null values false
                 const printed_value = { resulted_value: result };
-                rule[key] = return_classifier_evaluated_tuple(
+                rule[key] = exports.return_classifier_evaluated_tuple(
                     run_data,
                     rule[key]
                 );
@@ -90,7 +103,7 @@ const return_classifier_evaluated_tuple = (run_data, classifier_rules) => {
 exports.testArbitraryClassifier = async (req, res) => {
     let { data, json_logic } = req.body;
     json_logic = JSON.parse(json_logic);
-    const result = return_classifier_evaluated_tuple(data, json_logic);
+    const result = exports.return_classifier_evaluated_tuple(data, json_logic);
 
     res.json({
         result,
@@ -100,41 +113,15 @@ exports.testArbitraryClassifier = async (req, res) => {
 
 exports.testLumisection = async (req, res) => {
     const { run_number, name, lumisection_number } = req.body;
-    const [ls] = await sequelize.query(
-        `
-        SELECT * FROM "AggregatedLumisection"
-        WHERE run_number = :run_number 
-        AND name = :name
-        AND lumisection_number = :lumisection_number
-    `,
-        {
-            type: sequelize.QueryTypes.SELECT,
-            replacements: {
-                run_number,
-                name,
-                lumisection_number
-            }
+    const ls = await AggregatedLumisection.findOne({
+        where: {
+            run_number,
+            name,
+            lumisection_number
         }
-    );
+    });
 
-    // Ignore comment and cause in triplets, just keep the status:
-    const rr_lumisection = {};
-    for (const [key, val] of Object.entries(ls.rr_lumisection)) {
-        rr_lumisection[key] = val.status;
-    }
-
-    const formatted_lumisection = {
-        dataset: { ...ls.dataset_attributes, name: ls.name },
-        run: {
-            oms: ls.run_oms_attributes,
-            rr: ls.run_rr_attributes,
-            run_number: ls.run_number
-        },
-        lumisection: {
-            oms: ls.oms_lumisection,
-            rr: rr_lumisection
-        }
-    };
+    const formatted_lumisection = format_lumisection(ls);
     req.body.data = formatted_lumisection;
     exports.testArbitraryClassifier(req, res);
 };

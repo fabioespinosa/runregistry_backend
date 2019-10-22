@@ -28,30 +28,6 @@ const conversion_operator = {
     LIKE: Op.iLike,
     NOTLIKE: Op.notLike
 };
-// We need to go from [1,2,3,4,10,11,12] to [[1,4], [10,12]]:
-const convert_array_of_list_to_array_of_ranges = list_of_lumisections => {
-    const array_of_ranges = [];
-    list_of_lumisections.forEach((lumisection_number, index) => {
-        if (array_of_ranges.length === 0) {
-            array_of_ranges.push([lumisection_number, lumisection_number]);
-        }
-        // If we are not in the end of the array:
-        if (index !== list_of_lumisections.length - 1) {
-            // If the next lumisection is equal to the current lumisection +1 (they both belong to the same range)
-            if (list_of_lumisections[index + 1] === lumisection_number + 1) {
-                array_of_ranges[array_of_ranges.length - 1][1] =
-                    lumisection_number + 1;
-            } else {
-                // If not, we are at the end of the current range, therefore we need to insert a new range, starting from the next lumisection in the array which is +1 the current position:
-                array_of_ranges.push([
-                    list_of_lumisections[index + 1],
-                    list_of_lumisections[index + 1]
-                ]);
-            }
-        }
-    });
-    return array_of_ranges;
-};
 
 // Given a filter for datasets (and runs) it finds the datasets which match
 exports.get_datasets_with_filter = async (dataset_filter, run_filter) => {
@@ -91,13 +67,19 @@ exports.calculate_json_based_on_ranges = async (req, res) => {
 
     const {
         final_json,
-        dataset_in_run_in_json
+        dataset_in_run_in_json,
+        final_json_with_dataset_names
     } = exports.calculate_json_with_many_ranges(ranges_of_runs);
-    res.json({ final_json, dataset_in_run_in_json });
+    res.json({
+        final_json,
+        dataset_in_run_in_json,
+        final_json_with_dataset_names
+    });
 };
 
 exports.calculate_json_with_many_ranges = ranges_of_runs => {
     const final_json = {};
+    const final_json_with_dataset_names = {};
     const dataset_in_run_in_json = {};
     ranges_of_runs.forEach(run => {
         // It require run_number and name are the only 2 selection other than dcs_ranges and rr_ranges:
@@ -106,7 +88,7 @@ exports.calculate_json_with_many_ranges = ranges_of_runs => {
         delete run.name;
 
         if (typeof dataset_in_run_in_json[run_number] !== 'undefined') {
-            throw 'There exists mutliplet datasets for that json logic filter. please include a filter that accepts only 1 dataset per run';
+            throw 'There exists mutliple datasets for that json logic filter. please include a filter that accepts only 1 dataset per run';
         }
         dataset_in_run_in_json[run_number] = name;
 
@@ -123,9 +105,16 @@ exports.calculate_json_with_many_ranges = ranges_of_runs => {
         }
         if (final_array.length > 0) {
             final_json[run_number] = final_array;
+            final_json_with_dataset_names[
+                `${run_number}-${name}`
+            ] = final_array;
         }
     });
-    return { final_json, dataset_in_run_in_json };
+    return {
+        final_json,
+        dataset_in_run_in_json,
+        final_json_with_dataset_names
+    };
 };
 
 const recalculate_ranges_with_new_ranges = (current_ranges, new_ranges) => {

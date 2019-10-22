@@ -8,6 +8,7 @@ const datasets_accepted = require('./datasets_accepted');
 const cycle = require('./cycle');
 const dc_tools = require('./dc_tools');
 const json = require('./json');
+const visualization = require('./visualization');
 
 module.exports = function(app) {
     classifier(app);
@@ -20,4 +21,5 @@ module.exports = function(app) {
     cycle(app);
     dc_tools(app);
     json(app);
+    visualization(app);
 };

@@ -38,8 +38,8 @@
             "name": "API",
             "program": "${workspaceFolder}/app.js",
             "env": {
-                "ENV": "production",
-                "NODE_ENV": "production"
+                "ENV": "development",
+                "NODE_ENV": "development"
             },
             "skipFiles": ["<node_internals>/**"]
         },
@@ -64,12 +64,12 @@
             "skipFiles": ["<node_internals>/**"]
         },
         {
-            "name": "mocha",
+            "name": "mocha_current_file",
             "type": "node",
             "request": "launch",
             "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
             "stopOnEntry": false,
-            "args": ["--no-timeouts", "--colors", "./test/golden_json_test"], //you can specify paths to specific tests here
+            "args": ["--no-timeouts", "--colors", "${file}"], //you can specify paths to specific tests here
             "cwd": "${workspaceRoot}",
             "runtimeExecutable": null,
             "env": {

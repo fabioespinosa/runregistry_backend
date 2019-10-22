@@ -10,6 +10,9 @@ const {
     OMSLumisectionEventAssignation
 } = require('../models');
 const {
+    convert_array_of_ranges_to_array_of_list
+} = require('golden-json-helpers');
+const {
     oms_lumisection_whitelist,
     oms_lumisection_luminosity_whitelist
 } = require('../config/config');
@@ -766,4 +769,73 @@ exports.get_oms_lumisections = async (req, res) => {
         dataset_name || 'online'
     );
     res.json(oms_lumisections);
+};
+
+// used for visualization of lumisections that didnt make it to the golden json:
+exports.get_data_of_json = async (req, res) => {
+    const { json } = req.body;
+    const json_with_data = {};
+    for (const [dataset_identifier, ranges] of Object.entries(json)) {
+        if (!dataset_identifier.includes('-')) {
+            throw "Every entry in the json must include the respective dataset name, as in '316701-/PromptReco/Collisions2018A/DQM";
+        }
+        const [run_number, dataset_name] = dataset_identifier.split(/-(.+)/); // We split the run_number and dataset name, we use the regular expression to split on the first occurrence of character '-'
+        const lumisections = await sequelize.query(
+            `
+                SELECT * FROM "AggregatedLumisection"
+                WHERE run_number = :run_number 
+                AND name = :name
+            `,
+            {
+                type: sequelize.QueryTypes.SELECT,
+                replacements: {
+                    run_number,
+                    name: dataset_name
+                }
+            }
+        );
+
+        const lumisection_numbers = convert_array_of_ranges_to_array_of_list(
+            ranges
+        );
+        lumisections.forEach((lumisection, index) => {
+            const lumisection_number = index + 1;
+            if (lumisection_numbers.includes(lumisection_number)) {
+                const formatted_lumisection = exports.format_lumisection(
+                    lumisection
+                );
+                if (typeof json_with_data[dataset_identifier] === 'undefined') {
+                    json_with_data[dataset_identifier] = {
+                        [lumisection_number]: formatted_lumisection
+                    };
+                } else {
+                    json_with_data[dataset_identifier][
+                        lumisection_number
+                    ] = formatted_lumisection;
+                }
+            }
+        });
+    }
+    res.json(json_with_data);
+};
+
+exports.format_lumisection = lumisection => {
+    // Ignore comment and cause in triplets, just keep the status:
+    const rr_lumisection = {};
+    for (const [key, val] of Object.entries(lumisection.rr_lumisection)) {
+        rr_lumisection[key] = val.status;
+    }
+    const formatted_lumisection = {
+        dataset: { ...lumisection.dataset_attributes, name: lumisection.name },
+        run: {
+            oms: lumisection.run_oms_attributes,
+            rr: lumisection.run_rr_attributes,
+            run_number: lumisection.run_number
+        },
+        lumisection: {
+            oms: lumisection.oms_lumisection,
+            rr: rr_lumisection
+        }
+    };
+    return formatted_lumisection;
 };

@@ -1,7 +1,14 @@
 const queue = require('async').queue;
 const sequelize = require('../models').sequelize;
 const Sequelize = require('../models').Sequelize;
-const { DatasetTripletCache, Dataset, Run } = require('../models');
+const {
+    convert_array_of_list_to_array_of_ranges
+} = require('golden-json-helpers');
+const {
+    DatasetTripletCache,
+    Dataset,
+    AggregatedLumisection
+} = require('../models');
 const { Op } = Sequelize;
 const number_of_datasets_per_batch = 50;
 
@@ -73,48 +80,19 @@ exports.processDatasets = async (
     const promises = dataset_batch.map(async dataset => {
         try {
             const { name, run_number } = dataset;
-            const merged_lumisections = await sequelize.query(
-                // Query will aggregate all the lumisections of the run and go for the OMS values and RR values
-                `
-                    SELECT "run_number", "name", "lumisection_number", "triplets", "dcs_bits"
-                    FROM
-                    
-                      (SELECT "run_number" as "run_number", "lumisection_number" as "lumisection_number", mergejsonb("jsonb" ORDER BY version) as "dcs_bits"
-                        from "OMSLumisectionEventAssignation"
-                            inner join(
-                    SELECT "OMSLumisectionEvent"."version" as "version3", "run_number", "name", "jsonb"
-                            from "OMSLumisectionEvent" inner join "JSONBDeduplication" ON "OMSLumisectionEvent"."lumisection_metadata_id" = "JSONBDeduplication"."id" inner join "Event" on "OMSLumisectionEvent"."version" = "Event"."version"
-                            ORDER BY "OMSLumisectionEvent"."version" DESC) as "OMSMerged" on "OMSLumisectionEventAssignation"."version" = "OMSMerged"."version3"
-                            -- We filter by dataset name, since we want those changes that came from online first, and if there are changes from offline, they are applied in the correct order by the mergejsonb which orders by version (and naturally the version of the dataset goes after the online)
-                            WHERE (name = 'online' OR name = '${name}' )
-                        GROUP BY "run_number", "lumisection_number"
-
-                            ) as "oms"
-
-                        left outer join
-
-                        (SELECT "run_number" as "rr_run_number", "name", "lumisection_number" as "rr_lumisection_number", mergejsonb("jsonb" ORDER BY manual_change, version) as "triplets"
-                        from "LumisectionEventAssignation"
-                            inner join (
-                    SELECT "LumisectionEvent"."version" as "version2", "run_number", "name", "jsonb", "manual_change"
-                            from "LumisectionEvent" inner join "JSONBDeduplication" ON "LumisectionEvent"."lumisection_metadata_id" = "JSONBDeduplication"."id" inner join "Event" on "LumisectionEvent"."version" = "Event"."version"
-                            ORDER BY "LumisectionEvent"."version" DESC) as "Merged" on "LumisectionEventAssignation"."version" = "Merged"."version2"
-                        group by "run_number", "name", "lumisection_number"
-                            
-                            ) as "rr"
-                    ON "oms"."run_number" = "rr"."rr_run_number"  and "rr"."rr_lumisection_number" = "oms"."lumisection_number" 
-                        
-                    WHERE (
-                        "run_number" = ${run_number} AND
-                         (name is null or name = '${name}')
-                    ) 
-            `,
-                {
-                    type: sequelize.QueryTypes.SELECT
+            const merged_lumisections = await AggregatedLumisection.findAll({
+                raw: true,
+                where: {
+                    run_number,
+                    name
                 }
+            });
+            const dcs_summary = calculate_oms_lumisection_cache(
+                merged_lumisections
             );
-            const dcs_summary = calculate_dcs_bits_cache(merged_lumisections);
-            const triplet_summary = calculate_rr_cache(merged_lumisections);
+            const triplet_summary = calculate_rr_lumisection_cache(
+                merged_lumisections
+            );
             const rr_ranges = calculate_rr_ranges(merged_lumisections);
             const dcs_ranges = calculate_oms_ranges(merged_lumisections);
             await DatasetTripletCache.upsert(
@@ -264,11 +242,11 @@ exports.recalculate_all_triplet_cache = async transaction => {
     await asyncQueue.push(async_functions);
 };
 
-const calculate_dcs_bits_cache = merged_lumisections => {
+const calculate_oms_lumisection_cache = merged_lumisections => {
     // Put all the dcs bits present in the dataset
     const dcs_present_in_dataset = [];
-    merged_lumisections.forEach(({ dcs_bits }) => {
-        for (const [dcs_bit, val] of Object.entries(dcs_bits)) {
+    merged_lumisections.forEach(({ oms_lumisection }) => {
+        for (const [dcs_bit, val] of Object.entries(oms_lumisection)) {
             // dcs_bit is the key, val is the value
             if (
                 !dcs_present_in_dataset.includes(dcs_bit) &&
@@ -287,7 +265,6 @@ const calculate_dcs_bits_cache = merged_lumisections => {
             }
         }
     });
-
     const dcs_summary = {};
     // Initialize empty components:
     dcs_present_in_dataset.forEach(dcs_bit => {
@@ -304,16 +281,18 @@ const calculate_dcs_bits_cache = merged_lumisections => {
         const last_lumisection_number =
             merged_lumisections[merged_lumisections.length - 1]
                 .lumisection_number;
+        // Insert the last lumisection number as the ls_duration
+        dcs_summary['ls_duration'] = { TRUE: last_lumisection_number };
         let current_merged_lumisection_element = 0;
         for (let i = 0; i < last_lumisection_number; i++) {
-            const { dcs_bits, lumisection_number } = merged_lumisections[
+            const { oms_lumisection, lumisection_number } = merged_lumisections[
                 current_merged_lumisection_element
             ];
             if (i + 1 === lumisection_number) {
                 current_merged_lumisection_element += 1;
                 dcs_present_in_dataset.forEach(dcs_bit => {
-                    if (typeof dcs_bits[dcs_bit] !== 'undefined') {
-                        const dcs_bit_value = dcs_bits[dcs_bit];
+                    if (typeof oms_lumisection[dcs_bit] !== 'undefined') {
+                        const dcs_bit_value = oms_lumisection[dcs_bit];
 
                         // If the value is null:
                         if (dcs_bit_value === null) {
@@ -342,18 +321,18 @@ const calculate_dcs_bits_cache = merged_lumisections => {
     return dcs_summary;
 };
 
-const calculate_rr_cache = merged_lumisections => {
-    // If there is null in the triplets, means that the lumisections
+const calculate_rr_lumisection_cache = merged_lumisections => {
+    // If there is null in the rr_lumisection, means that the lumisections
     if (
         merged_lumisections.length > 0 &&
-        merged_lumisections[0].triplets === null
+        merged_lumisections[0].rr_lumisection === null
     ) {
         return {};
     }
     // Put all the components present in the dataset
     const components_present_in_dataset = [];
-    merged_lumisections.forEach(({ triplets }) => {
-        for (const [component, val] of Object.entries(triplets)) {
+    merged_lumisections.forEach(({ rr_lumisection }) => {
+        for (const [component, val] of Object.entries(rr_lumisection)) {
             // component is the key, val is the value
             if (!components_present_in_dataset.includes(component)) {
                 components_present_in_dataset.push(component);
@@ -378,14 +357,16 @@ const calculate_rr_cache = merged_lumisections => {
         // We use current_merged_lumisection_element to extract the lumisection_number from the element in merged_lumisections
         let current_merged_lumisection_element = 0;
         for (let i = 0; i < last_lumisection_number; i++) {
-            const { triplets, lumisection_number } = merged_lumisections[
+            const { rr_lumisection, lumisection_number } = merged_lumisections[
                 current_merged_lumisection_element
             ];
             if (i + 1 === lumisection_number) {
                 current_merged_lumisection_element += 1;
                 components_present_in_dataset.forEach(component => {
-                    if (typeof triplets[component] === 'object') {
-                        const { status, comment, cause } = triplets[component];
+                    if (typeof rr_lumisection[component] === 'object') {
+                        const { status, comment, cause } = rr_lumisection[
+                            component
+                        ];
                         // We add the status:
                         if (
                             typeof triplet_summary[component][status] !==
@@ -437,14 +418,14 @@ const calculate_rr_cache = merged_lumisections => {
 const calculate_rr_ranges = merged_lumisections => {
     if (
         merged_lumisections.length > 0 &&
-        merged_lumisections[0].triplets === null
+        merged_lumisections[0].rr_lumisection === null
     ) {
         return {};
     }
     // Put all the components present in the dataset
     const components_present_in_dataset = [];
-    merged_lumisections.forEach(({ triplets }) => {
-        for (const [component, val] of Object.entries(triplets)) {
+    merged_lumisections.forEach(({ rr_lumisection }) => {
+        for (const [component, val] of Object.entries(rr_lumisection)) {
             // component is the key, val is the value
             if (!components_present_in_dataset.includes(component)) {
                 components_present_in_dataset.push(component);
@@ -479,14 +460,14 @@ First step is to get it in the form of
                 .lumisection_number;
         let current_merged_lumisection_element = 0;
         for (let i = 0; i < last_lumisection_number; i++) {
-            const { triplets, lumisection_number } = merged_lumisections[
+            const { rr_lumisection, lumisection_number } = merged_lumisections[
                 current_merged_lumisection_element
             ];
             if (i + 1 === lumisection_number) {
                 current_merged_lumisection_element += 1;
                 components_present_in_dataset.forEach(component => {
-                    if (typeof triplets[component] === 'object') {
-                        const { status } = triplets[component];
+                    if (typeof rr_lumisection[component] === 'object') {
+                        const { status } = rr_lumisection[component];
                         if (
                             typeof lumisections_component_status[component][
                                 status
@@ -555,8 +536,8 @@ First step is to get it in the form of
 const calculate_oms_ranges = merged_lumisections => {
     // Put all the dcs bits present in the dataset
     const dcs_present_in_dataset = [];
-    merged_lumisections.forEach(({ dcs_bits }) => {
-        for (const [dcs_bit, val] of Object.entries(dcs_bits)) {
+    merged_lumisections.forEach(({ oms_lumisection }) => {
+        for (const [dcs_bit, val] of Object.entries(oms_lumisection)) {
             // dcs_bit is the key, val is the value
             if (
                 !dcs_present_in_dataset.includes(dcs_bit) &&
@@ -592,16 +573,17 @@ const calculate_oms_ranges = merged_lumisections => {
         const last_lumisection_number =
             merged_lumisections[merged_lumisections.length - 1]
                 .lumisection_number;
+
         let current_merged_lumisection_element = 0;
         for (let i = 0; i < last_lumisection_number; i++) {
-            const { dcs_bits, lumisection_number } = merged_lumisections[
+            const { oms_lumisection, lumisection_number } = merged_lumisections[
                 current_merged_lumisection_element
             ];
             if (i + 1 === lumisection_number) {
                 current_merged_lumisection_element += 1;
                 dcs_present_in_dataset.forEach(dcs_bit => {
-                    if (typeof dcs_bits[dcs_bit] !== 'undefined') {
-                        const dcs_bit_value = dcs_bits[dcs_bit];
+                    if (typeof oms_lumisection[dcs_bit] !== 'undefined') {
+                        const dcs_bit_value = oms_lumisection[dcs_bit];
                         // If the value is null:
                         if (dcs_bit_value === null) {
                             lumisection_dcs_values[dcs_bit]['NULL'].push(
@@ -651,29 +633,12 @@ const calculate_oms_ranges = merged_lumisections => {
         }
     }
 
-    return ranges_in_dcs;
-};
+    if (merged_lumisections.length > 0) {
+        // Add the range of full lumisections
+        ranges_in_dcs['all_lumisections'] = {
+            TRUE: [[1, merged_lumisections.length]]
+        };
+    }
 
-const convert_array_of_list_to_array_of_ranges = list_of_lumisections => {
-    const array_of_ranges = [];
-    list_of_lumisections.forEach((lumisection_number, index) => {
-        if (array_of_ranges.length === 0) {
-            array_of_ranges.push([lumisection_number, lumisection_number]);
-        }
-        // If we are not in the end of the array:
-        if (index !== list_of_lumisections.length - 1) {
-            // If the next lumisection is equal to the current lumisection +1 (they both belong to the same range)
-            if (list_of_lumisections[index + 1] === lumisection_number + 1) {
-                array_of_ranges[array_of_ranges.length - 1][1] =
-                    lumisection_number + 1;
-            } else {
-                // If not, we are at the end of the current range, therefore we need to insert a new range, starting from the next lumisection in the array which is +1 the current position:
-                array_of_ranges.push([
-                    list_of_lumisections[index + 1],
-                    list_of_lumisections[index + 1]
-                ]);
-            }
-        }
-    });
-    return array_of_ranges;
+    return ranges_in_dcs;
 };

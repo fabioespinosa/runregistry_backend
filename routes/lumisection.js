@@ -38,4 +38,8 @@ module.exports = app => {
         auth,
         catchAPI(Lumisection.resetLumisections)
     );
+    app.post(
+        '/lumisections/get_data_of_json',
+        catchAPI(Lumisection.get_data_of_json)
+    );
 };
