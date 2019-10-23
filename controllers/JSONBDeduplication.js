@@ -11,7 +11,7 @@ exports.findOrCreateJSONB = async (jsonb, tries) => {
     }
     let saved_jsonb = null;
     // We generate a hash and then see if the hash already exists in the db, if it does, it means there is already an entry
-    const generated_hash_result = await sequelize.query(
+    const [generated_hash_result] = await sequelize.query(
         "select ENCODE( DIGEST( :stringified_jsonb, 'sha1'), 'hex')",
         {
             type: sequelize.QueryTypes.SELECT,
@@ -20,7 +20,7 @@ exports.findOrCreateJSONB = async (jsonb, tries) => {
             }
         }
     );
-    const generated_hash = generated_hash_result[0].encode;
+    const generated_hash = generated_hash_result.encode;
     const result = await sequelize.query(
         `SELECT "id", "unique_hash" FROM "JSONBDeduplication" WHERE "JSONBDeduplication"."unique_hash" = :hash;`,
         {

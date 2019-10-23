@@ -42,4 +42,8 @@ module.exports = app => {
         '/lumisections/get_data_of_json',
         catchAPI(Lumisection.get_data_of_json)
     );
+    app.post(
+        '/lumisections/get_rr_lumisection_history',
+        catchAPI(Lumisection.get_rr_lumisection_history)
+    );
 };

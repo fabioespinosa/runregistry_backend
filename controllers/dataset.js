@@ -341,7 +341,10 @@ exports.getDatasetsFilteredOrdered = async (req, res) => {
     let offset = page_size * page;
     let datasets = await Dataset.findAll({
         where: filter,
-        order: sortings.length > 0 ? sortings : [['run_number', 'DESC']],
+        order:
+            sortings.length > 0
+                ? sortings
+                : [['run_number', 'DESC'], ['name', 'ASC']],
         limit: page_size,
         offset,
         include

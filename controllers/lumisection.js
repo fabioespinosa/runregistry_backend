@@ -771,6 +771,53 @@ exports.get_oms_lumisections = async (req, res) => {
     res.json(oms_lumisections);
 };
 
+exports.get_rr_lumisection_history = async (req, res) => {
+    const { run_number, dataset_name } = req.body;
+    const history = await sequelize.query(
+        `
+            SELECT 
+                lumisection_events.version, 
+                lumisection_events.run_number, 
+                lumisection_events.name, 
+                lumisection_events.start,
+                lumisection_events.end,
+                "Event".by, 
+                "Event".comment, 
+                "Event"."createdAt", 
+                "JSONBDeduplication".jsonb
+            FROM 
+            (
+                SELECT 
+                    "LumisectionEvent".version, 
+                    run_number, 
+                    "name", 
+                    "LumisectionEvent".lumisection_metadata_id, 
+                    min("LumisectionEventAssignation".lumisection_number) as start,
+                    max("LumisectionEventAssignation".lumisection_number) as end
+                FROM "LumisectionEvent" 
+                INNER JOIN "JSONBDeduplication" on "LumisectionEvent".lumisection_metadata_id = "JSONBDeduplication".id
+                INNER JOIN  "Event" on "Event".version = "LumisectionEvent".version 
+                INNER JOIN "LumisectionEventAssignation" on "LumisectionEvent".version = "LumisectionEventAssignation".version
+                WHERE run_number = 331581 and name = 'online' 
+
+                GROUP BY  run_number, name, "LumisectionEvent".version
+                ORDER BY "LumisectionEvent".version
+            ) lumisection_events
+
+            INNER JOIN "Event"
+            on lumisection_events.version = "Event".version
+
+            INNER JOIN "JSONBDeduplication"
+            on lumisection_events."lumisection_metadata_id" = "JSONBDeduplication".id
+        `,
+        {
+            type: sequelize.QueryTypes.SELECT,
+            replacements: { run_number, name: dataset_name }
+        }
+    );
+    res.json(history);
+};
+
 // used for visualization of lumisections that didnt make it to the golden json:
 exports.get_data_of_json = async (req, res) => {
     const { json } = req.body;
