@@ -31,4 +31,8 @@ module.exports = app => {
         '/datasets_get_lumisection_bar',
         catchAPI(Dataset.getLumisectionBar)
     );
+    app.put(
+        '/recalculate_cache_for_specific_dataset',
+        catchAPI(Dataset.recalculate_cache_for_specific_dataset)
+    );
 };

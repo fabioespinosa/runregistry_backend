@@ -4,7 +4,7 @@ module.exports = {
         password: '',
         database: 'runregistry_database',
         host: '127.0.0.1',
-        logging: true,
+        logging: false,
         dialect: 'postgres',
         define: {
             // Make sequelize not pluralize the name of tables:

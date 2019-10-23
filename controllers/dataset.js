@@ -14,12 +14,14 @@ const {
     get_rr_lumisections_for_dataset,
     get_oms_lumisections_for_dataset,
     create_rr_lumisections,
+    create_oms_lumisections,
     update_oms_lumisections
 } = require('./lumisection');
 const {
     fill_dataset_triplet_cache,
     fill_for_unfilled_datasets,
-    recalculate_all_triplet_cache
+    recalculate_all_triplet_cache,
+    processDatasets
 } = require('./dataset_triplet_cache');
 const { WAITING_DQM_GUI_CONSTANT } = require('../config/config')[
     process.env.ENV || 'development'
@@ -134,6 +136,18 @@ exports.getDataset = async (req, res) => {
         include: [{ model: Run }, { model: DatasetTripletCache }]
     });
     res.json(dataset);
+};
+
+exports.recalculate_cache_for_specific_dataset = async (req, res) => {
+    const { run_number, dataset_name } = req.body;
+    const dataset = await Dataset.findOne({
+        where: {
+            run_number,
+            name: dataset_name
+        }
+    });
+    await processDatasets([dataset]);
+    await exports.getDataset(req, res);
 };
 
 exports.new = async (req, res) => {
@@ -592,14 +606,27 @@ exports.duplicate_datasets = async (req, res) => {
                 req,
                 transaction
             );
-            const original_lumisections = await get_rr_lumisections_for_dataset(
+            // We need to copy both RR and OMS lumisections in case later on someone wants to edit some OMS ls bit
+            const original_rr_lumisections = await get_rr_lumisections_for_dataset(
                 run_number,
                 source_dataset_name
             );
-            const saved_rr_lumisections = await create_rr_lumisections(
+            const original_oms_lumisections = await get_oms_lumisections_for_dataset(
+                run_number,
+                source_dataset_name
+            );
+
+            const new_rr_lumisections = await create_rr_lumisections(
                 run_number,
                 target_dataset_name,
-                original_lumisections,
+                original_rr_lumisections,
+                req,
+                transaction
+            );
+            const new_oms_lumisections = await create_oms_lumisections(
+                run_number,
+                target_dataset_name,
+                original_oms_lumisections,
                 req,
                 transaction
             );
@@ -612,10 +639,11 @@ exports.duplicate_datasets = async (req, res) => {
         );
 
         asyncQueue.drain = async () => {
+            // We only commit when the datasets are already duplicated
             await transaction.commit();
+            console.log(`${datasets_to_copy.length} duplicated`);
             // You can only fill the cache when transaction has commited:
             await fill_dataset_triplet_cache();
-            console.log(`${datasets_to_copy.length} duplicated`);
             const saved_datasets_promises = datasets_to_copy.map(
                 async ({ run_number }) => {
                     const saved_dataset = await Dataset.findOne({
