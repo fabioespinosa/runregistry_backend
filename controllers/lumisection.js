@@ -1,4 +1,3 @@
-const axios = require('axios');
 const sequelize = require('../models').sequelize;
 const {
     Run,
@@ -604,27 +603,6 @@ exports.getLumisectionRanges = (lumisections, lumisection_attributes) => {
     return ls_ranges;
 };
 
-// --compressed:
-// SELECT id_dataset, lumisection_number, mergejsonb(lumisection_metadata ORDER BY version)
-// FROM(
-//     SELECT "LumisectionEvent"."version", id_dataset, lumisection_metadata, lumisection_number from "LumisectionEvent"  inner join "LumisectionEventAssignation"
-// 	on "LumisectionEvent"."version" = "LumisectionEventAssignation"."version"
-// WHERE "LumisectionEvent"."id_dataset" = 251357
-// ) AS "updated_lumisectionEvents"
-// GROUP BY id_dataset, lumisection_number;
-
-// -- with history:
-// SELECT id_dataset, lumisection_number, lumisection_metadata, "version"
-// FROM(
-//     SELECT "LumisectionEvent"."version", id_dataset, lumisection_metadata, lumisection_number from "LumisectionEvent"  inner join "LumisectionEventAssignation"
-// 	on "LumisectionEvent"."version" = "LumisectionEventAssignation"."version"
-// WHERE "LumisectionEvent"."id_dataset" = 177793
-// ) AS "updated_lumisectionEvents";
-
-// API:
-// Get lumisections:
-
-// Receives a range:
 exports.edit_rr_lumisections = async (req, res) => {
     const {
         run_number,
@@ -798,7 +776,7 @@ exports.get_rr_lumisection_history = async (req, res) => {
                 INNER JOIN "JSONBDeduplication" on "LumisectionEvent".lumisection_metadata_id = "JSONBDeduplication".id
                 INNER JOIN  "Event" on "Event".version = "LumisectionEvent".version 
                 INNER JOIN "LumisectionEventAssignation" on "LumisectionEvent".version = "LumisectionEventAssignation".version
-                WHERE run_number = 331581 and name = 'online' 
+                WHERE run_number = :run_number and name = :name 
 
                 GROUP BY  run_number, name, "LumisectionEvent".version
                 ORDER BY "LumisectionEvent".version

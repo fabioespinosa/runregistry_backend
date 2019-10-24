@@ -22,6 +22,10 @@ module.exports = (sequelize, DataTypes) => {
         },
         {
             timestamps: false,
+            name: {
+                singular: 'OMSLumisectionEvent',
+                plural: 'OMSLumisectionEvent'
+            },
             indexes: [
                 {
                     name: 'OMSLumisectionEvent_datasetReference_index',

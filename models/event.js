@@ -22,6 +22,9 @@ module.exports = (sequelize, DataTypes) => {
     );
     Event.associate = function(models) {
         Event.hasOne(models.RunEvent, { foreignKey: 'version' });
+        Event.hasOne(models.DatasetEvent, { foreignKey: 'version' });
+        Event.hasMany(models.LumisectionEvent, { foreignKey: 'version' });
+        Event.hasMany(models.OMSLumisectionEvent, { foreignKey: 'version' });
     };
     return Event;
 };

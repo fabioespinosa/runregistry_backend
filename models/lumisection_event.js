@@ -25,6 +25,10 @@ module.exports = (sequelize, DataTypes) => {
             }
         },
         {
+            name: {
+                singular: 'LumisectionEvent',
+                plural: 'LumisectionEvent'
+            },
             timestamps: false,
             indexes: [
                 {
