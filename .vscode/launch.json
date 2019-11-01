@@ -35,6 +35,13 @@
         {
             "type": "node",
             "request": "launch",
+            "name": "Current_file5",
+            "program": "${file}",
+            "skipFiles": ["<node_internals>/**"]
+        },
+        {
+            "type": "node",
+            "request": "launch",
             "name": "API",
             "program": "${workspaceFolder}/app.js",
             "env": {

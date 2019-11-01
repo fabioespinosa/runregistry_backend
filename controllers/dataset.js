@@ -1,5 +1,6 @@
 const queue = require('async').queue;
 const changeNameOfAllKeys = require('change-name-of-all-keys');
+const getAttributesSpecifiedFromArray = require('get-attributes-specified-from-array');
 const Sequelize = require('../models').Sequelize;
 const sequelize = require('../models').sequelize;
 const {
@@ -673,6 +674,104 @@ exports.duplicate_datasets = async (req, res) => {
         await transaction.rollback();
         throw `Error duplicating datasets: ${err.message}`;
     }
+};
+
+// When copying a column from say prompt to rereco:
+exports.copy_column_from_datasets = async (req, res) => {
+    const {
+        source_dataset_name,
+        target_dataset_name,
+        columns_to_copy
+    } = req.body;
+    const [filter, include] = exports.calculate_dataset_filter_and_include(
+        req.body.filter
+    );
+
+    const datasets_to_copy = await Dataset.findAll({
+        where: filter,
+        include
+    });
+    if (datasets_to_copy.length === 0) {
+        throw `No dataset found for filter criteria`;
+    }
+    // Validate there can only exist the dataset_from and the dataset_to
+    datasets_to_copy.forEach(({ name, run_number }) => {
+        if (name !== source_dataset_name && name !== target_dataset_name) {
+            throw `The current filter selection matches more datasets than the ones specified, which where dataset to copy from: ${source_dataset_name} and the dataset to copy to: ${target_dataset_name}`;
+        }
+    });
+
+    const source_datasets = datasets_to_copy.filter(
+        ({ name }) => name === source_dataset_name
+    );
+    const target_datasets = datasets_to_copy.filter(
+        ({ name }) => name === target_dataset_name
+    );
+
+    if (source_datasets.length !== target_datasets.length) {
+        throw `there must be a one to one relationship between source and target datasets`;
+    }
+
+    const tuple_of_dataset_source_target = [];
+    source_datasets.forEach(dataset => {
+        const tuple = [dataset];
+        target_datasets.forEach(target_dataset => {
+            if (dataset.run_number === target_dataset.run_number) {
+                tuple.push(target_dataset);
+            }
+        });
+        // Validate there is a one to one relationship
+        if (tuple.length !== 2) {
+            throw `There must te a one to one relationship between source and target datasets`;
+        }
+        tuple_of_dataset_source_target.push(tuple);
+    });
+    // Both OMS and RR lumisections need to be copied:
+    let transaction;
+    try {
+        transaction = await sequelize.transaction();
+        const promises = tuple_of_dataset_source_target.map(
+            ([dataset_source, dataset_target]) => async () => {
+                const {
+                    name: name_source,
+                    run_number: run_number_source
+                } = dataset_source;
+
+                const {
+                    name: name_target,
+                    run_number: run_number_target
+                } = dataset_target;
+
+                // We need to copy only the RR flag they selected
+                const source_rr_lumisections = await get_rr_lumisections_for_dataset(
+                    run_number_source,
+                    name_source
+                );
+
+                const filtered_rr_lumisections = source_rr_lumisections.map(
+                    lumisection => {
+                        columns_to_copy.forEach(column => {
+                            if (typeof lumisection[column] === 'undefined') {
+                                throw `Column ${column} does not exist in the source dataset ${name_source} ${run_number_source}`;
+                            }
+                        });
+                        const new_lumisections = getAttributesSpecifiedFromArray(
+                            lumisection,
+                            columns_to_copy
+                        );
+                        return new_lumisections;
+                    }
+                );
+                const new_rr_lumisections = await create_rr_lumisections(
+                    run_number_target,
+                    name_target,
+                    filtered_rr_lumisections,
+                    req,
+                    transaction
+                );
+            }
+        );
+    } catch (e) {}
 };
 
 exports.change_multiple_states = async (req, res) => {

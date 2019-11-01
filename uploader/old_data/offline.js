@@ -23,7 +23,7 @@ exports.save_runs_from_old_rr = async (rows, number_of_tries) => {
         // This script requires that the runs that exist in the offline table MUST exist already in the online, and be already inserted
         const result = await client.query(`
             select offline.* from offline 
-            where run_number >309800 and run_number <=340000 and rda_name <> '/Global/Online/ALL'  and 
+            where run_number > 300000 and run_number <= 350000 and rda_name <> '/Global/Online/ALL'  and 
             (lumisection_ranges_global is not null or lumisection_ranges_btag is not null or lumisection_ranges_castor is not null or lumisection_ranges_csc is not null or lumisection_ranges_ctpps is not null or lumisection_ranges_dt is not null or lumisection_ranges_ecal is not null or lumisection_ranges_egamma is not null or lumisection_ranges_hcal is not null or lumisection_ranges_hlt is not null or lumisection_ranges_jetmet is not null or lumisection_ranges_l1t is not null or lumisection_ranges_lumi is not null or lumisection_ranges_muon is not null or lumisection_ranges_rpc is not null or lumisection_ranges_tau is not null or lumisection_ranges_tracker is not null)
             order by run_number ASC;
         `);
@@ -164,9 +164,7 @@ exports.save_runs_from_old_rr = async (rows, number_of_tries) => {
                 ({ run_number }) => run_number
             );
             console.log(
-                `WARNING: ${
-                    runs_not_saved.length
-                } run(s) were not saved. They are: ${run_numbers_of_runs_not_saved}.`
+                `WARNING: ${runs_not_saved.length} run(s) were not saved. They are: ${run_numbers_of_runs_not_saved}.`
             );
             console.log('------------------------------');
             console.log('------------------------------');
