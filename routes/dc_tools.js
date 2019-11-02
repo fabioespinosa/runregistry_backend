@@ -17,4 +17,9 @@ module.exports = app => {
         auth,
         catchAPI(Dataset.change_multiple_states)
     );
+    app.post(
+        '/dc_tools/copy_column_from_datasets',
+        auth,
+        catchAPI(Dataset.copy_column_from_datasets)
+    );
 };

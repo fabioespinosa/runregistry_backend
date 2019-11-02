@@ -677,6 +677,7 @@ exports.duplicate_datasets = async (req, res) => {
 };
 
 // When copying a column from say prompt to rereco:
+// Classic example is, certain subsystem messed up the RERECO and batched change one column to BAD and they want a reset, so we need to copy from Prompt again
 exports.copy_column_from_datasets = async (req, res) => {
     const {
         source_dataset_name,
@@ -750,18 +751,19 @@ exports.copy_column_from_datasets = async (req, res) => {
 
                 const filtered_rr_lumisections = source_rr_lumisections.map(
                     lumisection => {
-                        columns_to_copy.forEach(column => {
+                        columns_to_copy.map(column => {
                             if (typeof lumisection[column] === 'undefined') {
                                 throw `Column ${column} does not exist in the source dataset ${name_source} ${run_number_source}`;
                             }
                         });
-                        const new_lumisections = getAttributesSpecifiedFromArray(
+                        const new_lumisection = getAttributesSpecifiedFromArray(
                             lumisection,
                             columns_to_copy
                         );
-                        return new_lumisections;
+                        return new_lumisection;
                     }
                 );
+
                 const new_rr_lumisections = await create_rr_lumisections(
                     run_number_target,
                     name_target,
@@ -769,9 +771,57 @@ exports.copy_column_from_datasets = async (req, res) => {
                     req,
                     transaction
                 );
+                // We bump the version of the datasetevent table so it knows which datasets to regenerate in the cache
+                await exports.update_or_create_dataset(
+                    name_target,
+                    run_number_target,
+                    {},
+                    req,
+                    transaction
+                );
             }
         );
-    } catch (e) {}
+        const number_of_workers = 1;
+        const asyncQueue = queue(
+            async dataset => await dataset(),
+            number_of_workers
+        );
+
+        asyncQueue.drain = async () => {
+            // We only commit when the datasets are already duplicated
+            await transaction.commit();
+            console.log(`${datasets_to_copy.length} duplicated`);
+            // You can only fill the cache when transaction has commited:
+            await fill_dataset_triplet_cache();
+            const saved_datasets_promises = target_datasets.map(
+                async ({ run_number, name }) => {
+                    const saved_dataset = await Dataset.findOne({
+                        where: {
+                            run_number,
+                            name
+                        },
+                        include: [
+                            {
+                                model: Run,
+                                attributes: ['rr_attributes']
+                            },
+                            { model: DatasetTripletCache }
+                        ]
+                    });
+                    return saved_dataset;
+                }
+            );
+            const saved_datasets = await Promise.all(saved_datasets_promises);
+            res.json(saved_datasets);
+        };
+
+        asyncQueue.push(promises);
+    } catch (e) {
+        console.log('Error duplicating column of datasets');
+        console.log(err);
+        await transaction.rollback();
+        throw `Error duplicating datasets: ${err.message}`;
+    }
 };
 
 exports.change_multiple_states = async (req, res) => {
@@ -836,9 +886,10 @@ exports.change_multiple_states = async (req, res) => {
 
 // Given some run_numbers (provided in filter), get all the dataset names:
 exports.getUniqueDatasetNames = async (req, res) => {
+    const { workspace } = req.body;
     let filter = changeNameOfAllKeys(
         {
-            'dataset_attributes.global_state': {
+            [`dataset_attributes.${workspace}_state`]: {
                 or: [{ '=': 'OPEN' }, { '=': 'SIGNOFF' }, { '=': 'COMPLETED' }]
             },
             ...req.body.filter
