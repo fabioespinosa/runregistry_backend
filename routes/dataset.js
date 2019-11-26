@@ -20,6 +20,7 @@ module.exports = app => {
         catchAPI(Dataset.getDatasetsFilteredOrdered)
     );
     app.put('/datasets/:workspace', auth, catchAPI(Dataset.edit));
+    app.post('/datasets/export_to_csv', catchAPI(Dataset.export_to_csv));
 
     app.post('/datasets/:workspace', auth, catchAPI(Dataset.add));
     app.post(

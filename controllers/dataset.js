@@ -1,6 +1,7 @@
 const queue = require('async').queue;
 const changeNameOfAllKeys = require('change-name-of-all-keys');
 const getAttributesSpecifiedFromArray = require('get-attributes-specified-from-array');
+const csv_stringify = require('csv-stringify/lib/sync');
 const Sequelize = require('../models').Sequelize;
 const sequelize = require('../models').sequelize;
 const {
@@ -359,7 +360,10 @@ exports.getDatasetsFilteredOrdered = async (req, res) => {
         order:
             sortings.length > 0
                 ? sortings
-                : [['run_number', 'DESC'], ['name', 'ASC']],
+                : [
+                      ['run_number', 'DESC'],
+                      ['name', 'ASC']
+                  ],
         limit: page_size,
         offset,
         include
@@ -882,6 +886,32 @@ exports.change_multiple_states = async (req, res) => {
         await transaction.rollback();
         throw `Error duplicating datasets: ${err.message}`;
     }
+};
+
+exports.export_to_csv = async (req, res) => {
+    const [filter, include] = exports.calculate_dataset_filter_and_include(
+        req.body.filter
+    );
+    const { sortings } = req.body;
+    let datasets = await Dataset.findAll({
+        where: filter,
+        order:
+            sortings.length > 0
+                ? sortings
+                : [
+                      ['run_number', 'DESC'],
+                      ['name', 'ASC']
+                  ],
+        include
+    });
+
+    datasets = datasets.map(({ dataValues }) => {
+        const { DatasetTripletCache } = dataValues;
+        //
+    });
+
+    const csv = csv_stringify(datasets, { header: true });
+    res.json(csv);
 };
 
 // Given some run_numbers (provided in filter), get all the dataset names:
