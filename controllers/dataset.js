@@ -892,7 +892,7 @@ exports.export_to_csv = async (req, res) => {
     const [filter, include] = exports.calculate_dataset_filter_and_include(
         req.body.filter
     );
-    const { sortings } = req.body;
+    const { columns, sortings } = req.body;
     let datasets = await Dataset.findAll({
         where: filter,
         order:
@@ -906,8 +906,33 @@ exports.export_to_csv = async (req, res) => {
     });
 
     datasets = datasets.map(({ dataValues }) => {
-        const { DatasetTripletCache } = dataValues;
-        //
+        const {
+            run_number,
+            name,
+            dataset_attributes,
+            DatasetTripletCache,
+            Run
+        } = dataValues;
+        const { rr_attributes, oms_attributes } = Run.dataValues;
+        const { stop_reason, short_run } = rr_attributes;
+        const { ls_duration } = oms_attributes;
+        const dataset_shown_values = {
+            run_number,
+            dataset_name: name,
+            class: rr_attributes.class,
+            stop_reason,
+            short_run,
+            ls_duration,
+            ...dataset_attributes
+        };
+        const { triplet_summary } = DatasetTripletCache;
+        for (const [key, val] of Object.entries(triplet_summary)) {
+            if (columns.includes(key)) {
+                dataset_shown_values[key] = val;
+            }
+        }
+        // dataset_shown_values.oms_attributes = oms_attributes;
+        return dataset_shown_values;
     });
 
     const csv = csv_stringify(datasets, { header: true });
