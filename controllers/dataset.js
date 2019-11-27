@@ -888,6 +888,104 @@ exports.change_multiple_states = async (req, res) => {
     }
 };
 
+exports.datasetColumnBatchUpdate = async (req, res) => {
+    const [filter, include] = exports.calculate_dataset_filter_and_include(
+        req.body.filter
+    );
+    const { columns_to_update, new_status } = req.body;
+    const datasets_to_update = await Dataset.findAll({
+        where: filter,
+        include
+    });
+    if (datasets_to_update.length === 0) {
+        throw `No dataset found for filter criteria`;
+    }
+
+    let transaction;
+    try {
+        transaction = await sequelize.transaction();
+        const promises = datasets_to_update.map(dataset => async () => {
+            const { name, run_number } = dataset;
+
+            const rr_lumisections = await get_rr_lumisections_for_dataset(
+                run_number,
+                name
+            );
+
+            const changed_lumisections = rr_lumisections.map(lumisection => {
+                columns_to_update.map(column => {
+                    if (typeof lumisection[column] === 'undefined') {
+                        throw `Column ${column} does not exist in the source dataset ${name} ${run_number}`;
+                    }
+                });
+                const new_lumisection = getAttributesSpecifiedFromArray(
+                    lumisection,
+                    columns_to_update
+                );
+                for (const [key, val] of Object.entries(new_lumisection)) {
+                    new_lumisection[key] = { ...val, status: new_status };
+                }
+                return new_lumisection;
+            });
+            const new_rr_lumisections = await create_rr_lumisections(
+                run_number,
+                name,
+                changed_lumisections,
+                req,
+                transaction
+            );
+            // We bump the version of the datasetevent table so it knows which datasets to regenerate in the cache
+            await exports.update_or_create_dataset(
+                name,
+                run_number,
+                {},
+                req,
+                transaction
+            );
+        });
+
+        const number_of_workers = 1;
+        const asyncQueue = queue(
+            async dataset => await dataset(),
+            number_of_workers
+        );
+
+        asyncQueue.drain = async () => {
+            // We only commit when columns are already changed in batch
+            await transaction.commit();
+            // You can only fill the cache when transaction has commited:
+            await fill_dataset_triplet_cache();
+            const saved_datasets_promises = datasets_to_update.map(
+                async ({ run_number, name }) => {
+                    const saved_dataset = await Dataset.findOne({
+                        where: {
+                            run_number,
+                            name
+                        },
+                        include: [
+                            {
+                                model: Run,
+                                attributes: ['rr_attributes']
+                            },
+                            { model: DatasetTripletCache }
+                        ]
+                    });
+                    return saved_dataset;
+                }
+            );
+            const saved_datasets = await Promise.all(saved_datasets_promises);
+            res.json(saved_datasets);
+        };
+
+        asyncQueue.push(promises);
+    } catch (e) {
+        console.log('Error updating status of datasets in batch');
+        console.log(err);
+        await transaction.rollback();
+        throw `Error updating status of column of datasets in batch: ${err.message}`;
+    }
+};
+
 exports.export_to_csv = async (req, res) => {
     const [filter, include] = exports.calculate_dataset_filter_and_include(
         req.body.filter
@@ -931,7 +1029,7 @@ exports.export_to_csv = async (req, res) => {
                 dataset_shown_values[key] = val;
             }
         }
-        // dataset_shown_values.oms_attributes = oms_attributes;
+        dataset_shown_values.oms_attributes = oms_attributes;
         return dataset_shown_values;
     });
 

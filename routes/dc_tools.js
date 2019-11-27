@@ -22,4 +22,9 @@ module.exports = app => {
         auth,
         catchAPI(Dataset.copy_column_from_datasets)
     );
+    app.post(
+        '/dc_tools/dataset_column_batch_update',
+        auth,
+        catchAPI(Dataset.datasetColumnBatchUpdate)
+    );
 };
