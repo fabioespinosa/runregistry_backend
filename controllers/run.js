@@ -266,7 +266,7 @@ exports.automatic_run_update = async (req, res) => {
             transaction
         );
         if (newRRLumisectionRanges.length > 0) {
-            // There was a change in the lumisections, so we should update oms lumisections as well:
+            // There was a change in RR lumisections, so we should update oms lumisections as well:
             const newOMSLumisectionRange = await update_oms_lumisections(
                 run_number,
                 'online',
@@ -285,8 +285,6 @@ exports.automatic_run_update = async (req, res) => {
             was_run_updated = true;
         }
 
-        // Run stuff:
-
         const new_oms_attributes = getObjectWithAttributesThatChanged(
             oms_attributes,
             req.body.oms_attributes
@@ -298,11 +296,15 @@ exports.automatic_run_update = async (req, res) => {
         const new_rr_attributes_length = Object.keys(new_rr_attributes).length;
         const new_oms_attributes_length = Object.keys(new_oms_attributes)
             .length;
-        // If there was actually something to update in the RR attributes, we update it, if it was a change in oms_attributes, we don't update it (since it doesn't affect RR attributes)
-        if (
-            new_rr_attributes_length + new_oms_attributes_length > 0 ||
-            was_run_updated
-        ) {
+
+        if (new_oms_attributes.length > 0) {
+            if (oms_attributes.end_time !== null) {
+                // If there are new oms attributes and the run is already over, we are interested in them
+                was_run_updated = true;
+            }
+        }
+        // If there was actually something to update in the RR attributes, we update it, if it was a change in oms_attributes, we don't update it (since it doesn't affect RR attributes) unless the run is already over.
+        if (new_rr_attributes_length > 0 || was_run_updated) {
             const runEvent = await update_or_create_run(
                 run_number,
                 new_oms_attributes,
