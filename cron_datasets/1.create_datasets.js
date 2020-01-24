@@ -152,17 +152,21 @@ exports.save_individual_dataset = async (
 ) => {
     event_info = event_info || {
         email: 'auto@auto',
-        comment: 'Run signed off, dataset creation'
+        comment: 'dataset creation after a run is signed off'
     };
 
+    const { atomic_version } = await create_new_version({
+        req: event_info,
+        transaction
+    });
     // The only reason we do not do this via HTTP is because we want it to be a transaction:
-    const saved_dataset = await update_or_create_dataset(
+    const saved_dataset = await update_or_create_dataset({
         dataset_name,
         run_number,
-        dataset_attributes,
-        event_info,
+        dataset_metadata: dataset_attributes,
+        atomic_version,
         transaction
-    );
+    });
     if (lumisections.length > 0) {
         const saved_lumisections = await create_rr_lumisections(
             run_number,

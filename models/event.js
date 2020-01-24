@@ -7,20 +7,20 @@ module.exports = (sequelize, DataTypes) => {
                 type: DataTypes.INTEGER,
                 autoIncrement: true
             },
-            by: {
-                type: DataTypes.TEXT,
+            atomic_version: {
+                type: DataTypes.INTEGER,
                 allowNull: false
-            },
-            comment: {
-                type: DataTypes.TEXT,
-                allowNull: true
             }
         },
         {
+            createdAt: false,
             updatedAt: false
         }
     );
     Event.associate = function(models) {
+        Event.belongsTo(models.Version, {
+            foreignKey: 'atomic_version'
+        });
         Event.hasOne(models.RunEvent, { foreignKey: 'version' });
         Event.hasOne(models.DatasetEvent, { foreignKey: 'version' });
         Event.hasMany(models.LumisectionEvent, { foreignKey: 'version' });

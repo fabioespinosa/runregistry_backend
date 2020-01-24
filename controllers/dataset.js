@@ -10,6 +10,7 @@ const {
     DatasetEvent,
     Event,
     Workspace,
+    Version,
     Run
 } = require('../models');
 const {
@@ -19,6 +20,7 @@ const {
     create_oms_lumisections,
     update_oms_lumisections
 } = require('./lumisection');
+const { create_new_version } = require('./version');
 const {
     fill_dataset_triplet_cache,
     fill_for_unfilled_datasets,
@@ -48,18 +50,16 @@ const conversion_operator = {
     NOTLIKE: Op.notLike
 };
 
-exports.update_or_create_dataset = async (
+exports.update_or_create_dataset = async ({
     dataset_name,
     run_number,
     dataset_metadata,
-    req,
+    atomic_version,
     transaction
-) => {
+}) => {
     run_number = +run_number;
-    const by = req.email || req.get('email');
-    const comment = req.comment || req.get('comment');
-    if (!by) {
-        throw "The email of the author's action should be stated in request's header 'email'";
+    if (!atomic_version) {
+        throw 'A version must be provided';
     }
     // Start transaction:
     let local_transaction = false;
@@ -70,8 +70,7 @@ exports.update_or_create_dataset = async (
         }
         const event = await Event.create(
             {
-                by,
-                comment
+                atomic_version
             },
             { transaction }
         );
@@ -172,13 +171,20 @@ exports.new = async (req, res) => {
     let transaction;
     try {
         const transaction = await sequelize.transaction();
-        const datasetEvent = await exports.update_or_create_dataset(
+        const { atomic_version } = await create_new_version({
+            req,
+            transaction,
+            comment: 'dataset creation'
+        });
+
+        const datasetEvent = await exports.update_or_create_dataset({
             dataset_name,
             run_number,
-            dataset_attributes,
+            dataset_metadata: dataset_attributes,
             req,
+            atomic_version,
             transaction
-        );
+        });
 
         // lumisections
         // For RR lumisections, we create a independent copy of the lumisections (which comes from the request)
@@ -267,15 +273,18 @@ exports.appearedInDBS = async (req, res) => {
     if (appeared_in.includes('DBS')) {
         throw 'already marked as appeared in DBS';
     }
-
-    await exports.update_or_create_dataset(
+    const { atomic_version } = await create_new_version({
+        req,
+        comment: 'dataset appeared in DBS'
+    });
+    await exports.update_or_create_dataset({
         dataset_name,
         run_number,
-        {
+        dataset_metadata: {
             appeared_in: appeared_in.concat('DBS')
         },
-        req
-    );
+        atomic_version
+    });
     const saved_dataset = await Dataset.findOne({
         where: {
             run_number,
@@ -303,14 +312,18 @@ exports.appearedInDQMGUI = async (req, res) => {
     if (appeared_in.includes('DQM GUI')) {
         throw 'already marked as appeared in DQM GUI';
     }
-    await exports.update_or_create_dataset(
+    const { atomic_version } = await create_new_version({
+        req,
+        comment: 'dataset appeared in DQM GUI'
+    });
+    await exports.update_or_create_dataset({
         dataset_name,
         run_number,
-        {
+        dataset_metadata: {
             appeared_in: appeared_in.concat('DQM GUI')
         },
-        req
-    );
+        atomic_version
+    });
     const saved_dataset = await Dataset.findOne({
         where: {
             run_number,
@@ -406,13 +419,17 @@ exports.moveDataset = async (req, res) => {
         // Or else if a user just moved for an individual workspace other than global:
         new_dataset_attributes[`${workspace}_state`] = to_state;
     }
+    const { atomic_version } = await create_new_version({
+        req,
+        comment: 'manual change of state of dataset'
+    });
 
-    await exports.update_or_create_dataset(
+    await exports.update_or_create_dataset({
         dataset_name,
         run_number,
-        new_dataset_attributes,
-        req
-    );
+        dataset_metadata: new_dataset_attributes,
+        atomic_version
+    });
     const saved_dataset = await Dataset.findOne({
         where: {
             run_number,
@@ -449,12 +466,16 @@ exports.manual_edit = async (req, res) => {
     );
     const new_attributes_length = Object.keys(new_dataset_attributes).length;
     if (new_attributes_length > 0) {
-        const datasetEvent = await update_or_create_dataset(
+        const { atomic_version } = await create_new_version({
+            req,
+            comment: 'dataset manual update of attributes'
+        });
+        const datasetEvent = await update_or_create_dataset({
             dataset_name,
-            run_Number,
-            new_dataset_attributes,
-            req
-        );
+            run_number,
+            dataset_metadata: new_dataset_attributes,
+            atomic_version
+        });
     } else {
         throw 'Nothing to update, the attributes sent are the same as those in the dataset already stored';
     }
@@ -574,6 +595,11 @@ exports.duplicate_datasets = async (req, res) => {
     let transaction;
     try {
         transaction = await sequelize.transaction();
+        const { atomic_version } = await create_new_version({
+            req,
+            transaction,
+            comment: 'dc_tool: duplication of datasets'
+        });
         const promises = datasets_to_copy.map(dataset => async () => {
             const { run_number } = dataset;
             // We go through the state of every workspace, if the user included that workspace in the "copy" tool, then we copy that. If not, then we don't
@@ -604,13 +630,13 @@ exports.duplicate_datasets = async (req, res) => {
                     WAITING_DQM_GUI_CONSTANT;
             });
 
-            await exports.update_or_create_dataset(
-                target_dataset_name,
+            await exports.update_or_create_dataset({
+                dataset_name: target_dataset_name,
                 run_number,
-                new_dataset_attributes,
-                req,
+                dataset_metadata: new_dataset_attributes,
+                atomic_version,
                 transaction
-            );
+            });
             // We need to copy both RR and OMS lumisections in case later on someone wants to edit some OMS ls bit
             const original_rr_lumisections = await get_rr_lumisections_for_dataset(
                 run_number,
@@ -620,7 +646,7 @@ exports.duplicate_datasets = async (req, res) => {
                 run_number,
                 source_dataset_name
             );
-
+            // TODO: add the version of the change to the rr_lumisections and oms_lumisections:
             const new_rr_lumisections = await create_rr_lumisections(
                 run_number,
                 target_dataset_name,
@@ -735,6 +761,12 @@ exports.copy_column_from_datasets = async (req, res) => {
     let transaction;
     try {
         transaction = await sequelize.transaction();
+        const { atomic_version } = await create_new_version({
+            req,
+            transaction,
+            comment:
+                'dc_tool: copy column of lumisections from certain datasets to certain datasets'
+        });
         const promises = tuple_of_dataset_source_target.map(
             ([dataset_source, dataset_target]) => async () => {
                 const {
@@ -776,13 +808,13 @@ exports.copy_column_from_datasets = async (req, res) => {
                     transaction
                 );
                 // We bump the version of the datasetevent table so it knows which datasets to regenerate in the cache
-                await exports.update_or_create_dataset(
-                    name_target,
-                    run_number_target,
-                    {},
-                    req,
+                await exports.update_or_create_dataset({
+                    dataset_name: name_target,
+                    run_number: run_number_target,
+                    dataset_metadata: {},
+                    atomic_version,
                     transaction
-                );
+                });
             }
         );
         const number_of_workers = 1;
@@ -847,16 +879,23 @@ exports.change_multiple_states = async (req, res) => {
     let transaction;
     try {
         transaction = await sequelize.transaction();
+        const { atomic_version } = await create_new_version({
+            req,
+            transaction,
+            comment:
+                'dc_tool: change multiple states (OPEN, SIGNOFF, COMPLETED) of datasets in batch'
+        });
         const promises = datasets_to_change_state.map(async dataset => {
             const { name, run_number } = dataset;
-
-            await exports.update_or_create_dataset(
-                name,
+            await exports.update_or_create_dataset({
+                dataset_name: name,
                 run_number,
-                { [`${workspace_to_change_state_in}_state`]: new_state },
-                req,
+                dataset_metadata: {
+                    [`${workspace_to_change_state_in}_state`]: new_state
+                },
+                atomic_version,
                 transaction
-            );
+            });
         });
         await Promise.all(promises);
         await transaction.commit();
@@ -904,6 +943,12 @@ exports.datasetColumnBatchUpdate = async (req, res) => {
     let transaction;
     try {
         transaction = await sequelize.transaction();
+        const { atomic_version } = await create_new_version({
+            req,
+            transaction,
+            comment:
+                'dc_tool: change column of lumisections to a certain state (GOOD,BAD) in batch'
+        });
         const promises = datasets_to_update.map(dataset => async () => {
             const { name, run_number } = dataset;
 
@@ -935,13 +980,13 @@ exports.datasetColumnBatchUpdate = async (req, res) => {
                 transaction
             );
             // We bump the version of the datasetevent table so it knows which datasets to regenerate in the cache
-            await exports.update_or_create_dataset(
-                name,
+            await exports.update_or_create_dataset({
+                dataset_name: name,
                 run_number,
-                {},
-                req,
+                dataset_metadata: {},
+                atomic_version,
                 transaction
-            );
+            });
         });
 
         const number_of_workers = 1;

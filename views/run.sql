@@ -46,28 +46,28 @@ FROM "RunEvent" INNER JOIN "Event" ON "Event"."version" = "RunEvent"."version"
 GROUP BY "RunEvent"."run_number";
 
 
-CREATE OR REPLACE VIEW "LumisectionEventJSONB" as
-select *
-from
-    (SELECT *
-    from "LumisectionEventAssignation"
-        inner join (
-SELECT "Event"."comment", "Event"."by" , "LumisectionEvent"."version" as "version2", "run_number", "name", "jsonb"
-        from "LumisectionEvent" inner join "JSONBDeduplication" ON "LumisectionEvent"."lumisection_metadata_id" = "JSONBDeduplication"."id" inner join "Event" on "LumisectionEvent"."version" = "Event"."version"
-        ORDER BY "LumisectionEvent"."version" DESC) as "Merged" on "LumisectionEventAssignation"."version" = "Merged"."version2") as "rr"
+-- CREATE OR REPLACE VIEW "LumisectionEventJSONB" as
+-- select *
+-- from
+--     (SELECT *
+--     from "LumisectionEventAssignation"
+--         inner join (
+-- SELECT "Event"."comment", "Event"."by" , "LumisectionEvent"."version" as "version2", "run_number", "name", "jsonb"
+--         from "LumisectionEvent" inner join "JSONBDeduplication" ON "LumisectionEvent"."lumisection_metadata_id" = "JSONBDeduplication"."id" inner join "Event" on "LumisectionEvent"."version" = "Event"."version"
+--         ORDER BY "LumisectionEvent"."version" DESC) as "Merged" on "LumisectionEventAssignation"."version" = "Merged"."version2") as "rr"
 
 
-    inner join
+--     inner join
 
-    (SELECT "run_number" as "oms_run_number", "name" as "oms_name", "lumisection_number" as "oms_lumisection_number", "jsonb" as "oms_jsonb"
-    from "OMSLumisectionEventAssignation"
-        inner join(
-SELECT "Event"."comment", "Event"."by" , "OMSLumisectionEvent"."version" as "version3", "run_number", "name", "jsonb"
-        from "OMSLumisectionEvent" inner join "JSONBDeduplication" ON "OMSLumisectionEvent"."lumisection_metadata_id" = "JSONBDeduplication"."id" inner join "Event" on "OMSLumisectionEvent"."version" = "Event"."version"
-        ORDER BY "OMSLumisectionEvent"."version" DESC) as "OMSMerged" on "OMSLumisectionEventAssignation"."version" = "OMSMerged"."version3") as "oms"
+--     (SELECT "run_number" as "oms_run_number", "name" as "oms_name", "lumisection_number" as "oms_lumisection_number", "jsonb" as "oms_jsonb"
+--     from "OMSLumisectionEventAssignation"
+--         inner join(
+-- SELECT "Event"."comment", "Event"."by" , "OMSLumisectionEvent"."version" as "version3", "run_number", "name", "jsonb"
+--         from "OMSLumisectionEvent" inner join "JSONBDeduplication" ON "OMSLumisectionEvent"."lumisection_metadata_id" = "JSONBDeduplication"."id" inner join "Event" on "OMSLumisectionEvent"."version" = "Event"."version"
+--         ORDER BY "OMSLumisectionEvent"."version" DESC) as "OMSMerged" on "OMSLumisectionEventAssignation"."version" = "OMSMerged"."version3") as "oms"
 
 
-    on "oms"."oms_run_number" = "rr"."run_number" and "oms"."oms_name" = "rr"."name" and "rr"."lumisection_number" = "oms"."oms_lumisection_number";
+--     on "oms"."oms_run_number" = "rr"."run_number" and "oms"."oms_name" = "rr"."name" and "rr"."lumisection_number" = "oms"."oms_lumisection_number";
 
 
 CREATE OR REPLACE VIEW "AggregatedLumisection" as

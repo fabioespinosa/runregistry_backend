@@ -23,6 +23,7 @@ exports.getComponentsIncludedBooleans = oms_attributes => {
 exports.get_OMS_lumisections = handleErrors(async run_number => {
     // Get lumisections:
     const oms_lumisection_url = `${OMS_URL}/${OMS_LUMISECTIONS(run_number)}`;
+    // Keep fetching until totalresourcecount is # of lumisections
     const oms_lumisection_response = await axios
         .get(oms_lumisection_url, {
             headers: {
@@ -48,6 +49,7 @@ exports.get_OMS_lumisections = handleErrors(async run_number => {
     let oms_lumisections = oms_lumisection_response.data.data;
     // Deconstruct attributes inside oms_lumisections:
     oms_lumisections = oms_lumisections.map(({ attributes }) => attributes);
+
     // We add luminosity information
     oms_lumisections = oms_lumisections.map(
         ({ recorded_lumi, delivered_lumi }, index, oms_lumisections) => {

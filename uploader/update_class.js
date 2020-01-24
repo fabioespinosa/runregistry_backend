@@ -1,5 +1,5 @@
 const sequelize = require('../models').sequelize;
-const { update_run } = require('../controllers/run');
+const { update_or_create_run } = require('../controllers/run');
 const queue = require('async').queue;
 const Run = require('../models').Run;
 
@@ -45,7 +45,7 @@ exports.classify_runs = () => {
                     capitalized_class_name.includes('Collisions') ||
                     capitalized_class_name.includes('Commissioning')
                 ) {
-                    await update_run(
+                    await update_or_create_run(
                         run_number,
                         {},
                         { class: capitalized_class_name },

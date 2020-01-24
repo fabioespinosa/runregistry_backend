@@ -94,9 +94,7 @@ exports.save_runs = async (new_runs, number_of_tries) => {
                 ({ run_number }) => run_number
             );
             console.log(
-                `WARNING: ${
-                    runs_not_saved.length
-                } run(s) were not saved. They are: ${run_numbers_of_runs_not_saved}.`
+                `WARNING: ${runs_not_saved.length} run(s) were not saved. They are: ${run_numbers_of_runs_not_saved}.`
             );
             console.log('------------------------------');
             console.log('------------------------------');
@@ -124,7 +122,13 @@ exports.save_runs = async (new_runs, number_of_tries) => {
 exports.update_runs = (
     runs_to_update,
     number_of_tries = 0,
-    { email, comment, manually_significant, previous_rr_attributes }
+    {
+        email,
+        comment,
+        manually_significant,
+        previous_rr_attributes,
+        atomic_version
+    }
 ) => {
     return new Promise(async (resolve, reject) => {
         let updated_runs = 0;
@@ -163,7 +167,8 @@ exports.update_runs = (
                         oms_attributes,
                         oms_lumisections,
                         rr_attributes,
-                        rr_lumisections
+                        rr_lumisections,
+                        atomic_version
                     },
                     {
                         // The email HAS to start with auto, or else API won't know it's an automatic change (unless it was manually requested to update)
@@ -205,17 +210,13 @@ exports.update_runs = (
                         ({ run_number }) => run_number
                     );
                     console.log(
-                        `WARNING: ${
-                            runs_not_updated.length
-                        } run(s) were not updated. They are: ${run_numbers_of_runs_not_updated}.`
+                        `WARNING: ${runs_not_updated.length} run(s) were not updated. They are: ${run_numbers_of_runs_not_updated}.`
                     );
                     console.log('------------------------------');
                     console.log('------------------------------');
                     if (number_of_tries < 4) {
                         console.log(
-                            `TRYING AGAIN: with ${
-                                runs_not_updated.length
-                            } run(s)`
+                            `TRYING AGAIN: with ${runs_not_updated.length} run(s)`
                         );
                         number_of_tries += 1;
                         await exports.update_runs(
@@ -252,7 +253,7 @@ exports.update_runs = (
 
 exports.manually_update_a_run = async (
     run_number,
-    { email, comment, manually_significant }
+    { email, comment, manually_significant, atomic_version }
 ) => {
     // get rr_attributes:
     const { data: saved_run } = await axios.get(
@@ -281,6 +282,7 @@ exports.manually_update_a_run = async (
         previous_rr_attributes,
         email,
         comment,
-        manually_significant
+        manually_significant,
+        atomic_version
     });
 };

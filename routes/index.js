@@ -10,6 +10,7 @@ const dc_tools = require('./dc_tools');
 const json = require('./json');
 const visualization = require('./visualization');
 const event = require('./event');
+const version = require('./version');
 
 module.exports = function(app) {
     classifier(app);
@@ -24,4 +25,5 @@ module.exports = function(app) {
     json(app);
     visualization(app);
     event(app);
+    version(app);
 };
