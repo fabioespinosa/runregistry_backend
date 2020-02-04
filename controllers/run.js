@@ -265,13 +265,18 @@ exports.automatic_run_update = async (req, res) => {
     // If there was a change in the lumisections, we also update the dataset triplet cache
 
     transaction = await sequelize.transaction();
-    let atomic_version =
-      req.body.atomic_version ||
-      (await create_new_version({
+    let atomic_version;
+    if (req.body.atomic_version) {
+      atomic_version = req.body.atomic_version;
+    } else {
+      const version_result = await create_new_version({
         req,
         transaction,
         comment: 'run automatic update'
-      }));
+      });
+      atomic_version = version_result.atomic_version;
+    }
+
     // Lumisection stuff:
     const { oms_lumisections, rr_lumisections } = req.body;
     const newRRLumisectionRanges = await update_rr_lumisections({
