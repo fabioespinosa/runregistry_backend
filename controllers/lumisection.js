@@ -11,6 +11,7 @@ const {
 const {
   convert_array_of_ranges_to_array_of_list
 } = require('golden-json-helpers');
+const { deepEqual } = require('assert');
 const {
   oms_lumisection_whitelist,
   oms_lumisection_luminosity_whitelist
@@ -18,7 +19,6 @@ const {
 
 const getAttributesSpecifiedFromArray = require('get-attributes-specified-from-array');
 const getObjectWithAttributesThatChanged = require('get-object-with-attributes-that-changed');
-const deepEqual = require('deep-equal');
 const { findOrCreateJSONB } = require('./JSONBDeduplication');
 const { fill_dataset_triplet_cache } = require('./dataset_triplet_cache');
 const { create_new_version } = require('./version');
@@ -299,7 +299,8 @@ exports.getNewLumisectionRanges = (
     }
 
     // We will check if the lumisections are equal one by one
-    if (deepEqual(current_previous_lumisection, current_new_lumisection)) {
+    try {
+      deepEqual(current_previous_lumisection, current_new_lumisection);
       if (new_ls_ranges.length > 0) {
         // If we had something saved in the range, we close it, since we found that there was one lumisection in the way which did match (and did not throw exception)
         const previous_range = new_ls_ranges[new_ls_ranges.length - 1];
@@ -311,7 +312,7 @@ exports.getNewLumisectionRanges = (
           };
         }
       }
-    } else {
+    } catch (e) {
       // this means that they are not equal
 
       // Lumisection changed, therefore we need to create a new range
@@ -334,12 +335,12 @@ exports.getNewLumisectionRanges = (
         // We delete start and end from previous range so that it doesn't interfere with deepEqual
         delete previous_range_copy.start;
         delete previous_range_copy.end;
-        if (
-          !deepEqual(
+        try {
+          deepEqual(
             previous_range_copy,
             potentially_new_lumisection_attributes
-          )
-        ) {
+          );
+        } catch (e) {
           if (typeof previous_range.end === 'undefined') {
             new_ls_ranges[new_ls_ranges.length - 1] = {
               ...previous_range,
@@ -578,7 +579,9 @@ exports.getLumisectionRanges = (lumisections, lumisection_attributes) => {
       delete previous_range_copy.end;
       const current_range = lumisections[i];
 
-      if (!deepEqual(previous_range_copy, current_range)) {
+      try {
+        deepEqual(previous_range_copy, current_range);
+      } catch (e) {
         // This means that there is a LS break in the range (exception thrown), not equal, therefore we create a break in the ranges array:
         ls_ranges[ls_ranges.length - 1] = {
           ...previous_range,
