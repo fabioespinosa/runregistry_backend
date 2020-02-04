@@ -18,7 +18,7 @@ const {
 
 const getAttributesSpecifiedFromArray = require('get-attributes-specified-from-array');
 const getObjectWithAttributesThatChanged = require('get-object-with-attributes-that-changed');
-const { deepEqual } = require('assert');
+const deepEqual = require('deep-equal');
 const { findOrCreateJSONB } = require('./JSONBDeduplication');
 const { fill_dataset_triplet_cache } = require('./dataset_triplet_cache');
 const { create_new_version } = require('./version');
@@ -95,14 +95,14 @@ const update_or_create_lumisection = async ({
   }
 };
 
-exports.create_oms_lumisections = async (
+exports.create_oms_lumisections = async ({
   run_number,
   dataset_name,
   lumisections,
   req,
-  transaction,
-  atomic_version
-) => {
+  atomic_version,
+  transaction
+}) => {
   const whitelist_including_luminosity = [
     ...oms_lumisection_whitelist,
     ...oms_lumisection_luminosity_whitelist
@@ -126,8 +126,8 @@ exports.create_oms_lumisections = async (
       req,
       LSEvent: OMSLumisectionEvent,
       LSEventAssignation: OMSLumisectionEventAssignation,
-      transaction,
-      atomic_version
+      atomic_version,
+      transaction
     });
   });
   await Promise.all(saved_ranges);
@@ -135,14 +135,14 @@ exports.create_oms_lumisections = async (
 };
 
 // Receives a whole LUMISECTION ARRAY not a range
-exports.create_rr_lumisections = async (
+exports.create_rr_lumisections = async ({
   run_number,
   dataset_name,
   lumisections,
   req,
-  transaction,
-  atomic_version
-) => {
+  atomic_version,
+  transaction
+}) => {
   // let local_whitelist;
   // if (dataset_name !== 'online') {
   //     // If we are not dealing with online, we do not want to whitelist
@@ -176,13 +176,14 @@ exports.create_rr_lumisections = async (
 };
 
 // Receives a whole LUMISECTION ARRAY not a range
-exports.update_rr_lumisections = async (
+exports.update_rr_lumisections = async ({
   run_number,
   dataset_name,
   new_lumisections,
   req,
+  atomic_version,
   transaction
-) => {
+}) => {
   const by = req.email || req.get('email');
 
   let get_lumisections_without_shifter_intervention = false;
@@ -217,19 +218,21 @@ exports.update_rr_lumisections = async (
       req,
       LSEvent: LumisectionEvent,
       LSEventAssignation: LumisectionEventAssignation,
+      atomic_version,
       transaction
     });
   });
   await Promise.all(saved_ranges);
   return saved_ranges;
 };
-exports.update_oms_lumisections = async (
+exports.update_oms_lumisections = async ({
   run_number,
   dataset_name,
   new_lumisections,
   req,
+  atomic_version,
   transaction
-) => {
+}) => {
   const previous_lumisections = await exports.get_oms_lumisections_for_dataset(
     run_number,
     dataset_name
@@ -258,7 +261,8 @@ exports.update_oms_lumisections = async (
       req,
       LSEvent: OMSLumisectionEvent,
       LSEventAssignation: OMSLumisectionEventAssignation,
-      transaction
+      transaction,
+      atomic_version
     });
   });
   await Promise.all(saved_ranges);
@@ -295,8 +299,7 @@ exports.getNewLumisectionRanges = (
     }
 
     // We will check if the lumisections are equal one by one
-    try {
-      deepEqual(current_previous_lumisection, current_new_lumisection);
+    if (deepEqual(current_previous_lumisection, current_new_lumisection)) {
       if (new_ls_ranges.length > 0) {
         // If we had something saved in the range, we close it, since we found that there was one lumisection in the way which did match (and did not throw exception)
         const previous_range = new_ls_ranges[new_ls_ranges.length - 1];
@@ -308,7 +311,7 @@ exports.getNewLumisectionRanges = (
           };
         }
       }
-    } catch (e) {
+    } else {
       // this means that they are not equal
 
       // Lumisection changed, therefore we need to create a new range
@@ -331,12 +334,12 @@ exports.getNewLumisectionRanges = (
         // We delete start and end from previous range so that it doesn't interfere with deepEqual
         delete previous_range_copy.start;
         delete previous_range_copy.end;
-        try {
-          deepEqual(
+        if (
+          !deepEqual(
             previous_range_copy,
             potentially_new_lumisection_attributes
-          );
-        } catch (e) {
+          )
+        ) {
           if (typeof previous_range.end === 'undefined') {
             new_ls_ranges[new_ls_ranges.length - 1] = {
               ...previous_range,
@@ -575,9 +578,7 @@ exports.getLumisectionRanges = (lumisections, lumisection_attributes) => {
       delete previous_range_copy.end;
       const current_range = lumisections[i];
 
-      try {
-        deepEqual(previous_range_copy, current_range);
-      } catch (e) {
+      if (!deepEqual(previous_range_copy, current_range)) {
         // This means that there is a LS break in the range (exception thrown), not equal, therefore we create a break in the ranges array:
         ls_ranges[ls_ranges.length - 1] = {
           ...previous_range,
@@ -799,6 +800,8 @@ exports.get_rr_lumisection_history = async (req, res) => {
 exports.get_data_of_json = async (req, res) => {
   const { json } = req.body;
   const json_with_data = {};
+  let total_recorded_luminosity = 0;
+  let total_delivered_luminosity = 0;
   for (const [dataset_identifier, ranges] of Object.entries(json)) {
     if (!dataset_identifier.includes('-')) {
       throw "Every entry in the json must include the respective dataset name, as in '316701-/PromptReco/Collisions2018A/DQM";
@@ -825,6 +828,9 @@ exports.get_data_of_json = async (req, res) => {
     lumisections.forEach((lumisection, index) => {
       const lumisection_number = index + 1;
       if (lumisection_numbers.includes(lumisection_number)) {
+        const { oms_lumisection } = lumisection;
+        total_recorded_luminosity += +oms_lumisection.recorded || 0;
+        total_delivered_luminosity += +oms_lumisection.delivered || 0;
         const formatted_lumisection = exports.format_lumisection(lumisection);
         if (typeof json_with_data[dataset_identifier] === 'undefined') {
           json_with_data[dataset_identifier] = {
@@ -838,7 +844,11 @@ exports.get_data_of_json = async (req, res) => {
       }
     });
   }
-  res.json(json_with_data);
+  res.json({
+    json_with_data,
+    total_recorded_luminosity,
+    total_delivered_luminosity
+  });
 };
 
 exports.format_lumisection = lumisection => {
@@ -855,6 +865,7 @@ exports.format_lumisection = lumisection => {
       run_number: lumisection.run_number
     },
     lumisection: {
+      lumisection_number: lumisection.lumisection_number,
       oms: lumisection.oms_lumisection,
       rr: rr_lumisection
     }

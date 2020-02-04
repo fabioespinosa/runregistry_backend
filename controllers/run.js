@@ -215,23 +215,23 @@ exports.new = async (req, res) => {
       transaction
     });
     if (rr_lumisections.length > 0 || oms_lumisections.length > 0) {
-      const saved_oms_lumisections = await create_oms_lumisections(
+      const saved_oms_lumisections = await create_oms_lumisections({
         run_number,
-        'online',
-        oms_lumisections,
+        dataset_name: 'online',
+        lumisections: oms_lumisections,
         req,
-        transaction,
-        atomic_version
-      );
+        atomic_version,
+        transaction
+      });
 
-      const saved_rr_lumisections = await create_rr_lumisections(
+      const saved_rr_lumisections = await create_rr_lumisections({
         run_number,
-        'online',
-        rr_lumisections,
+        dataset_name: 'online',
+        lumisections: rr_lumisections,
         req,
-        transaction,
-        atomic_version
-      );
+        atomic_version,
+        transaction
+      });
     }
     await transaction.commit();
     // You can only fill the cache when transaction has commited:
@@ -274,25 +274,25 @@ exports.automatic_run_update = async (req, res) => {
       }));
     // Lumisection stuff:
     const { oms_lumisections, rr_lumisections } = req.body;
-    const newRRLumisectionRanges = await update_rr_lumisections(
+    const newRRLumisectionRanges = await update_rr_lumisections({
       run_number,
-      'online',
-      rr_lumisections,
+      dataset_name: 'online',
+      new_lumisections: rr_lumisections,
       req,
-      transaction,
-      atomic_version
-    );
+      atomic_version,
+      transaction
+    });
     if (newRRLumisectionRanges.length > 0) {
       if (rr_attributes.state === 'OPEN') {
-        // There was a change in RR lumisections, so we should update oms lumisections as well:
-        const newOMSLumisectionRange = await update_oms_lumisections(
-          run_number,
-          'online',
-          oms_lumisections,
+        // There was a change in RR lumisections, we should update oms lumisections as well:
+        const newOMSLumisectionRange = await update_oms_lumisections({
+          run_number: run_number,
+          dataset_name: 'online',
+          new_lumisections: oms_lumisections,
           req,
-          transaction,
-          atomic_version
-        );
+          atomic_version,
+          transaction
+        });
         // Bump the version in the dataset so the fill_dataset_triplet_cache will know that the lumisections inside it changed, and so can refill the cache:
         const datasetEvent = await update_or_create_dataset({
           dataset_name: 'online',

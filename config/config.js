@@ -2,9 +2,9 @@ module.exports = {
   development: {
     username: 'hackathon',
     password: '',
-    database: 'runregistry_database',
-    // host: process.env.DOCKER_POSTGRES ? 'postgres' : 'localhost',
-    host: 'localhost',
+    database: 'runregistry_database_new',
+    host: process.env.DOCKER_POSTGRES ? 'postgres' : 'localhost',
+    // host: 'localhost',
     logging: false,
     dialect: 'postgres',
     define: {
@@ -164,12 +164,9 @@ module.exports = {
     'beam2_present'
   ],
   oms_lumisection_luminosity_whitelist: [
-    'init_lumi',
-    'delivered_lumi',
-    'recorded_lumi',
-    'end_lumi',
-    'recorded_lumi_per_lumi',
-    'delivered_lumi_per_lumi',
-    'live_lumi_per_lumi'
+    // TODO: When OMS provides us with lumisection granular luminosity then we put the attribute here (not the aggregated one). And then there is no need to calculate it from brilcalc using their pip package
+    // For now we use brilcalc:
+    'recorded',
+    'delivered'
   ]
 };

@@ -9,6 +9,7 @@ const routes = require('./routes/index');
 const port = 9500;
 
 const app = express();
+// For use in json_creation:
 app.use(morgan('dev'));
 app.use(cors());
 app.use(bodyParser.json({ limit: '400mb' }));
@@ -40,19 +41,27 @@ models.sequelize
   .then(async () => {
     // Initialize DB data
     // await require('./initialization/initialize')();
-    app.listen(port, () => {
+    let server = app.listen(port, () => {
       console.log(`server listening in port ${port}`);
-
-      const cron = require('./cron/1.get_runs');
+      // const cron = require('./cron/1.get_runs');
       // const dqm_gui_pinging = require('./cron_datasets/2.ping_dqm_gui');
       // const dbs_pinging = require('./cron_datasets/2.ping_dbs');
+    });
+    // We add socket.io to the
+    let io = require('socket.io')(server);
+    app.use((req, res, next) => {
+      req.io = io;
+      next();
+    });
+    io.on('connect', socket => {
+      // console.log('connection established');
     });
   })
   .catch(err => {
     console.log(err);
     app.listen(port, () => {
       console.log(
-        `Error connecting to database, server listening in port ${port}`
+        `Error establishing other services, server listening in port ${port}`
       );
     });
   });
