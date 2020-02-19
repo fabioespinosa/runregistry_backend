@@ -20,6 +20,7 @@ module.exports = {
     WAITING_DQM_GUI_CONSTANT: 'waiting dqm gui',
     API_URL: 'http://localhost:9500',
     OMS_URL: `https://cmsoms.cern.ch/agg/api/v1`,
+    REDIS_URL: `redis://redis:6379`,
     OMS_RUNS: (number_of_runs = 10) =>
       `runs?sort=-last_update&page[limit]=${number_of_runs}`,
     OMS_SPECIFIC_RUN: run_number => `runs?filter[run_number]=${run_number}`,
@@ -48,6 +49,7 @@ module.exports = {
     WAITING_DQM_GUI_CONSTANT: 'waiting dqm gui',
     API_URL: 'http://localhost:9500',
     OMS_URL: `https://cmsoms.cern.ch/agg/api/v1`,
+    REDIS_URL: `redis://dev-rr-redis.runregistry.svc.cluster.local`,
     OMS_RUNS: (number_of_runs = 10) =>
       `runs?sort=-last_update&page[limit]=${number_of_runs}`,
     OMS_SPECIFIC_RUN: run_number => `runs?filter[run_number]=${run_number}`,
@@ -76,6 +78,36 @@ module.exports = {
     WAITING_DQM_GUI_CONSTANT: 'waiting dqm gui',
     API_URL: 'http://localhost:9500',
     OMS_URL: `https://cmsoms.cern.ch/agg/api/v1`,
+    REDIS_URL: `redis://rr-redis.runregistry.svc.cluster.local`,
+    OMS_RUNS: (number_of_runs = 10) =>
+      `runs?sort=-last_update&page[limit]=${number_of_runs}`,
+    OMS_SPECIFIC_RUN: run_number => `runs?filter[run_number]=${run_number}`,
+    OMS_LUMISECTIONS: run_number =>
+      `lumisections?filter[run_number]=${run_number}&page[limit]=5000`,
+    RUNS_PER_API_CALL: 6,
+    SECONDS_PER_API_CALL: 180,
+    DBS_URL: 'https://cmsweb.cern.ch/dbs/prod/global',
+    DBS_DATASETS: run_number => `DBSReader/datasets?run_num=${run_number}`,
+    SECONDS_PER_DBS_CHECK: 3600,
+    DQM_GUI_URL: 'https://cmsweb.cern.ch/dqm/offline/data/json/samples?match=',
+    SECONDS_PER_DQM_GUI_CHECK: 40
+  },
+  kubernetes: {
+    username: 'admin',
+    password: 'changeme',
+    database: 'runregistry_database',
+    logging: false,
+    host: 'dbod-gc005.cern.ch',
+    dialect: 'postgres',
+    port: 6601,
+    define: {
+      // Make sequelize not pluralize the name of tables:
+      freezeTableName: true
+    },
+    WAITING_DQM_GUI_CONSTANT: 'waiting dqm gui',
+    API_URL: 'runregistry-api:8351',
+    OMS_URL: `https://cmsoms.cern.ch/agg/api/v1`,
+    REDIS_URL: `redis://rr-redis:8352`,
     OMS_RUNS: (number_of_runs = 10) =>
       `runs?sort=-last_update&page[limit]=${number_of_runs}`,
     OMS_SPECIFIC_RUN: run_number => `runs?filter[run_number]=${run_number}`,

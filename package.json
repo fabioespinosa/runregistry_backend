@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "start": "export NODE_ENV=production && ENV=production && node app.js",
     "dev": "export NODE_ENV=development && nodemon app.js --ignore './uploader/'",
     "test": "NODE_ENV=development nodemon --exec 'mocha -R min'",
     "test_once": "mocha -R min",
