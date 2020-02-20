@@ -34,7 +34,7 @@
     "golden-json-helpers": "^1.0.0",
     "json-logic-js": "^1.2.2",
     "json-logic-to-sql-compiler": "^1.0.10",
-    "lodash": "^4.17.11",
+    "lodash": "^4.17.13",
     "mocha": "^6.0.2",
     "morgan": "^1.9.1",
     "p-map": "^3.0.0",
