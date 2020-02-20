@@ -25,7 +25,8 @@ const {
   Dataset,
   DatasetTripletCache,
   Event,
-  RunEvent
+  RunEvent,
+  Version
 } = require('../models');
 
 const update_or_create_run = async ({
@@ -162,15 +163,16 @@ exports.getRunWithHistory = async (req, res) => {
       run_number: req.params.run_number
     },
     order: [['version', 'ASC']],
-    include: [{ model: Event }]
+    include: [{ model: Event, include: [{ model: Version }] }]
   });
   run_events = run_events.map(
-    ({ oms_metadata, rr_metadata, run_number, version, Event }) => ({
+    ({ oms_metadata, rr_metadata, run_number, version, Event, Version }) => ({
       ...oms_metadata,
       ...rr_metadata,
       run_number,
       version,
-      ...Event.dataValues
+      ...Event.dataValues,
+      ...Event.Version.dataValues
     })
   );
   res.json(run_events);

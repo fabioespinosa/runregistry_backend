@@ -105,7 +105,7 @@ module.exports = {
       freezeTableName: true
     },
     WAITING_DQM_GUI_CONSTANT: 'waiting dqm gui',
-    API_URL: 'runregistry-api:8351',
+    API_URL: 'http://runregistry-api:8351',
     OMS_URL: `https://cmsoms.cern.ch/agg/api/v1`,
     REDIS_URL: `redis://rr-redis:8352`,
     OMS_RUNS: (number_of_runs = 10) =>
@@ -114,7 +114,7 @@ module.exports = {
     OMS_LUMISECTIONS: run_number =>
       `lumisections?filter[run_number]=${run_number}&page[limit]=5000`,
     RUNS_PER_API_CALL: 6,
-    SECONDS_PER_API_CALL: 180,
+    SECONDS_PER_API_CALL: 18000,
     DBS_URL: 'https://cmsweb.cern.ch/dbs/prod/global',
     DBS_DATASETS: run_number => `DBSReader/datasets?run_num=${run_number}`,
     SECONDS_PER_DBS_CHECK: 3600,

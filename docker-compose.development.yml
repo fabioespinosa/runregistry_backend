@@ -17,6 +17,7 @@ services:
     command: npm run dev
     ports:
       - 9500:9500
+      - 9229:9229 # For debugger
 
   postgres:
     image: postgres:11.2-alpine

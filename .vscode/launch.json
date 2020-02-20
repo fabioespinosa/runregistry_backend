@@ -10,7 +10,8 @@
       "port": 9229,
       "address": "localhost",
       "name": "Docker: Attach to Node",
-      "remoteRoot": "/usr/src/service"
+      "remoteRoot": "/usr/src/service",
+      "protocol": "inspector"
     },
     {
       "type": "node",
