@@ -27,12 +27,9 @@ exports.calculate_rr_attributes = async (
   previous_rr_attributes
 ) => {
   let rr_attributes = {};
-  // Significant starts being false, stop_reason is a shifter value (so it starts as empty), class is to be determined later, state starts OPEN:
+  // Significant starts being false, class is to be determined later:
   rr_attributes.significant = false;
-  rr_attributes.stop_reason = '';
   rr_attributes.class = '';
-  rr_attributes.state = 'OPEN';
-
   // However, if it is a refresh ('update_runs' from 2.save_or_update_runs), we want to preserve the previous values of the run and only recalculate the class and if the run was significant:
   if (previous_rr_attributes) {
     rr_attributes = previous_rr_attributes;

@@ -388,7 +388,8 @@ exports.getDatasetsFilteredOrdered = async (req, res) => {
 
 // Move manually a dataset from client:
 exports.moveDataset = async (req, res) => {
-  const { run_number, dataset_name, workspace, to_state } = req.body;
+  const { to_state } = req.params;
+  const { run_number, dataset_name, workspace } = req.body;
   const dataset = await Dataset.findOne({
     where: { run_number, name: dataset_name },
     include: [
@@ -399,7 +400,7 @@ exports.moveDataset = async (req, res) => {
   });
   const { dataset_attributes } = dataset;
   const new_dataset_attributes = {};
-  // IF THE USER MOVES MANUALLY THE DATASET FROM GLOBAL TO OPEN AND THE DATASET WAS WAITING DQM GUI IN OTHER WORKSPACES, IT IS MOVED FROM ALL TO OPEN:
+  // IF THE USER MOVES MANUALLY THE DATASET FROM GLOBAL (in global worksace) TO OPEN AND THE DATASET WAS WAITING DQM GUI IN OTHER WORKSPACES, IT IS MOVED FROM ALL TO OPEN:
   if (
     workspace === 'global' &&
     dataset_attributes.global_state === WAITING_DQM_GUI_CONSTANT &&

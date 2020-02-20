@@ -193,6 +193,9 @@ exports.new = async (req, res) => {
     await exports.automatic_run_update(req, res);
     return;
   }
+  // Initialize run:
+  rr_attributes.stop_reason = '';
+  rr_attributes.state = 'OPEN';
   let transaction;
   try {
     const transaction = await sequelize.transaction();
@@ -463,7 +466,7 @@ exports.manual_edit = async (req, res) => {
 };
 
 exports.markSignificant = async (req, res) => {
-  const { run_number } = req.body.original_run;
+  const { run_number } = req.body;
   const run = await Run.findByPk(run_number, {
     include: [
       {
@@ -484,26 +487,46 @@ exports.markSignificant = async (req, res) => {
 
   const oms_metadata = {};
   const rr_metadata = { significant: true };
-  const { atomic_version } = await create_new_version({
-    req,
-    comment: 'mark run significant'
-  });
-  await update_or_create_run({
-    run_number,
-    oms_metadata,
-    rr_metadata,
-    atomic_version,
-    req
-  });
-  // We do this to make sure the LUMISECTIONS classification are there
-  const email = req.get('email');
-  await manually_update_a_run(run_number, {
-    email,
-    manually_significant: true,
-    comment: `${email} marked run significant, component statuses refreshed`,
-    atomic_version
-  });
-  res.json(run);
+  let transaction;
+  try {
+    transaction = await sequelize.transaction();
+    const { atomic_version } = await create_new_version({
+      req,
+      transaction,
+      comment: 'mark run significant'
+    });
+    await update_or_create_run({
+      run_number,
+      oms_metadata,
+      rr_metadata,
+      req,
+      atomic_version,
+      transaction
+    });
+    await transaction.commit();
+    // We do this to make sure the LUMISECTIONS classification are there
+    const email = req.get('email');
+    await manually_update_a_run(run_number, {
+      email,
+      manually_significant: true,
+      comment: `${email} marked run significant, component statuses refreshed`,
+      atomic_version
+    });
+    const updated_run = await Run.findByPk(run_number, {
+      include: [
+        {
+          model: DatasetTripletCache,
+          attributes: ['triplet_summary']
+        }
+      ]
+    });
+    res.json(updated_run);
+  } catch (e) {
+    console.log('Error marking run significant');
+    console.log(err);
+    await transaction.rollback();
+    throw `Error marking run significant: ${err.message}`;
+  }
 };
 
 exports.refreshRunClassAndComponents = async (req, res) => {
@@ -534,7 +557,7 @@ exports.refreshRunClassAndComponents = async (req, res) => {
 
 exports.moveRun = async (req, res) => {
   const { to_state } = req.params;
-  const { run_number } = req.body.original_run;
+  const { run_number } = req.body;
   const run = await Run.findByPk(run_number);
   // Validation
   if (!['SIGNOFF', 'OPEN', 'COMPLETED'].includes(to_state)) {
