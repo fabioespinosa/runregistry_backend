@@ -321,10 +321,13 @@ exports.getNewLumisectionRanges = (
           current_previous_lumisection,
           current_new_lumisection
         );
-        new_ls_ranges.push({
-          ...new_lumisection_attributes,
-          start: i + 1
-        });
+        // If there is something that changed, we create a new range:
+        if (Object.keys(new_lumisection_attributes).length > 0) {
+          new_ls_ranges.push({
+            ...new_lumisection_attributes,
+            start: i + 1
+          });
+        }
       } else {
         const previous_range = new_ls_ranges[new_ls_ranges.length - 1];
         const previous_range_copy = { ...previous_range };

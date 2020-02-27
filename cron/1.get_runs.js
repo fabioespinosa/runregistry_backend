@@ -31,6 +31,12 @@ const fetch_runs = async (
       Cookie: await getCookie({ url: oms_url, certificate: cert, key })
     };
   }
+  if (!first_time) {
+    // We sleep for 2 seconds not to degrade OMS API (if it is not first time):
+    await Promise(resolve => {
+      setTimeout(resolve, 2000);
+    });
+  }
 
   const oms_response = await axios.get(oms_url, {
     headers

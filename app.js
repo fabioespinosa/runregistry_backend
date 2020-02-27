@@ -18,7 +18,7 @@ models.sequelize
     // await require('./initialization/initialize')();
     server.listen(port, () => {
       console.log(`server listening in port ${port}`);
-      // const cron = require('./cron/1.get_runs'); (for testing)
+      // const cron = require('./cron/1.get_runs'); // (for testing)
       if (process.env.ENV !== 'development') {
         const cron = require('./cron/1.get_runs');
       }
