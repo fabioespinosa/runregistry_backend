@@ -865,7 +865,11 @@ exports.copy_column_from_datasets = async (req, res) => {
 };
 
 exports.change_multiple_states = async (req, res) => {
-  const { new_state, workspace_to_change_state_in } = req.body;
+  const {
+    new_state,
+    workspace_to_change_state_in,
+    change_in_all_workspaces
+  } = req.body;
   const [filter, include] = exports.calculate_dataset_filter_and_include(
     req.body.filter
   );
@@ -886,17 +890,26 @@ exports.change_multiple_states = async (req, res) => {
     const { atomic_version } = await create_new_version({
       req,
       transaction,
-      comment:
-        'dc_tool: change multiple states (OPEN, SIGNOFF, COMPLETED) of datasets in batch'
+      comment: `dc_tool: change multiple states (OPEN, SIGNOFF, COMPLETED) of datasets in batch${change_in_all_workspaces &&
+        ' (in all workspaces)'}`
     });
     const promises = datasets_to_change_state.map(async dataset => {
-      const { name, run_number } = dataset;
+      const { name, run_number, dataset_attributes } = dataset;
+      let dataset_metadata = {};
+      if (change_in_all_workspaces) {
+        dataset_metadata = { ...dataset_attributes };
+        for (const [key, val] of Object.entries(dataset_attributes)) {
+          if (key.includes('_state')) {
+            dataset_metadata[key] = new_state;
+          }
+        }
+      } else {
+        dataset_metadata[`${workspace_to_change_state_in}_state`] = new_state;
+      }
       await exports.update_or_create_dataset({
         dataset_name: name,
         run_number,
-        dataset_metadata: {
-          [`${workspace_to_change_state_in}_state`]: new_state
-        },
+        dataset_metadata,
         atomic_version,
         transaction
       });
