@@ -20,7 +20,7 @@ module.exports = app => {
   app.put('/manual_run_edit/:run_number', auth, catchAPI(Run.manual_edit));
 
   // Querying:
-  app.post('/runs_filtered_ordered', Run.getRunsFilteredOrdered);
+  app.post('/runs_filtered_ordered', catchAPI(Run.getRunsFilteredOrdered));
 
   // Shifter actions:
   app.post('/runs/mark_significant', auth, catchAPI(Run.markSignificant));

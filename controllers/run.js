@@ -644,17 +644,84 @@ exports.moveRun = async (req, res) => {
     throw `Error SIGNING OFF run, creating the datasets from run in OFFLINE`;
   }
 };
+const getTripletSummaryFilter = (filter, contains_something) => {
+  const triplet_filter = {};
+  for (const [key, val] of Object.entries(filter)) {
+    if (key.startsWith('triplet_summary')) {
+      triplet_filter[key] = val;
+      contains_something = true;
+    } else if (key === 'and' || key === 'or') {
+      triplet_filter[key] = val.map(rule => {
+        const [new_rule, new_contains_something] = getTripletSummaryFilter(
+          rule,
+          contains_something
+        );
+        contains_something = new_contains_something;
+        return new_rule;
+      });
+    }
+  }
+  return [triplet_filter, contains_something];
+};
+
+const getRunFilter = (filter, contains_something) => {
+  const new_filter = {};
+  for (const [key, val] of Object.entries(filter)) {
+    if (key.startsWith('triplet_summary')) {
+      delete new_filter[key];
+    } else if (key === 'and' || key === 'or') {
+      new_filter[key] = val.map(rule => {
+        const [new_rule, new_contains_something] = getRunFilter(
+          rule,
+          contains_something
+        );
+        contains_something = new_contains_something;
+        return new_rule;
+      });
+    } else {
+      new_filter[key] = val;
+      contains_something = true;
+    }
+  }
+  return [new_filter, contains_something];
+};
+
+const formatSortings = sortings => {
+  return sortings.map(sorting => {
+    let [key, order] = sorting;
+    if (key === 'oms_attributes.ls_duration') {
+      key = sequelize.cast(
+        sequelize.literal(`("Run"."oms_attributes"#>>'{ls_duration}')`),
+        'INTEGER'
+      );
+    } else if (key === 'oms_attributes.b_field') {
+      key = sequelize.cast(
+        sequelize.literal(`("Run"."oms_attributes"#>>'{b_field}')`),
+        'FLOAT'
+      );
+    } else if (key.includes('-')) {
+      key = sequelize.literal(
+        `("DatasetTripletCache"."triplet_summary"#>>'{${key}}')`
+      );
+    }
+    return [key, order];
+  });
+};
 
 // Separate filtering and count will make the UX much faster.
 exports.getRunsFilteredOrdered = async (req, res) => {
   // A user can filter on triplets, or on any other field
   // If the user filters by triplets, then :
-  let triplet_summary_filter = {};
-  for (const [key, val] of Object.entries(req.body.filter)) {
-    if (key.includes('triplet_summary')) {
-      triplet_summary_filter[key] = val;
-      delete req.body.filter[key];
-    }
+  let [run_filter, run_filter_exists] = getRunFilter(req.body.filter);
+  if (!run_filter_exists) {
+    run_filter = {};
+  }
+  let [triplet_summary_filter, triplet_filter_exists] = getTripletSummaryFilter(
+    req.body.filter,
+    false
+  );
+  if (!triplet_filter_exists) {
+    triplet_summary_filter = {};
   }
   triplet_summary_filter = changeNameOfAllKeys(
     triplet_summary_filter,
@@ -662,8 +729,9 @@ exports.getRunsFilteredOrdered = async (req, res) => {
   );
 
   const { sortings, page_size, page } = req.body;
+  const formated_sortings = formatSortings(sortings);
   let filter = {
-    ...changeNameOfAllKeys(req.body.filter, conversion_operator),
+    ...changeNameOfAllKeys(run_filter, conversion_operator),
     deleted: false
   };
   let offset = page_size * page;
@@ -682,7 +750,10 @@ exports.getRunsFilteredOrdered = async (req, res) => {
   let pages = Math.ceil(count / page_size);
   let runs = await Run.findAll({
     where: filter,
-    order: sortings.length > 0 ? sortings : [['run_number', 'DESC']],
+    order:
+      formated_sortings.length > 0
+        ? formated_sortings
+        : [['run_number', 'DESC']],
     limit: page_size,
     offset,
     include
