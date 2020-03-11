@@ -864,16 +864,22 @@ exports.copy_column_from_datasets = async (req, res) => {
   }
 };
 
+exports.change_multiple_states_in_all_workspaces = (req, res) => {
+  req.body.change_in_all_workspaces = true;
+  return exports.change_multiple_states(req, res);
+};
 exports.change_multiple_states = async (req, res) => {
-  const {
-    new_state,
-    workspace_to_change_state_in,
-    change_in_all_workspaces
-  } = req.body;
+  const { change_in_all_workspaces } = req.body;
+  const { workspace_to_change_state_in, from_state, to_state } = req.params;
   const [filter, include] = exports.calculate_dataset_filter_and_include(
     req.body.filter
   );
-  if (!['COMPLETED', 'SIGNOFF', 'OPEN'].includes(new_state)) {
+
+  // TODO: Validate workspace exists:
+  if (!workspace_to_change_state_in && !change_in_all_workspaces) {
+    throw 'Workspace to change state must be provided';
+  }
+  if (!['COMPLETED', 'SIGNOFF', 'OPEN'].includes(to_state)) {
     throw 'The new state must be either COMPLETED, SIGNOFF or OPEN';
   }
   const datasets_to_change_state = await Dataset.findAll({
@@ -890,8 +896,11 @@ exports.change_multiple_states = async (req, res) => {
     const { atomic_version } = await create_new_version({
       req,
       transaction,
-      comment: `dc_tool: change multiple states (OPEN, SIGNOFF, COMPLETED) of datasets in batch${change_in_all_workspaces &&
-        ' (in all workspaces)'}`
+      comment: `dc_tool: change multiple states (OPEN, SIGNOFF, COMPLETED) of datasets in batch ${
+        change_in_all_workspaces
+          ? '(in all workspaces)'
+          : `from state ${from_state} to ${to_state} in workspace ${workspace_to_change_state_in}`
+      }`
     });
     const promises = datasets_to_change_state.map(async dataset => {
       const { name, run_number, dataset_attributes } = dataset;
@@ -900,11 +909,19 @@ exports.change_multiple_states = async (req, res) => {
         dataset_metadata = { ...dataset_attributes };
         for (const [key, val] of Object.entries(dataset_attributes)) {
           if (key.includes('_state')) {
-            dataset_metadata[key] = new_state;
+            dataset_metadata[key] = to_state;
           }
         }
       } else {
-        dataset_metadata[`${workspace_to_change_state_in}_state`] = new_state;
+        const current_state =
+          dataset_attributes[`${workspace_to_change_state_in}_state`];
+        if (!current_state) {
+          throw `No state defined for ${run_number} in ${name} in workspace ${workspace_to_change_state_in}, cannot change state`;
+        }
+        if (current_state !== from_state) {
+          throw `You are trying to change some datasets from ${from_state} to ${to_state}. However there exists at least 1 of them that is in state ${current_state} (${run_number}, ${name}). In order to batch change states you must go from the same state for all the datasets that you are trying to change. Try either changing the state or setting another filter so that only datasets of the same state are being changed`;
+        }
+        dataset_metadata[`${workspace_to_change_state_in}_state`] = to_state;
       }
       await exports.update_or_create_dataset({
         dataset_name: name,
@@ -940,7 +957,7 @@ exports.change_multiple_states = async (req, res) => {
     console.log('Error changing states');
     console.log(err);
     await transaction.rollback();
-    throw `Error duplicating datasets: ${err.message}`;
+    throw `Error duplicating datasets: ${err}`;
   }
 };
 
