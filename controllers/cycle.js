@@ -15,7 +15,7 @@ const conversion_operator = {
   '>=': Op.gte,
   '<=': Op.lte,
   like: Op.iLike,
-  notlike: Op.notLike,
+  notlike: Op.notILike,
   '=': Op.eq,
   '<>': Op.ne,
   // In uppercase as well:

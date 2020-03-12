@@ -1204,12 +1204,12 @@ const getRunFilter = (filter, contains_something) => {
   const new_filter = {};
   for (const [key, val] of Object.entries(filter)) {
     if (key.startsWith('rr_attributes.')) {
-      const column_key = key.split('rr_attributes.')[1];
-      new_filter[column_key] = val;
+      // const column_key = key.split('rr_attributes.')[1];
+      new_filter[key] = val;
       contains_something = true;
     } else if (key.startsWith('oms_attributes.')) {
-      const column_key = key.split('oms_attributes.')[1];
-      new_filter[column_key] = val;
+      // const column_key = key.split('oms_attributes.')[1];
+      new_filter[key] = val;
       contains_something = true;
     } else if (key === 'and' || key === 'or') {
       new_filter[key] = val.map(rule => {
@@ -1265,6 +1265,7 @@ exports.calculate_dataset_filter_and_include = client_filter => {
   if (!run_filter_exists) {
     run_filter = {};
   }
+  run_filter = changeNameOfAllKeys(run_filter, conversion_operator);
   let [triplet_summary_filter, triplet_filter_exists] = getTripletSummaryFilter(
     client_filter,
     false
