@@ -120,7 +120,7 @@ const conversion_operator = {
   '>=': Op.gte,
   '<=': Op.lte,
   like: Op.iLike,
-  notlike: Op.notLike,
+  notlike: Op.notILike,
   '=': Op.eq,
   '<>': Op.ne,
   // In uppercase as well:
@@ -712,7 +712,7 @@ const formatSortings = sortings => {
 exports.getRunsFilteredOrdered = async (req, res) => {
   // A user can filter on triplets, or on any other field
   // If the user filters by triplets, then :
-  let [run_filter, run_filter_exists] = getRunFilter(req.body.filter);
+  let [run_filter, run_filter_exists] = getRunFilter(req.body.filter, false);
   if (!run_filter_exists) {
     run_filter = {};
   }

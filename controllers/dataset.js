@@ -40,7 +40,7 @@ const conversion_operator = {
   '>=': Op.gte,
   '<=': Op.lte,
   like: Op.iLike,
-  notlike: Op.notLike,
+  notlike: Op.notILike,
   '=': Op.eq,
   '<>': Op.ne,
   // In uppercase as well:
@@ -358,12 +358,37 @@ exports.appearedInDQMGUI = async (req, res) => {
   // });
 };
 
+const formatSortings = sortings => {
+  return sortings.map(sorting => {
+    let [key, order] = sorting;
+    if (key === 'oms_attributes.ls_duration') {
+      key = sequelize.cast(
+        sequelize.literal(`("Run"."oms_attributes"#>>'{ls_duration}')`),
+        'INTEGER'
+      );
+    } else if (key === 'oms_attributes.b_field') {
+      key = sequelize.cast(
+        sequelize.literal(`("Run"."oms_attributes"#>>'{b_field}')`),
+        'FLOAT'
+      );
+    } else if (key === 'rr_attributes.class') {
+      key = sequelize.literal(`("Run"."rr_attributes"#>>'{class}')`);
+    } else if (key.includes('-')) {
+      key = sequelize.literal(
+        `("DatasetTripletCache"."triplet_summary"#>>'{${key}}')`
+      );
+    }
+    return [key, order];
+  });
+};
+
 exports.getDatasetsFilteredOrdered = async (req, res) => {
   const [filter, include] = exports.calculate_dataset_filter_and_include(
     req.body.filter
   );
   // If a user filters by anything else:
   const { page, sortings, page_size } = req.body;
+  const formated_sortings = formatSortings(sortings);
   const count = await Dataset.count({
     where: filter,
     include
@@ -373,8 +398,8 @@ exports.getDatasetsFilteredOrdered = async (req, res) => {
   let datasets = await Dataset.findAll({
     where: filter,
     order:
-      sortings.length > 0
-        ? sortings
+      formated_sortings.length > 0
+        ? formated_sortings
         : [
             ['run_number', 'DESC'],
             ['name', 'ASC']
@@ -896,7 +921,7 @@ exports.change_multiple_states = async (req, res) => {
     const { atomic_version } = await create_new_version({
       req,
       transaction,
-      comment: `dc_tool: change multiple states (OPEN, SIGNOFF, COMPLETED) of datasets in batch ${
+      overwriteable_comment: `dc_tool: change multiple states (OPEN, SIGNOFF, COMPLETED) of datasets in batch ${
         change_in_all_workspaces
           ? '(in all workspaces)'
           : `from state ${from_state} to ${to_state} in workspace ${workspace_to_change_state_in}`
@@ -1155,31 +1180,107 @@ exports.getUniqueDatasetNames = async (req, res) => {
   res.json(unique_dataset_names);
 };
 
-exports.calculate_dataset_filter_and_include = (client_filter, run_filter) => {
+const getTripletSummaryFilter = (filter, contains_something) => {
+  const triplet_filter = {};
+  for (const [key, val] of Object.entries(filter)) {
+    if (key.startsWith('triplet_summary')) {
+      triplet_filter[key] = val;
+      contains_something = true;
+    } else if (key === 'and' || key === 'or') {
+      triplet_filter[key] = val.map(rule => {
+        const [new_rule, new_contains_something] = getTripletSummaryFilter(
+          rule,
+          contains_something
+        );
+        contains_something = new_contains_something;
+        return new_rule;
+      });
+    }
+  }
+  return [triplet_filter, contains_something];
+};
+
+const getRunFilter = (filter, contains_something) => {
+  const new_filter = {};
+  for (const [key, val] of Object.entries(filter)) {
+    if (key.startsWith('rr_attributes.')) {
+      const column_key = key.split('rr_attributes.')[1];
+      new_filter[column_key] = val;
+      contains_something = true;
+    } else if (key.startsWith('oms_attributes.')) {
+      const column_key = key.split('oms_attributes.')[1];
+      new_filter[column_key] = val;
+      contains_something = true;
+    } else if (key === 'and' || key === 'or') {
+      new_filter[key] = val.map(rule => {
+        const [new_rule, new_contains_something] = getRunFilter(
+          rule,
+          contains_something
+        );
+        contains_something = new_contains_something;
+        return new_rule;
+      });
+    }
+  }
+  return [new_filter, contains_something];
+};
+
+const getDatasetFilter = (filter, contains_something) => {
+  const new_filter = {};
+  for (const [key, val] of Object.entries(filter)) {
+    if (
+      key.startsWith('triplet_summary') ||
+      key.startsWith('rr_attributes') ||
+      key.startsWith('oms_attributes')
+    ) {
+      delete new_filter[key];
+    } else if (key === 'and' || key === 'or') {
+      new_filter[key] = val.map(rule => {
+        const [new_rule, new_contains_something] = getDatasetFilter(
+          rule,
+          contains_something
+        );
+        contains_something = new_contains_something;
+        return new_rule;
+      });
+    } else {
+      new_filter[key] = val;
+      contains_something = true;
+    }
+  }
+  return [new_filter, contains_something];
+};
+
+exports.calculate_dataset_filter_and_include = client_filter => {
   // A user can filter on triplets, or on any other field
   // If the user filters by triplets, then :
-  let triplet_summary_filter = {};
-  for (const [key, val] of Object.entries(client_filter)) {
-    if (key.includes('triplet_summary')) {
-      triplet_summary_filter[key] = val;
-      delete client_filter[key];
-    }
+  let [dataset_filter, dataset_filter_exists] = getDatasetFilter(
+    client_filter,
+    false
+  );
+  if (!dataset_filter_exists) {
+    dataset_filter = {};
+  }
+  let [run_filter, run_filter_exists] = getRunFilter(client_filter, false);
+  if (!run_filter_exists) {
+    run_filter = {};
+  }
+  let [triplet_summary_filter, triplet_filter_exists] = getTripletSummaryFilter(
+    client_filter,
+    false
+  );
+  if (!triplet_filter_exists) {
+    triplet_summary_filter = {};
   }
   triplet_summary_filter = changeNameOfAllKeys(
     triplet_summary_filter,
     conversion_operator
   );
 
-  if (run_filter) {
-    run_filter = {
-      ...changeNameOfAllKeys(run_filter, conversion_operator),
-      deleted: false
-    };
-  } else {
-    run_filter = {};
-  }
-
-  let filter = changeNameOfAllKeys(client_filter, conversion_operator);
+  let filter = {
+    ...changeNameOfAllKeys(dataset_filter, conversion_operator),
+    deleted: false
+  };
   // If its filtering by run class, then include it in run filter
   let include = [
     {
@@ -1193,11 +1294,5 @@ exports.calculate_dataset_filter_and_include = (client_filter, run_filter) => {
       attributes: ['triplet_summary', 'dcs_summary']
     }
   ];
-  if (typeof filter['rr_attributes.class'] !== 'undefined') {
-    include[0].where = {
-      'rr_attributes.class': filter['rr_attributes.class']
-    };
-    delete filter['rr_attributes.class'];
-  }
   return [filter, include];
 };
