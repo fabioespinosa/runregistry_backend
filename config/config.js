@@ -5,7 +5,7 @@ module.exports = {
     database: 'runregistry_database',
     host: process.env.DOCKER_POSTGRES ? 'postgres' : 'localhost',
     // host: 'localhost',
-    logging: false,
+    logging: true,
     dialect: 'postgres',
     define: {
       // Make sequelize not pluralize the name of tables:
