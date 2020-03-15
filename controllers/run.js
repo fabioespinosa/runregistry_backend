@@ -651,14 +651,22 @@ const getTripletSummaryFilter = (filter, contains_something) => {
       triplet_filter[key] = val;
       contains_something = true;
     } else if (key === 'and' || key === 'or') {
-      triplet_filter[key] = val.map(rule => {
-        const [new_rule, new_contains_something] = getTripletSummaryFilter(
-          rule,
-          contains_something
-        );
-        contains_something = new_contains_something;
-        return new_rule;
-      });
+      triplet_filter[key] = val
+        .filter(rule => {
+          const [new_rule, new_contains_something] = getTripletSummaryFilter(
+            rule,
+            contains_something
+          );
+          return new_contains_something;
+        })
+        .map(rule => {
+          const [new_rule, new_contains_something] = getTripletSummaryFilter(
+            rule,
+            contains_something
+          );
+          contains_something = new_contains_something;
+          return new_rule;
+        });
     }
   }
   return [triplet_filter, contains_something];
@@ -670,14 +678,22 @@ const getRunFilter = (filter, contains_something) => {
     if (key.startsWith('triplet_summary')) {
       delete new_filter[key];
     } else if (key === 'and' || key === 'or') {
-      new_filter[key] = val.map(rule => {
-        const [new_rule, new_contains_something] = getRunFilter(
-          rule,
-          contains_something
-        );
-        contains_something = new_contains_something;
-        return new_rule;
-      });
+      new_filter[key] = val
+        .filter(rule => {
+          const [new_rule, new_contains_something] = getRunFilter(
+            rule,
+            contains_something
+          );
+          return new_contains_something;
+        })
+        .map(rule => {
+          const [new_rule, new_contains_something] = getRunFilter(
+            rule,
+            contains_something
+          );
+          contains_something = new_contains_something;
+          return new_rule;
+        });
     } else {
       new_filter[key] = val;
       contains_something = true;

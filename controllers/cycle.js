@@ -62,10 +62,12 @@ exports.add = async (req, res) => {
     );
     const { id_cycle } = cycle;
     // A filter comes, and we must reproduce that filter to get the dataset that were displayed on the lower table to add them to the cycle
-    const [filter, include] = calculate_dataset_filter_and_include(filter);
+    const [calculated_filter, include] = calculate_dataset_filter_and_include(
+      filter
+    );
 
     const selected_datasets = await Dataset.findAll({
-      where: filter,
+      where: calculated_filter,
       include
     });
     if (selected_datasets.length === 0) {
