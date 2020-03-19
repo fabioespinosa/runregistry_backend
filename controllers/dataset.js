@@ -713,7 +713,7 @@ exports.duplicate_datasets = async (req, res) => {
             include: [
               {
                 model: Run,
-                attributes: ['rr_attributes']
+                attributes: ['rr_attributes', 'oms_attributes']
               },
               { model: DatasetTripletCache }
             ]
@@ -968,9 +968,12 @@ exports.change_multiple_states = async (req, res) => {
           include: [
             {
               model: Run,
-              attributes: ['rr_attributes']
+              attributes: ['rr_attributes', 'oms_attributes', 'oms_attributes']
             },
-            { model: DatasetTripletCache }
+            {
+              model: DatasetTripletCache,
+              attributes: ['triplet_summary', 'dcs_summary']
+            }
           ]
         });
         return saved_dataset;
@@ -1070,7 +1073,7 @@ exports.datasetColumnBatchUpdate = async (req, res) => {
             include: [
               {
                 model: Run,
-                attributes: ['rr_attributes']
+                attributes: ['rr_attributes', 'oms_attributes']
               },
               { model: DatasetTripletCache }
             ]
@@ -1157,7 +1160,7 @@ exports.getUniqueDatasetNames = async (req, res) => {
   let include = [
     {
       model: Run,
-      attributes: ['rr_attributes']
+      attributes: ['rr_attributes', 'oms_attributes']
     }
   ];
   if (typeof filter['rr_attributes.class'] !== 'undefined') {
