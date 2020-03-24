@@ -170,7 +170,7 @@ exports.new = async (req, res) => {
   }
   let transaction;
   try {
-    const transaction = await sequelize.transaction();
+    transaction = await sequelize.transaction();
     const { atomic_version } = await create_new_version({
       req,
       transaction,
@@ -1147,28 +1147,9 @@ exports.export_to_csv = async (req, res) => {
 
 // Given some run_numbers (provided in filter), get all the dataset names:
 exports.getUniqueDatasetNames = async (req, res) => {
-  const { workspace } = req.body;
-  let filter = changeNameOfAllKeys(
-    {
-      [`dataset_attributes.${workspace}_state`]: {
-        or: [{ '=': 'OPEN' }, { '=': 'SIGNOFF' }, { '=': 'COMPLETED' }]
-      },
-      ...req.body.filter
-    },
-    conversion_operator
+  let [filter, include] = exports.calculate_dataset_filter_and_include(
+    req.body.filter
   );
-  let include = [
-    {
-      model: Run,
-      attributes: ['rr_attributes', 'oms_attributes']
-    }
-  ];
-  if (typeof filter['rr_attributes.class'] !== 'undefined') {
-    include[0].where = {
-      'rr_attributes.class': filter['rr_attributes.class']
-    };
-    delete filter['rr_attributes.class'];
-  }
 
   const datasets_filter_criteria = await Dataset.findAll({
     where: filter,

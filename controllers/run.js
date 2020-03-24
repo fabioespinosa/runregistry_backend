@@ -198,7 +198,7 @@ exports.new = async (req, res) => {
   rr_attributes.state = 'OPEN';
   let transaction;
   try {
-    const transaction = await sequelize.transaction();
+    transaction = await sequelize.transaction();
     const { atomic_version } = await create_new_version({
       req,
       transaction,

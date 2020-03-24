@@ -225,6 +225,7 @@ exports.update_rr_lumisections = async ({
   await Promise.all(saved_ranges);
   return saved_ranges;
 };
+
 exports.update_oms_lumisections = async ({
   run_number,
   dataset_name,

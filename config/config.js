@@ -3,6 +3,7 @@ module.exports = {
     username: 'hackathon',
     password: '',
     database: 'runregistry_database',
+    port: 5432,
     host: process.env.DOCKER_POSTGRES ? 'postgres' : 'localhost',
     // host: 'localhost',
     logging: false,
