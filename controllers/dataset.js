@@ -55,7 +55,8 @@ exports.update_or_create_dataset = async ({
   run_number,
   dataset_metadata,
   atomic_version,
-  transaction
+  transaction,
+  delete_dataset = false
 }) => {
   run_number = +run_number;
   if (!atomic_version) {
@@ -81,7 +82,7 @@ exports.update_or_create_dataset = async ({
         run_number,
         dataset_metadata,
         version: event.version,
-        deleted: false
+        deleted: delete_dataset
       },
       { transaction }
     );
@@ -982,7 +983,7 @@ exports.change_multiple_states = async (req, res) => {
     const saved_datasets = await Promise.all(saved_datasets_promises);
     res.json(saved_datasets);
   } catch (err) {
-    console.log('Error changing states');
+    console.log('Error changing states in batch');
     console.log(err);
     await transaction.rollback();
     throw `Error duplicating datasets: ${err}`;
@@ -1094,6 +1095,54 @@ exports.datasetColumnBatchUpdate = async (req, res) => {
   }
 };
 
+exports.hide_datasets = async (req, res) => {
+  const { reason_for_hiding, dataset_name } = req.body;
+  if (!reason_for_hiding) {
+    throw 'You must provide a reason for hiding these datasets';
+  }
+  if (dataset_name === 'online') {
+    throw 'You cannot delete the online dataset belonging to the run';
+  }
+  const datasets_to_hide = await Dataset.findAll({
+    where: { name: dataset_name }
+  });
+  if (datasets_to_hide.length === 0) {
+    throw `No dataset(s) found for filter criteria`;
+  }
+
+  let transaction;
+  try {
+    transaction = await sequelize.transaction();
+    const { atomic_version } = await create_new_version({
+      req,
+      transaction,
+      overwriteable_comment: `dc_tool: hiding datasets of: ${dataset_name}, reason: ${reason_for_hiding}`
+    });
+    const promises = datasets_to_hide.map(async dataset => {
+      const { name, run_number } = dataset;
+      await exports.update_or_create_dataset({
+        dataset_name: name,
+        run_number,
+        atomic_version,
+        dataset_metadata: {},
+        transaction,
+        delete_dataset: true
+      });
+    });
+    await Promise.all(promises);
+    await transaction.commit();
+    const hidden_datasets = await Dataset.findAll({
+      where: { name: dataset_name }
+    });
+    res.json(hidden_datasets);
+  } catch (e) {
+    console.log('Error hiding datasets');
+    console.log(err);
+    await transaction.rollback();
+    throw `Error hiding datasets: ${err}`;
+  }
+};
+
 exports.export_to_csv = async (req, res) => {
   const [filter, include] = exports.calculate_dataset_filter_and_include(
     req.body.filter
@@ -1152,9 +1201,13 @@ exports.getUniqueDatasetNames = async (req, res) => {
   );
 
   const datasets_filter_criteria = await Dataset.findAll({
+    attributes: ['name'],
     where: filter,
     include
   });
+  if (datasets_filter_criteria.length > 12000) {
+    throw `Dataset query too big, limit is 12000`;
+  }
   const unique_dataset_names_object = {};
   datasets_filter_criteria.forEach(({ name }) => {
     unique_dataset_names_object[name] = name;

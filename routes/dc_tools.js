@@ -32,4 +32,5 @@ module.exports = app => {
     auth,
     catchAPI(Dataset.datasetColumnBatchUpdate)
   );
+  app.delete('/dc_tools/hide_datasets', auth, catchAPI(Dataset.hide_datasets));
 };
