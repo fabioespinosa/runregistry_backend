@@ -1100,15 +1100,17 @@ exports.datasetColumnBatchUpdate = async (req, res) => {
 };
 
 exports.hide_datasets = async (req, res) => {
-  const { reason_for_hiding, dataset_name } = req.body;
+  const { reason_for_hiding } = req.body;
+  const [filter, include] = exports.calculate_dataset_filter_and_include(
+    req.body.filter
+  );
   if (!reason_for_hiding) {
     throw 'You must provide a reason for hiding these datasets';
   }
-  if (dataset_name === 'online') {
-    throw 'You cannot delete the online dataset belonging to the run';
-  }
+
   const datasets_to_hide = await Dataset.findAll({
-    where: { name: dataset_name, deleted: false }
+    where: filter,
+    include
   });
   if (datasets_to_hide.length === 0) {
     throw `No dataset(s) found for filter criteria`;
@@ -1120,10 +1122,13 @@ exports.hide_datasets = async (req, res) => {
     const { atomic_version } = await create_new_version({
       req,
       transaction,
-      overwriteable_comment: `dc_tool: hiding datasets of: ${dataset_name}, reason: ${reason_for_hiding}`
+      overwriteable_comment: `dc_tool: hiding datasets, reason: ${reason_for_hiding}`
     });
     const promises = datasets_to_hide.map(async dataset => {
       const { name, run_number } = dataset;
+      if (name === 'online') {
+        throw 'You cannot delete the online dataset belonging to a run';
+      }
       await exports.update_or_create_dataset({
         dataset_name: name,
         run_number,
@@ -1135,10 +1140,7 @@ exports.hide_datasets = async (req, res) => {
     });
     await Promise.all(promises);
     await transaction.commit();
-    const hidden_datasets = await Dataset.findAll({
-      where: { name: dataset_name }
-    });
-    res.json(hidden_datasets);
+    res.json(datasets_to_hide);
   } catch (e) {
     console.log('Error hiding datasets');
     console.log(err);
