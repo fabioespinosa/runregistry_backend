@@ -378,8 +378,8 @@ exports.getNewLumisectionRanges = (
 };
 
 // get ranges per component in the form of:
-//cms_range: [{from:x, to: y, ...}, {}]
-//dt_range: [{},{}]
+// cms_range: [{from:x, to: y, ...}, {}]
+// dt_range: [{},{}]
 exports.get_rr_lumisection_ranges_for_dataset = async (
   run_number,
   dataset_name
@@ -429,12 +429,12 @@ exports.get_rr_lumisection_ranges_for_dataset = async (
 };
 
 // Get all component lumisections (not a range):
-// Without manual changes gives us the AUTOMATIC changes without the priority of shifters intervention:
+// Without manual changes (if set to true) gives us the AUTOMATIC changes without the priority of shifters intervention:
 // So if there is an automatic change after manual change, it will not be reflected UNLESS we do without_manual_change as true
 exports.get_rr_lumisections_for_dataset = async (
   run_number,
   dataset_name,
-  without_manual_changes
+  without_manual_changes = false
 ) => {
   const merged_lumisections = await sequelize.query(
     `
