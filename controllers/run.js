@@ -781,7 +781,8 @@ exports.getDatasetNamesOfRun = async (req, res) => {
   const { run_number } = req.params;
   const datasets = await Dataset.findAll({
     where: {
-      run_number
+      run_number,
+      deleted: false
     }
   });
   const unique_dataset_names_object = {};

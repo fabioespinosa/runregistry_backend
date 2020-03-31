@@ -230,7 +230,8 @@ exports.getDatasetsWaiting = async (req, res) => {
   const datasets = await Dataset.findAll({
     where: {
       // DO NOT CHANGE THE FOLLOWING LINE AS APPLICATION LOGIC RELIES ON IT:
-      'dataset_attributes.global_state': WAITING_DQM_GUI_CONSTANT
+      'dataset_attributes.global_state': WAITING_DQM_GUI_CONSTANT,
+      deleted: false
     }
   });
   res.json(datasets);
@@ -242,7 +243,8 @@ exports.getDatasetsWaitingDBS = async (req, res) => {
       [Op.or]: [
         { 'dataset_attributes.appeared_in': '' },
         { 'dataset_attributes.appeared_in': 'DQM GUI' }
-      ]
+      ],
+      deleted: false
     }
   });
   res.json(datasets);
@@ -982,6 +984,8 @@ exports.change_multiple_states = async (req, res) => {
     );
     const saved_datasets = await Promise.all(saved_datasets_promises);
     res.json(saved_datasets);
+    // We refill the dataset triplet cache, even though its not necessary, we do it to keep the max version synced
+    await fill_dataset_triplet_cache();
   } catch (err) {
     console.log('Error changing states in batch');
     console.log(err);
@@ -1104,7 +1108,7 @@ exports.hide_datasets = async (req, res) => {
     throw 'You cannot delete the online dataset belonging to the run';
   }
   const datasets_to_hide = await Dataset.findAll({
-    where: { name: dataset_name }
+    where: { name: dataset_name, deleted: false }
   });
   if (datasets_to_hide.length === 0) {
     throw `No dataset(s) found for filter criteria`;
