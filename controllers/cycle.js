@@ -5,6 +5,7 @@ const CycleDataset = require('../models').CycleDataset;
 const Dataset = require('../models').Dataset;
 const Run = require('../models').Run;
 const Sequelize = require('../models').Sequelize;
+const { moveDataset } = require('./dataset');
 const { Op } = Sequelize;
 const { calculate_dataset_filter_and_include } = require('./dataset');
 const conversion_operator = {
@@ -82,6 +83,9 @@ exports.add = async (req, res) => {
         if (!run_number || !name) {
           throw 'run_number and name of the dataset must be valid';
         }
+        if (name === 'online') {
+          throw 'Online dataset cannot be part of a cycle';
+        }
         const cycle_datasets = await CycleDataset.create(
           {
             id_cycle,
@@ -140,8 +144,6 @@ exports.getOne = async (req, res) => {
   res.json(cycle);
 };
 
-exports.addDatasetsToCycle = async (req, res) => {};
-
 exports.delete = async (req, res) => {
   const { id_cycle } = req.body;
   const cycle_to_delete = await Cycle.findByPk(id_cycle);
@@ -151,18 +153,66 @@ exports.delete = async (req, res) => {
   const updated_cycle = await cycle_to_delete.update({ deleted: true });
   res.json(updated_cycle);
 };
+exports.addDatasetsToCycle = async (req, res) => {};
 
 exports.deleteDatasetFromCycle = async (req, res) => {};
 
 exports.signOffDatasetsInCycle = async (req, res) => {};
 
+exports.moveCycleBackToPending = async (req, res) => {
+  const { workspace } = req.params;
+  const { id_cycle } = req.body;
+  const cycle = await exports.getOneInternal(id_cycle);
+  const { cycle_attributes } = cycle;
+  // A cycle cannnot be moved back to PENDING unless it is PENDING in the global workspace first.
+  if (
+    workspace !== 'global' &&
+    cycle_attributes['global_state'] === 'completed'
+  ) {
+    throw `Cycle with id ${id_cycle} can't be moved back to PENDING since it is marked completed in global workspace. Ask DC Expert to move cycle back to PENDING in global workspace and then proceed`;
+  }
+  cycle.cycle_attributes = {
+    ...cycle.cycle_attributes,
+    [`${workspace}_state`]: 'pending'
+  };
+  const saved_cycle = await cycle.update({
+    cycle_attributes: cycle.cycle_attributes
+  });
+
+  res.json(saved_cycle);
+};
+
 exports.markCycleCompletedInWorkspace = async (req, res) => {
   const { workspace } = req.params;
   const { id_cycle } = req.body;
   const cycle = await exports.getOneInternal(id_cycle);
+  if (cycle === null) {
+    throw 'Cycle not found';
+  }
+
+  // If cycle is global, it shall be completed in all other workspaces before being marked complete in global:
+  const states_still_open = [];
+  if (workspace === 'global') {
+    for (const [key, state] of Object.entries(cycle.cycle_attributes)) {
+      if (key !== 'global_state' && key.includes('_state')) {
+        if (state !== 'completed') {
+          states_still_open.push(key.split('_state')[0]);
+        }
+      }
+    }
+  }
+  if (states_still_open.length > 0) {
+    throw `You cannot mark this cycle as completed in the GLOBAL workspace, as it has not yet been moved to completed in ${states_still_open.join(
+      ', '
+    )} workspace(s)`;
+  }
+
   // Validate if all datasets inside are moved to complete:
   cycle.datasets.forEach(({ run_number, name, dataset_attributes }) => {
-    if (dataset_attributes[`${workspace}_state`] !== 'COMPLETED') {
+    if (
+      typeof dataset_attributes[`${workspace}_state`] !== 'undefined' &&
+      dataset_attributes[`${workspace}_state`] !== 'COMPLETED'
+    ) {
       throw `There is at least one dataset inside this cycle that has not been moved to completed: The dataset with name: ${name} and run number: ${run_number}, has not been moved to completed. Cycle cannot be marked completed.`;
     }
   });
@@ -174,4 +224,28 @@ exports.markCycleCompletedInWorkspace = async (req, res) => {
     cycle_attributes: cycle.cycle_attributes
   });
   res.json(saved_cycle);
+};
+
+exports.moveDataset = async (req, res) => {
+  const { workspace } = req.params;
+  const { id_cycle, run_number, dataset_name } = req.body;
+  const cycle = await exports.getOneInternal(id_cycle);
+  const exists = cycle.datasets.some(
+    dataset =>
+      dataset.run_number === run_number && dataset.name === dataset_name
+  );
+  if (!exists) {
+    throw `Dataset ${run_number}-${datase_name} does not belong to cycle ${id_cycle}`;
+  }
+  if (cycle === null) {
+    throw `Cycle does not exist`;
+  }
+  if (typeof cycle.cycle_attributes[`${workspace}_state`] === 'undefined') {
+    throw `Cycle does not exist in workspace ${workspace}`;
+  }
+  if (cycle.cycle_attributes[`${workspace}_state`] === 'completed') {
+    throw `This cycle has already been marked COMPLETED, therefore you cannot change the state of the dataset unless you change the state of the cycle`;
+  }
+  // Now after validation, actually move the state:
+  moveDataset(req, res);
 };

@@ -19,8 +19,7 @@ exports.fill_dataset_triplet_cache = async transaction => {
       where: {
         version: {
           [Op.gt]: max_version
-        },
-        deleted: false
+        }
       }
     });
 
@@ -33,8 +32,7 @@ exports.fill_dataset_triplet_cache = async transaction => {
           where: {
             version: {
               [Op.gt]: max_version
-            },
-            deleted: false
+            }
           },
           order: [
             ['version', 'ASC'],
@@ -211,9 +209,6 @@ exports.recalculate_all_triplet_cache = async transaction => {
   for (let i = 0; i < number_of_batches; i++) {
     async_functions.push(async () => {
       const dataset_batch = await Dataset.findAll({
-        where: {
-          deleted: false
-        },
         order: [
           ['version', 'ASC'],
           ['run_number', 'ASC']

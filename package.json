@@ -16,6 +16,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@types/bull": "^3.12.1",
     "append-to-all-attributes": "^1.0.3",
     "async": "^2.6.1",
     "axios": "^0.18.0",

@@ -59,6 +59,7 @@ exports.calculate_json = async (req, res) => {
     req.io.emit('completed', { job_id: job.id, result });
     console.log(`completed job ${job.id}: `);
   });
+  req.io.emit('new_json_added_to_queue', { job_id: json.id, job: json });
   res.json(json);
 };
 

@@ -3,13 +3,24 @@ const auth = require('../auth/authenticate');
 const Cycle = require('../controllers/cycle');
 
 module.exports = app => {
-    app.get('/cycles/:workspace', catchAPI(Cycle.getAll));
-    app.put(
-        '/cycles/mark_cycle_complete/:workspace',
-        auth,
-        catchAPI(Cycle.markCycleCompletedInWorkspace)
-    );
-    app.post('/cycles', auth, catchAPI(Cycle.add));
-    app.post('/cycles/add_datasets', auth, catchAPI(Cycle.addDatasetsToCycle));
-    app.delete('/cycles', auth, catchAPI(Cycle.delete));
+  app.post('/cycles/add_datasets', auth, catchAPI(Cycle.addDatasetsToCycle));
+  app.get('/cycles/:workspace', catchAPI(Cycle.getAll));
+  app.put(
+    '/cycles/mark_cycle_complete/:workspace',
+    auth,
+    catchAPI(Cycle.markCycleCompletedInWorkspace)
+  );
+  app.put(
+    '/cycles/mark_cycle_pending/:workspace',
+    auth,
+    catchAPI(Cycle.moveCycleBackToPending)
+  );
+  app.post('/cycles', auth, catchAPI(Cycle.add));
+  // We provide another endpoint for changing state in cycles so that they can move it back to OPEN as long as the cycle is still in open state in such workspace
+  app.post(
+    '/cycles/move_dataset/:workspace/:from_state/:to_state',
+    auth,
+    catchAPI(Cycle.moveDataset)
+  );
+  app.delete('/cycles', auth, catchAPI(Cycle.delete));
 };

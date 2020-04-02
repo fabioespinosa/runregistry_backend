@@ -1077,6 +1077,7 @@ exports.hide_datasets = async (req, res) => {
       });
     });
     await Promise.all(promises);
+    await fill_dataset_triplet_cache();
     await transaction.commit();
     res.json(datasets_to_hide);
   } catch (e) {
