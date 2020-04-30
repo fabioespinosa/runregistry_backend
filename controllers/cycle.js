@@ -34,6 +34,9 @@ exports.add = async (req, res) => {
   if (Object.keys(cycle_attributes).length === 0) {
     throw `There must be at least 1 workspace selected`;
   }
+  if (!Object.keys(cycle_attributes).includes('global_state')) {
+    throw `Cycle must include global workspace state`;
+  }
   if (!cycle_name) {
     throw `Please add a cycle name (must be unique)`;
   }
@@ -43,6 +46,7 @@ exports.add = async (req, res) => {
   let transaction;
   try {
     transaction = await sequelize.transaction();
+
     const cycle = await Cycle.create(
       {
         cycle_attributes: cycle_attributes,
@@ -145,6 +149,33 @@ exports.delete = async (req, res) => {
   res.json(updated_cycle);
 };
 
+exports.editCycleInformation = async (req, res) => {
+  const { id_cycle, deadline, cycle_attributes, cycle_name } = req.body;
+  const existing_cycle = await exports.getOneInternal(id_cycle);
+  if (existing_cycle === null) {
+    throw `Cycle ${id_cycle} does not exist`;
+  }
+  if (Object.keys(cycle_attributes).length === 0) {
+    throw `There must be at least 1 workspace selected`;
+  }
+  if (!Object.keys(cycle_attributes).includes('global_state')) {
+    throw `Cycle must include global workspace state`;
+  }
+  if (!cycle_name) {
+    throw `Please add a cycle name (must be unique)`;
+  }
+  if (!deadline) {
+    throw `Please add cycle deadline`;
+  }
+  await existing_cycle.update({
+    cycle_attributes: cycle_attributes,
+    cycle_name,
+    deadline,
+  });
+  const saved_cycle = await exports.getOneInternal(id_cycle);
+  res.json(saved_cycle);
+};
+
 exports.addDatasetsToCycle = async (req, res) => {
   const { id_cycle, filter } = req.body;
 
@@ -188,9 +219,9 @@ exports.addDatasetsToCycle = async (req, res) => {
       }
     );
     const results = await Promise.allSettled(datasets_promises);
-    const successfulAdditions = results.filter((p) => p.status === 'fulfilled');
     await transaction.commit();
-    res.json(successfulAdditions);
+    const cycle = await exports.getOneInternal(id_cycle);
+    res.json(cycle);
   } catch (err) {
     console.log(err);
     await transaction.rollback();
@@ -237,9 +268,10 @@ exports.deleteDatasetsFromCycle = async (req, res) => {
         });
       }
     );
-    const results = await Promise.all(datasets_promises);
+    await Promise.all(datasets_promises);
     await transaction.commit();
-    res.json(results);
+    const cycle = await exports.getOneInternal(id_cycle);
+    res.json(cycle);
   } catch (err) {
     console.log(err);
     await transaction.rollback();

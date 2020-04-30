@@ -30,8 +30,8 @@ models.sequelize
       req.io = io;
       next();
     });
-    io.on('connect', socket => {
-      console.log('connection established');
+    io.on('connect', (socket) => {
+      console.log('connection established for new client');
     });
 
     // For use in json_creation:
@@ -55,7 +55,7 @@ models.sequelize
     app.use(expressError);
 
     // Catch Application breaking error and label it here:
-    process.on('uncaughtException', err => {
+    process.on('uncaughtException', (err) => {
       console.log('CRITICAL ERROR: ', err);
     });
     // Catch Promise error and label it here:
@@ -63,7 +63,7 @@ models.sequelize
       console.log('Unhandled Promise Rejection at:', p, 'reason:', reason);
     });
   })
-  .catch(err => {
+  .catch((err) => {
     console.log(err);
     // app.listen(port, () => {
     //   console.log(
