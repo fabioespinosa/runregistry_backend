@@ -3,28 +3,74 @@ const axios = require('axios');
 const config = require('../config/config');
 const { API_URL, REDIS_URL } = config[process.env.ENV || 'development'];
 const {
-  convert_array_of_list_to_array_of_ranges
+  convert_array_of_list_to_array_of_ranges,
 } = require('golden-json-helpers');
 const { http } = require('../app');
 const io = require('socket.io')(http);
-const { sequelize, Sequelize } = require('../models');
+const { sequelize, Sequelize, GeneratedJson, Version } = require('../models');
 const { format_lumisection } = require('./lumisection');
 const pMap = require('p-map');
 const Queue = require('bull');
+const { getMaxIdPlusOne } = require('../utils/model_tools');
 
 const jsonProcessingQueue = new Queue('json processing', REDIS_URL);
 
 exports.get_jsons = async (req, res) => {
-  const jobs = await jsonProcessingQueue.getJobs();
-  res.json({ jsons: jobs });
+  // TODO: paginate
+  const failed = await jsonProcessingQueue.getFailed();
+  const waiting = await jsonProcessingQueue.getWaiting();
+  const active = await jsonProcessingQueue.getActive();
+  const saved_jsons = await GeneratedJson.findAll();
+  const jsons = [
+    ...failed.map(({ id, data, failedReason }) => ({
+      ...data,
+      id,
+      failedReason,
+      progress: 0,
+      active: false,
+      waiting: false,
+      failed: true,
+    })),
+    ...waiting.map(({ id, _progress, data }) => ({
+      ...data,
+      id,
+      progress: _progress,
+      active: false,
+      waiting: true,
+      failed: false,
+    })),
+    ...active.map(({ id, _progress, data }) => ({
+      ...data,
+      id,
+      progress: _progress,
+      active: true,
+      waiting: false,
+      failed: false,
+    })),
+    ...saved_jsons.map(({ dataValues }) => ({
+      ...dataValues,
+      progress: 1,
+      active: false,
+      waiting: false,
+      failed: false,
+    })),
+  ];
+  res.json({ jsons: jsons });
 };
 
 exports.calculate_json = async (req, res) => {
-  const { json_logic, dataset_name } = req.body;
-  if (!json_logic || Object.keys(json_logic).length === 0) {
+  const { json_logic, dataset_name_filter, tags, official } = req.body;
+  const created_by = req.get('email');
+  let parsed_json;
+  try {
+    parsed_json = JSON.parse(json_logic);
+  } catch (err) {
+    throw `JSON logic sent is not in json format`;
+  }
+  if (!parsed_json || Object.keys(parsed_json).length === 0) {
     throw 'Empty json logic sent';
   }
-  if (!dataset_name) {
+  if (!dataset_name_filter) {
     throw 'No dataset name specified';
   }
   const datasets = await sequelize.query(
@@ -36,38 +82,49 @@ exports.calculate_json = async (req, res) => {
     {
       type: sequelize.QueryTypes.SELECT,
       replacements: {
-        name: dataset_name
-      }
+        name: dataset_name_filter,
+      },
     }
   );
   if (datasets.length === 0) {
     throw 'No datasets matched that dataset name';
   }
+
+  // We select the sequence from the table:
+  const [{ nextval }] = await sequelize.query(
+    `SELECT nextval('"GeneratedJson_id_seq"')`,
+    {
+      type: sequelize.QueryTypes.SELECT,
+    }
+  );
+
   const json = await jsonProcessingQueue.add(
     {
-      dataset_name,
-      json_logic
+      dataset_name_filter,
+      json_logic: parsed_json,
+      created_by,
+      tags: tags || '',
+      official: official || false,
     },
-    { attempts: 5 }
+    { jobId: +nextval, attempts: 5 }
   );
   jsonProcessingQueue.on('progress', (job, progress) => {
-    req.io.emit('progress', { job_id: job.id, progress });
+    req.io.emit('progress', { id: job.id, progress });
     console.log(`internal progress for job ${job.id}`, progress);
   });
 
   jsonProcessingQueue.on('completed', (job, result) => {
-    req.io.emit('completed', { job_id: job.id, result });
+    req.io.emit('completed', { id: job.id, result });
     console.log(`completed job ${job.id}: `);
   });
-  req.io.emit('new_json_added_to_queue', { job_id: json.id, job: json });
+  req.io.emit('new_json_added_to_queue', { id: json.id, job: json });
   res.json(json);
 };
 
 // TODO-ENHANCEMENT: Add information about job: started at, finished at
 jsonProcessingQueue.process(async (job, done) => {
   console.log('started processing job', job.id);
-  const { dataset_name, json_logic } = job.data;
-  const logic = JSON.parse(json_logic);
+  const { dataset_name_filter, json_logic } = job.data;
   const datasets = await sequelize.query(
     `
       SELECT * FROM "Dataset"
@@ -77,16 +134,16 @@ jsonProcessingQueue.process(async (job, done) => {
     {
       type: sequelize.QueryTypes.SELECT,
       replacements: {
-        name: dataset_name
-      }
+        name: dataset_name_filter,
+      },
     }
   );
   const number_of_datasets = datasets.length;
   const generated_json_list = {};
   const generated_json_with_dataset_names_list = {};
   let counter_datasets_processed = 0;
-  const mapper = async dataset => {
-    const { run_number, name: dataset_name } = dataset;
+  const mapper = async (dataset) => {
+    const { run_number, name: dataset_name_filter } = dataset;
     const lumisections = await sequelize.query(
       `
       SELECT * FROM "AggregatedLumisection"
@@ -97,14 +154,14 @@ jsonProcessingQueue.process(async (job, done) => {
         type: sequelize.QueryTypes.SELECT,
         replacements: {
           run_number,
-          name: dataset_name
-        }
+          name: dataset_name_filter,
+        },
       }
     );
 
     for (let i = 0; i < lumisections.length; i++) {
       const lumisection = format_lumisection(lumisections[i]);
-      if (json_logic_library.apply(logic, lumisection)) {
+      if (json_logic_library.apply(json_logic, lumisection)) {
         const { run_number } = lumisection.run;
         const { name } = lumisection.dataset;
         const { lumisection_number } = lumisection.lumisection;
@@ -112,7 +169,7 @@ jsonProcessingQueue.process(async (job, done) => {
         if (typeof generated_json_list[run_number] === 'undefined') {
           generated_json_list[run_number] = [lumisection_number];
           generated_json_with_dataset_names_list[`${run_number}-${name}`] = [
-            lumisection_number
+            lumisection_number,
           ];
         } else {
           generated_json_list[run_number].push(lumisection_number);
@@ -128,7 +185,7 @@ jsonProcessingQueue.process(async (job, done) => {
   };
 
   await pMap(datasets, mapper, {
-    concurrency: 4
+    concurrency: 4,
   });
 
   const generated_json = {};
@@ -146,33 +203,26 @@ jsonProcessingQueue.process(async (job, done) => {
     ] = convert_array_of_list_to_array_of_ranges(val);
   }
 
+  // Obtain latest RR version
+  const runregistry_version = await Version.max('atomic_version');
+
+  // Add to database:
+  const { by, tags, official } = job.data;
+  const saved_json = GeneratedJson.create({
+    id: job.id,
+    dataset_name_filter: dataset_name_filter,
+    tags,
+    created_by: by,
+    official,
+    runregistry_version,
+    json_logic,
+    generated_json,
+    generated_json_with_dataset_names,
+    anti_json: {},
+    deleted: false,
+  });
+
   // Finished:
   job.progress(1);
   done(null, { generated_json, generated_json_with_dataset_names });
 });
-
-// setTimeout(() => {
-//   axios.post(`${API_URL}/json_portal/generate`, {
-//     run_min: 300000,
-//     run_max: 340000,
-//     dataset_name: '/Express/Collisions2018/DQM',
-//     json_logic: `
-// {
-//  "and": [
-//        {"==": [{"var": "dataset.name"}, "/Express/Collisions2018/DQM"]},
-//    {
-//     "or": [
-//        {"and": [{"==": [{"var": "lumisection.rr.ctpps-rp45_210"}, "GOOD"]}, {"==": [{"var": "lumisection.rr.ctpps-rp45_220"}, "GOOD"]}]},
-//        {"and": [{"==": [{"var": "lumisection.rr.ctpps-rp45_cyl"}, "GOOD"]}, {"==": [{"var": "lumisection.rr.ctpps-rp45_210"}, "GOOD"]}]},
-//        {"and": [{"==": [{"var": "lumisection.rr.ctpps-rp45_cyl"}, "GOOD"]}, {"==": [{"var": "lumisection.rr.ctpps-rp45_220"}, "GOOD"]}]},
-//        {"and": [{"==": [{"var": "lumisection.rr.ctpps-rp56_210"}, "GOOD"]}, {"==": [{"var": "lumisection.rr.ctpps-rp56_220"}, "GOOD"]}]},
-//        {"and": [{"==": [{"var": "lumisection.rr.ctpps-rp56_cyl"}, "GOOD"]}, {"==": [{"var": "lumisection.rr.ctpps-rp56_210"}, "GOOD"]}]},
-//        {"and": [{"==": [{"var": "lumisection.rr.ctpps-rp56_cyl"}, "GOOD"]}, {"==": [{"var": "lumisection.rr.ctpps-rp56_220"}, "GOOD"]}]}
-//      ]
-//    }
-// ]
-// }
-
-// `
-//   });
-// }, 2000);
