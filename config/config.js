@@ -122,7 +122,7 @@ module.exports = {
     DQM_GUI_URL: 'https://cmsweb.cern.ch/dqm/offline/data/json/samples?match=',
     SECONDS_PER_DQM_GUI_CHECK: 40,
   },
-  kubernetes: {
+  prod_kubernetes: {
     username: 'admin',
     password: 'changeme',
     database: 'runregistry_database',

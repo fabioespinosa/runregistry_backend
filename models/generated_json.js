@@ -39,7 +39,27 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.JSONB,
         allowNull: false,
       },
-      anti_json: {
+      generated_anti_json: {
+        type: DataTypes.JSONB,
+        allowNull: false,
+      },
+      generated_anti_json_with_dataset_names: {
+        type: DataTypes.JSONB,
+        allowNull: false,
+      },
+      total_recorded_luminosity_lost: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+      },
+      total_delivered_luminosity_lost: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+      },
+      rules_flagged_false_quantity_luminosity: {
+        type: DataTypes.JSONB,
+        allowNull: false,
+      },
+      rules_flagged_false_combination_luminosity: {
         type: DataTypes.JSONB,
         allowNull: false,
       },

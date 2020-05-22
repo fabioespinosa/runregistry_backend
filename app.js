@@ -26,6 +26,9 @@ models.sequelize
       // const dbs_pinging = require('./cron_datasets/2.ping_dbs');
     });
 
+    // 100 minute timout to server
+    server.timeout = 100 * 60 * 1000;
+
     app.use((req, res, next) => {
       req.io = io;
       next();

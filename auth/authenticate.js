@@ -1,12 +1,12 @@
 const Permission = require('../controllers/permission');
 const requireAuth = async (req, res, next) => {
   try {
-    // if (process.env.NODE_ENV === 'development') {
-    //     next();
-    //     return;
-    // }
+    if (process.env.NODE_ENV === 'development') {
+      next();
+      return;
+    }
     let authenticated = false;
-    const email = req.get('email');
+    const email = req.get('email') || '';
     if (email.startsWith('auto@auto')) {
       // This would be the cron job re-classifying runs when they change from the API, no need to check for authentication:
       next();
