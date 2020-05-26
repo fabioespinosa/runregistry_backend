@@ -2,7 +2,7 @@ const { catchAPIError: catchAPI } = require('../utils/error_handlers');
 const auth = require('../auth/authenticate');
 const Lumisection = require('../controllers/lumisection');
 
-module.exports = app => {
+module.exports = (app) => {
   app.post(
     '/lumisections/joint_lumisection_ranges',
     catchAPI(Lumisection.get_rr_and_oms_lumisection_ranges)
@@ -40,5 +40,9 @@ module.exports = app => {
   app.post(
     '/lumisections/get_rr_lumisection_history',
     catchAPI(Lumisection.get_rr_lumisection_history)
+  );
+  app.post(
+    '/lumisections/get_luminosity_of_json_with_dataset_names',
+    catchAPI(Lumisection.get_luminosity_of_json_with_dataset_names)
   );
 };

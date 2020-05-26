@@ -1,4 +1,5 @@
 const sequelize = require('../models').sequelize;
+const Sequelize = require('../models').Sequelize;
 const {
   Run,
   Dataset,
@@ -6,15 +7,16 @@ const {
   LumisectionEvent,
   LumisectionEventAssignation,
   OMSLumisectionEvent,
-  OMSLumisectionEventAssignation
+  OMSLumisectionEventAssignation,
+  AggregatedLumisection,
 } = require('../models');
 const {
-  convert_array_of_ranges_to_array_of_list
+  convert_array_of_ranges_to_array_of_list,
 } = require('golden-json-helpers');
 const { deepEqual } = require('assert');
 const {
   oms_lumisection_whitelist,
-  oms_lumisection_luminosity_whitelist
+  oms_lumisection_luminosity_whitelist,
 } = require('../config/config');
 
 const getAttributesSpecifiedFromArray = require('get-attributes-specified-from-array');
@@ -34,7 +36,7 @@ const update_or_create_lumisection = async ({
   LSEvent,
   LSEventAssignation,
   atomic_version,
-  transaction
+  transaction,
 }) => {
   const by = req.email || req.get('email');
   if (!by) {
@@ -52,7 +54,7 @@ const update_or_create_lumisection = async ({
     }
     const event = await Event.create(
       {
-        atomic_version
+        atomic_version,
       },
       { transaction }
     );
@@ -68,7 +70,7 @@ const update_or_create_lumisection = async ({
         name: dataset_name,
         lumisection_metadata_id: deduplicated_jsonb.id,
         version: event.version,
-        manual_change
+        manual_change,
       },
       { transaction }
     );
@@ -76,11 +78,11 @@ const update_or_create_lumisection = async ({
     for (let i = start_lumisection; i <= end_lumisection; i++) {
       lumisection_entries.push({
         version: event.version,
-        lumisection_number: i
+        lumisection_number: i,
       });
     }
     await LSEventAssignation.bulkCreate(lumisection_entries, {
-      transaction
+      transaction,
     });
     if (local_transaction) {
       await transaction.commit();
@@ -101,18 +103,18 @@ exports.create_oms_lumisections = async ({
   lumisections,
   req,
   atomic_version,
-  transaction
+  transaction,
 }) => {
   const whitelist_including_luminosity = [
     ...oms_lumisection_whitelist,
-    ...oms_lumisection_luminosity_whitelist
+    ...oms_lumisection_luminosity_whitelist,
   ];
   const lumisection_ranges = await exports.getLumisectionRanges(
     lumisections,
     whitelist_including_luminosity
   );
 
-  const saved_ranges = lumisection_ranges.map(async lumisection_range => {
+  const saved_ranges = lumisection_ranges.map(async (lumisection_range) => {
     const { start, end } = lumisection_range;
     const lumisection_range_values = { ...lumisection_range };
     delete lumisection_range_values.start;
@@ -127,7 +129,7 @@ exports.create_oms_lumisections = async ({
       LSEvent: OMSLumisectionEvent,
       LSEventAssignation: OMSLumisectionEventAssignation,
       atomic_version,
-      transaction
+      transaction,
     });
   });
   await Promise.all(saved_ranges);
@@ -141,7 +143,7 @@ exports.create_rr_lumisections = async ({
   lumisections,
   req,
   atomic_version,
-  transaction
+  transaction,
 }) => {
   // let local_whitelist;
   // if (dataset_name !== 'online') {
@@ -150,10 +152,10 @@ exports.create_rr_lumisections = async ({
   // }
 
   const lumisection_ranges = await exports.getLumisectionRanges(lumisections, [
-    '*'
+    '*',
   ]);
 
-  const saved_ranges = lumisection_ranges.map(async lumisection_range => {
+  const saved_ranges = lumisection_ranges.map(async (lumisection_range) => {
     const { start, end } = lumisection_range;
     const lumisection_range_values = { ...lumisection_range };
     delete lumisection_range_values.start;
@@ -168,7 +170,7 @@ exports.create_rr_lumisections = async ({
       LSEvent: LumisectionEvent,
       LSEventAssignation: LumisectionEventAssignation,
       transaction,
-      atomic_version
+      atomic_version,
     });
   });
   await Promise.all(saved_ranges);
@@ -182,7 +184,7 @@ exports.update_rr_lumisections = async ({
   new_lumisections,
   req,
   atomic_version,
-  transaction
+  transaction,
 }) => {
   const by = req.email || req.get('email');
 
@@ -204,7 +206,7 @@ exports.update_rr_lumisections = async ({
     new_lumisections,
     local_whitelist
   );
-  const saved_ranges = new_ls_ranges.map(async lumisection_range => {
+  const saved_ranges = new_ls_ranges.map(async (lumisection_range) => {
     const { start, end } = lumisection_range;
     const lumisection_range_values = { ...lumisection_range };
     delete lumisection_range_values.start;
@@ -219,7 +221,7 @@ exports.update_rr_lumisections = async ({
       LSEvent: LumisectionEvent,
       LSEventAssignation: LumisectionEventAssignation,
       atomic_version,
-      transaction
+      transaction,
     });
   });
   await Promise.all(saved_ranges);
@@ -232,7 +234,7 @@ exports.update_oms_lumisections = async ({
   new_lumisections,
   req,
   atomic_version,
-  transaction
+  transaction,
 }) => {
   const previous_lumisections = await exports.get_oms_lumisections_for_dataset(
     run_number,
@@ -241,14 +243,14 @@ exports.update_oms_lumisections = async ({
 
   const whitelist_including_luminosity = [
     ...oms_lumisection_whitelist,
-    ...oms_lumisection_luminosity_whitelist
+    ...oms_lumisection_luminosity_whitelist,
   ];
   const new_ls_ranges = exports.getNewLumisectionRanges(
     previous_lumisections,
     new_lumisections,
     whitelist_including_luminosity
   );
-  const saved_ranges = new_ls_ranges.map(async lumisection_range => {
+  const saved_ranges = new_ls_ranges.map(async (lumisection_range) => {
     const { start, end } = lumisection_range;
     const lumisection_range_values = { ...lumisection_range };
     delete lumisection_range_values.start;
@@ -263,7 +265,7 @@ exports.update_oms_lumisections = async ({
       LSEvent: OMSLumisectionEvent,
       LSEventAssignation: OMSLumisectionEventAssignation,
       transaction,
-      atomic_version
+      atomic_version,
     });
   });
   await Promise.all(saved_ranges);
@@ -309,7 +311,7 @@ exports.getNewLumisectionRanges = (
         if (typeof previous_range.end === 'undefined') {
           new_ls_ranges[new_ls_ranges.length - 1] = {
             ...previous_range,
-            end: i
+            end: i,
           };
         }
       }
@@ -326,7 +328,7 @@ exports.getNewLumisectionRanges = (
         if (Object.keys(new_lumisection_attributes).length > 0) {
           new_ls_ranges.push({
             ...new_lumisection_attributes,
-            start: i + 1
+            start: i + 1,
           });
         }
       } else {
@@ -348,7 +350,7 @@ exports.getNewLumisectionRanges = (
           if (typeof previous_range.end === 'undefined') {
             new_ls_ranges[new_ls_ranges.length - 1] = {
               ...previous_range,
-              end: i
+              end: i,
             };
           }
           const new_lumisection_attributes = getObjectWithAttributesThatChanged(
@@ -357,7 +359,7 @@ exports.getNewLumisectionRanges = (
           );
           new_ls_ranges.push({
             ...new_lumisection_attributes,
-            start: i + 1
+            start: i + 1,
           });
         }
       }
@@ -370,7 +372,7 @@ exports.getNewLumisectionRanges = (
     if (typeof previous_range.end === 'undefined') {
       new_ls_ranges[new_ls_ranges.length - 1] = {
         ...previous_range,
-        end: new_lumisections.length
+        end: new_lumisections.length,
       };
     }
   }
@@ -399,8 +401,8 @@ exports.get_rr_lumisection_ranges_for_dataset = async (
       type: sequelize.QueryTypes.SELECT,
       replacements: {
         run_number,
-        dataset_name
-      }
+        dataset_name,
+      },
     }
   );
 
@@ -415,9 +417,9 @@ exports.get_rr_lumisection_ranges_for_dataset = async (
   });
 
   const ranges = {};
-  components_present_in_dataset.forEach(component => {
+  components_present_in_dataset.forEach((component) => {
     const component_merged_lumisections = merged_lumisections.map(
-      lumisection => {
+      (lumisection) => {
         return lumisection.triplets[component];
       }
     );
@@ -453,8 +455,8 @@ exports.get_rr_lumisections_for_dataset = async (
       type: sequelize.QueryTypes.SELECT,
       replacements: {
         run_number,
-        dataset_name
-      }
+        dataset_name,
+      },
     }
   );
   // Put all the components present in the dataset
@@ -480,7 +482,7 @@ exports.get_rr_lumisections_for_dataset = async (
       lumisections_with_empty_wholes[i] = {};
       if (i + 1 === lumisection_number) {
         current_merged_lumisection_element += 1;
-        components_present_in_dataset.forEach(component => {
+        components_present_in_dataset.forEach((component) => {
           if (typeof triplets[component] === 'object') {
             lumisections_with_empty_wholes[i][component] = triplets[component];
           } else {
@@ -488,17 +490,17 @@ exports.get_rr_lumisections_for_dataset = async (
             lumisections_with_empty_wholes[i][component] = {
               status: 'EMPTY',
               comment: '',
-              cause: ''
+              cause: '',
             };
           }
         });
       } else {
         // it is just a space between lumisections. where there are some lumisections above and some below, it just means its an empty lumisection
-        components_present_in_dataset.forEach(component => {
+        components_present_in_dataset.forEach((component) => {
           lumisections_with_empty_wholes[i][component] = {
             status: 'EMPTY',
             comment: '',
-            cause: ''
+            cause: '',
           };
         });
       }
@@ -532,8 +534,8 @@ exports.get_oms_lumisections_for_dataset = async (
       type: sequelize.QueryTypes.SELECT,
       replacements: {
         run_number,
-        dataset_name
-      }
+        dataset_name,
+      },
     }
   );
 
@@ -554,7 +556,7 @@ exports.get_oms_lumisections_for_dataset = async (
       } else {
         // it is just a space between lumisections. where there are some lumisections above and some below, it just means its an empty lumisection
         lumisections_with_empty_wholes[i] = {
-          err: 'No data available for this lumisection'
+          err: 'No data available for this lumisection',
         };
       }
     }
@@ -566,7 +568,7 @@ exports.get_oms_lumisections_for_dataset = async (
 exports.getLumisectionRanges = (lumisections, lumisection_attributes) => {
   // We whitelist the attributes we want (if it is an * in an array, it means we want all):
   if (lumisection_attributes[0] !== '*') {
-    lumisections = lumisections.map(lumisection =>
+    lumisections = lumisections.map((lumisection) =>
       getAttributesSpecifiedFromArray(lumisection, lumisection_attributes)
     );
   }
@@ -589,7 +591,7 @@ exports.getLumisectionRanges = (lumisections, lumisection_attributes) => {
         // This means that there is a LS break in the range (exception thrown), not equal, therefore we create a break in the ranges array:
         ls_ranges[ls_ranges.length - 1] = {
           ...previous_range,
-          end: i
+          end: i,
         };
         ls_ranges.push({ ...lumisections[i], start: i + 1 });
       }
@@ -598,7 +600,7 @@ exports.getLumisectionRanges = (lumisections, lumisection_attributes) => {
     // Set the end of final range:
     ls_ranges[ls_ranges.length - 1] = {
       ...ls_ranges[ls_ranges.length - 1],
-      end: lumisections.length
+      end: lumisections.length,
     };
   }
 
@@ -610,7 +612,7 @@ exports.edit_rr_lumisections = async (req, res) => {
     run_number,
     dataset_name,
     component,
-    new_lumisection_range
+    new_lumisection_range,
   } = req.body;
   let { start, end, status, comment, cause } = new_lumisection_range;
   if (!status) {
@@ -621,8 +623,8 @@ exports.edit_rr_lumisections = async (req, res) => {
       // For consistency we want triplet values to be either their value or empty strings:
       status: status || '',
       comment: comment || '',
-      cause: cause || ''
-    }
+      cause: cause || '',
+    },
   };
   if (dataset_name === 'online') {
     const run = await Run.findByPk(run_number);
@@ -634,8 +636,8 @@ exports.edit_rr_lumisections = async (req, res) => {
     const dataset = Dataset.findOne({
       where: {
         name: dataset_name,
-        run_number
-      }
+        run_number,
+      },
     });
   }
 
@@ -645,7 +647,7 @@ exports.edit_rr_lumisections = async (req, res) => {
     const { atomic_version } = await create_new_version({
       req,
       transaction,
-      comment: 'edit lumisections of a dataset'
+      comment: 'edit lumisections of a dataset',
     });
     const new_range = await update_or_create_lumisection({
       run_number,
@@ -657,7 +659,7 @@ exports.edit_rr_lumisections = async (req, res) => {
       LSEvent: LumisectionEvent,
       LSEventAssignation: LumisectionEventAssignation,
       atomic_version,
-      transaction
+      transaction,
     });
     // Bump the version in the dataset so the fill_dataset_triplet_cache will know that the lumisections inside it changed, and so can refill the cache:
     const { update_or_create_dataset } = require('./dataset');
@@ -666,7 +668,7 @@ exports.edit_rr_lumisections = async (req, res) => {
       run_number,
       dataset_metadata: {},
       atomic_version,
-      transaction
+      transaction,
     });
     await transaction.commit();
     await fill_dataset_triplet_cache();
@@ -674,8 +676,9 @@ exports.edit_rr_lumisections = async (req, res) => {
   } catch (err) {
     console.log(err);
     await transaction.rollback();
-    throw `Error updating lumisections of ${dataset_name} dataset, run number: ${run_number}: ${err.message ||
-      err}`;
+    throw `Error updating lumisections of ${dataset_name} dataset, run number: ${run_number}: ${
+      err.message || err
+    }`;
   }
 };
 exports.get_rr_and_oms_lumisection_ranges = async (req, res) => {
@@ -797,7 +800,7 @@ exports.get_rr_lumisection_history = async (req, res) => {
         `,
     {
       type: sequelize.QueryTypes.SELECT,
-      replacements: { run_number, name: dataset_name }
+      replacements: { run_number, name: dataset_name },
     }
   );
   res.json(history);
@@ -824,8 +827,8 @@ exports.get_data_of_json = async (req, res) => {
         type: sequelize.QueryTypes.SELECT,
         replacements: {
           run_number,
-          name: dataset_name
-        }
+          name: dataset_name,
+        },
       }
     );
 
@@ -841,7 +844,7 @@ exports.get_data_of_json = async (req, res) => {
         const formatted_lumisection = exports.format_lumisection(lumisection);
         if (typeof json_with_data[dataset_identifier] === 'undefined') {
           json_with_data[dataset_identifier] = {
-            [lumisection_number]: formatted_lumisection
+            [lumisection_number]: formatted_lumisection,
           };
         } else {
           json_with_data[dataset_identifier][
@@ -854,11 +857,11 @@ exports.get_data_of_json = async (req, res) => {
   res.json({
     json_with_data,
     total_recorded_luminosity,
-    total_delivered_luminosity
+    total_delivered_luminosity,
   });
 };
 
-exports.format_lumisection = lumisection => {
+exports.format_lumisection = (lumisection) => {
   // Ignore comment and cause in triplets, just keep the status:
   const rr_lumisection = {};
   for (const [key, val] of Object.entries(lumisection.rr_lumisection)) {
@@ -869,13 +872,40 @@ exports.format_lumisection = lumisection => {
     run: {
       oms: lumisection.run_oms_attributes,
       rr: lumisection.run_rr_attributes,
-      run_number: lumisection.run_number
+      run_number: lumisection.run_number,
     },
     lumisection: {
       lumisection_number: lumisection.lumisection_number,
       oms: lumisection.oms_lumisection,
-      rr: rr_lumisection
-    }
+      rr: rr_lumisection,
+    },
   };
   return formatted_lumisection;
+};
+
+exports.get_luminosity_of_json_with_dataset_names = async (req, res) => {
+  const { json_with_dataset_names } = req.body;
+  const json_with_luminosity = {};
+  for (const [key, ls_ranges] of Object.entries(json_with_dataset_names)) {
+    json_with_luminosity[key] = 0;
+    const [run_number, dataset_name] = key.split('-');
+    const lumisection_numbers = convert_array_of_ranges_to_array_of_list(
+      ls_ranges
+    );
+    const lumisections = await AggregatedLumisection.findAll({
+      where: {
+        run_number,
+        name: dataset_name,
+        lumisection_number: { [Sequelize.Op.in]: lumisection_numbers },
+      },
+    });
+    lumisections.forEach((lumisection) => {
+      const { oms_lumisection, lumisection_number } = lumisection;
+      if (lumisection_numbers.includes(lumisection_number)) {
+        const recorded = +oms_lumisection.recorded || 0;
+        json_with_luminosity[key] += recorded > 0 ? recorded : 0;
+      }
+    });
+  }
+  res.json(json_with_luminosity);
 };

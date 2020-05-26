@@ -257,13 +257,14 @@ jsonProcessingQueue.process(async (job, done) => {
       total_delivered_luminosity_lost: -1,
       rules_flagged_false_quantity_luminosity: {},
       rules_flagged_false_combination_luminosity: {},
+      runs_lumisections_responsible_for_rule: {},
       deleted: false,
     });
 
-    // Finished: job.progress(1);
+    // Finished:
+    job.progress(1);
 
     // Get Visualization:
-
     const generated_anti_json = {};
     const generated_anti_json_with_dataset_names = {};
 
@@ -300,6 +301,7 @@ jsonProcessingQueue.process(async (job, done) => {
     let {
       rules_flagged_false_quantity_luminosity,
       rules_flagged_false_combination_luminosity,
+      runs_lumisections_responsible_for_rule,
     } = exports.get_all_combination_of_causes_flagged_false(
       evaluated_json,
       anti_golden_json_data
@@ -312,6 +314,7 @@ jsonProcessingQueue.process(async (job, done) => {
       total_delivered_luminosity_lost,
       rules_flagged_false_quantity_luminosity,
       rules_flagged_false_combination_luminosity,
+      runs_lumisections_responsible_for_rule,
     });
 
     done(null, {
@@ -361,6 +364,7 @@ exports.get_all_combination_of_causes_flagged_false = (
   const rules_flagged_false_combination = {};
   const rules_flagged_false_quantity_luminosity = {};
   const rules_flagged_false_combination_luminosity = {};
+  let runs_lumisections_responsible_for_rule = {};
   for (const [identifier, lumisections] of Object.entries(evaluated_json)) {
     for (const [ls_index, evaluated_lumisection] of Object.entries(
       lumisections
@@ -393,6 +397,26 @@ exports.get_all_combination_of_causes_flagged_false = (
           ] += luminosity_of_lumisection;
         }
 
+        if (
+          typeof runs_lumisections_responsible_for_rule[
+            rules_why_false_reference
+          ] === 'undefined'
+        ) {
+          runs_lumisections_responsible_for_rule[rules_why_false_reference] = {
+            [identifier]: [+ls_index],
+          };
+        } else {
+          // We add the reference on where do this loss occurs for this particular rules:
+          runs_lumisections_responsible_for_rule[rules_why_false_reference][
+            identifier
+          ] = [
+            ...(runs_lumisections_responsible_for_rule[
+              rules_why_false_reference
+            ][identifier] || []),
+            +ls_index,
+          ];
+        }
+
         // Increment individual counter
         rules_why_false.forEach((rule) => {
           const rule_stringified = JSON.stringify(rule);
@@ -414,11 +438,23 @@ exports.get_all_combination_of_causes_flagged_false = (
     }
   }
 
+  // Convert runs_lumisections_responsible_for_rule to array of ranges
+  for (const [rule, identifiers] of Object.entries(
+    runs_lumisections_responsible_for_rule
+  )) {
+    for (const [identifier, lumisections] of Object.entries(identifiers)) {
+      runs_lumisections_responsible_for_rule[rule][
+        identifier
+      ] = convert_array_of_list_to_array_of_ranges(lumisections);
+    }
+  }
+
   return {
     rules_flagged_false_quantity,
     rules_flagged_false_combination,
     rules_flagged_false_quantity_luminosity,
     rules_flagged_false_combination_luminosity,
+    runs_lumisections_responsible_for_rule,
   };
 };
 

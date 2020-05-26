@@ -63,6 +63,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.JSONB,
         allowNull: false,
       },
+      runs_lumisections_responsible_for_rule: {
+        type: DataTypes.JSONB,
+        allowNull: false,
+      },
       deleted: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
