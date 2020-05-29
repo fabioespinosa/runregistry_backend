@@ -817,28 +817,20 @@ exports.get_data_of_json = async (req, res) => {
       throw "Every entry in the json must include the respective dataset name, as in '316701-/PromptReco/Collisions2018A/DQM";
     }
     const [run_number, dataset_name] = dataset_identifier.split(/-(.+)/); // We split the run_number and dataset name, we use the regular expression to split on the first occurrence of character '-'
-    const lumisections = await sequelize.query(
-      `
-                SELECT * FROM "AggregatedLumisection"
-                WHERE run_number = :run_number 
-                AND name = :name
-            `,
-      {
-        type: sequelize.QueryTypes.SELECT,
-        replacements: {
-          run_number,
-          name: dataset_name,
-        },
-      }
-    );
-
     const lumisection_numbers = convert_array_of_ranges_to_array_of_list(
       ranges
     );
+    const lumisections = await AggregatedLumisection.findAll({
+      where: {
+        run_number,
+        name: dataset_name,
+        lumisection_number: { [Sequelize.Op.in]: lumisection_numbers },
+      },
+    });
+
     lumisections.forEach((lumisection, index) => {
-      const lumisection_number = index + 1;
+      const { lumisection_number, oms_lumisection } = lumisection;
       if (lumisection_numbers.includes(lumisection_number)) {
-        const { oms_lumisection } = lumisection;
         total_recorded_luminosity += +oms_lumisection.recorded || 0;
         total_delivered_luminosity += +oms_lumisection.delivered || 0;
         const formatted_lumisection = exports.format_lumisection(lumisection);
