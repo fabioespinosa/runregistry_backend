@@ -10,7 +10,8 @@
     "fake_dev": "export NODE_ENV=development && export ENV=development && node app.js ",
     "test": "export NODE_ENV=development && nodemon --exec 'mocha -R min'",
     "test_once": "mocha -R min",
-    "migrate": "./node_modules/.bin/sequelize db:migrate"
+    "migrate": "./node_modules/.bin/sequelize db:migrate",
+    "publish": "docker build . -t cmssw/runregistry-backend && docker push cmssw/runregistry-backend"
   },
   "keywords": [],
   "author": "",

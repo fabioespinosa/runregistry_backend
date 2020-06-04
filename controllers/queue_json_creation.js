@@ -10,7 +10,13 @@ const {
   return_classifier_evaluated_tuple,
 } = require('./classifier_playground');
 const io = require('socket.io')(http);
-const { sequelize, Sequelize, GeneratedJson, Version } = require('../models');
+const {
+  sequelize,
+  Sequelize,
+  GeneratedJson,
+  Version,
+  AggregatedLumisection,
+} = require('../models');
 const { format_lumisection } = require('./lumisection');
 const pMap = require('p-map');
 const Queue = require('bull');
@@ -112,7 +118,6 @@ exports.calculate_json = async (req, res) => {
   );
   jsonProcessingQueue.on('progress', (job, progress) => {
     req.io.emit('progress', { id: job.id, progress });
-    console.log(`internal progress for job ${job.id}`, progress);
   });
 
   jsonProcessingQueue.on('completed', (job, result) => {
@@ -133,6 +138,7 @@ jsonProcessingQueue.process(async (job, done) => {
       SELECT * FROM "Dataset"
       WHERE name SIMILAR TO :name
       AND deleted = false
+      ORDER BY run_number ASC
     `,
       {
         type: sequelize.QueryTypes.SELECT,
@@ -147,29 +153,43 @@ jsonProcessingQueue.process(async (job, done) => {
     const generated_anti_json_list = {};
     const generated_anti_json_with_dataset_names_list = {};
     let counter_datasets_processed = 0;
+    let total_recorded_luminosity = 0;
+    let total_delivered_luminosity = 0;
+    let recorded_luminosity_in_json = 0;
+    let delivered_luminosity_in_json = 0;
+    const min_run_number = datasets[0].run_number;
+    const max_run_number = datasets[datasets.length - 1].run_number;
     const mapper = async (dataset) => {
       const { run_number, name: dataset_name_filter } = dataset;
-      const lumisections = await sequelize.query(
-        `
-      SELECT * FROM "AggregatedLumisection"
-      WHERE run_number = :run_number
-      AND name = :name
-  `,
-        {
-          type: sequelize.QueryTypes.SELECT,
-          replacements: {
-            run_number,
-            name: dataset_name_filter,
-          },
-        }
-      );
+      const lumisections = await AggregatedLumisection.findAll({
+        where: {
+          run_number,
+          name: dataset_name_filter,
+        },
+      });
 
       for (let i = 0; i < lumisections.length; i++) {
         const lumisection = format_lumisection(lumisections[i]);
         const { run_number } = lumisection.run;
         const { name } = lumisection.dataset;
-        const { lumisection_number } = lumisection.lumisection;
+        const {
+          lumisection_number,
+          oms: oms_lumisection,
+        } = lumisection.lumisection;
+        const recorded = +oms_lumisection.recorded || 0;
+        const delivered = +oms_lumisection.delivered || 0;
+        const recorded_non_negative = recorded >= 0 ? recorded : 0;
+        const delivered_non_negative = delivered >= 0 ? delivered : 0;
+
+        // Add luminosity to all lumisections (good and bad):
+        total_recorded_luminosity += recorded_non_negative;
+        total_delivered_luminosity += delivered_non_negative;
+
         if (json_logic_library.apply(json_logic, lumisection)) {
+          // Add luminosity to lumisections which made it in the golden json:
+          recorded_luminosity_in_json += recorded_non_negative;
+          delivered_luminosity_in_json += delivered_non_negative;
+          // Add to json:
           if (typeof generated_json_list[run_number] === 'undefined') {
             generated_json_list[run_number] = [lumisection_number];
           } else {
@@ -253,6 +273,10 @@ jsonProcessingQueue.process(async (job, done) => {
       generated_json_with_dataset_names,
       generated_anti_json: {},
       generated_anti_json_with_dataset_names: {},
+      total_recorded_luminosity,
+      total_delivered_luminosity,
+      recorded_luminosity_in_json,
+      delivered_luminosity_in_json,
       total_recorded_luminosity_lost: -1,
       total_delivered_luminosity_lost: -1,
       rules_flagged_false_quantity_luminosity: {},
@@ -327,6 +351,31 @@ jsonProcessingQueue.process(async (job, done) => {
   }
 });
 
+exports.get_online_luminosity_from_run_range = async (run_min, run_max) => {
+  // We get the luminosity from the online dataset, since this contains absolutely all short runs, even commissioning, all that didn't make it to offline
+  const luminosity_runs = await DatasetTripletCache.findAll({
+    attributes: [
+      'run_number',
+      [
+        sequelize.fn('sum', sequelize.col('brilcalc_recorded_luminosity')),
+        'brilcalc_recorded_luminosity',
+      ],
+      [
+        sequelize.fn('sum', sequelize.col('brilcalc_delivered_luminosity')),
+        'brilcalc_delivered_luminosity',
+      ],
+    ],
+    group: ['DatasetTripletCache.run_number'],
+    where: {
+      name: 'online',
+      run_number: {
+        [Op.min]: run_min,
+        [Op.max]: run_max,
+      },
+    },
+  });
+};
+
 exports.get_anti_json_evaluated = (anti_golden_json_data, json_logic) => {
   if (typeof json_logic === 'string') {
     json_logic = JSON.parse(json_logic);
@@ -382,59 +431,58 @@ exports.get_all_combination_of_causes_flagged_false = (
 
       if (luminosity_of_lumisection <= 0 || !luminosity_of_lumisection) {
         luminosity_of_lumisection = 0;
+      }
+      // We are only interested in the rules which had more than 0 of luminosity
+      // Increment combination counter
+      if (typeof current_counter === 'undefined') {
+        rules_flagged_false_combination[rules_why_false_reference] = 1;
+        rules_flagged_false_combination_luminosity[
+          rules_why_false_reference
+        ] = luminosity_of_lumisection;
       } else {
-        // We are only interested in the rules which had more than 0 of luminosity
-        // Increment combination counter
-        if (typeof current_counter === 'undefined') {
-          rules_flagged_false_combination[rules_why_false_reference] = 1;
-          rules_flagged_false_combination_luminosity[
-            rules_why_false_reference
+        rules_flagged_false_combination[rules_why_false_reference] += 1;
+        rules_flagged_false_combination_luminosity[
+          rules_why_false_reference
+        ] += luminosity_of_lumisection;
+      }
+
+      if (
+        typeof runs_lumisections_responsible_for_rule[
+          rules_why_false_reference
+        ] === 'undefined'
+      ) {
+        runs_lumisections_responsible_for_rule[rules_why_false_reference] = {
+          [identifier]: [+ls_index],
+        };
+      } else {
+        // We add the reference on where do this loss occurs for this particular rules:
+        runs_lumisections_responsible_for_rule[rules_why_false_reference][
+          identifier
+        ] = [
+          ...(runs_lumisections_responsible_for_rule[rules_why_false_reference][
+            identifier
+          ] || []),
+          +ls_index,
+        ];
+      }
+
+      // Increment individual counter
+      rules_why_false.forEach((rule) => {
+        const rule_stringified = JSON.stringify(rule);
+        const current_counter_quantity =
+          rules_flagged_false_quantity[rule_stringified];
+        if (typeof current_counter_quantity === 'undefined') {
+          rules_flagged_false_quantity[rule_stringified] = 1;
+          rules_flagged_false_quantity_luminosity[
+            rule_stringified
           ] = luminosity_of_lumisection;
         } else {
-          rules_flagged_false_combination[rules_why_false_reference] += 1;
-          rules_flagged_false_combination_luminosity[
-            rules_why_false_reference
+          rules_flagged_false_quantity[rule_stringified] += 1;
+          rules_flagged_false_quantity_luminosity[
+            rule_stringified
           ] += luminosity_of_lumisection;
         }
-
-        if (
-          typeof runs_lumisections_responsible_for_rule[
-            rules_why_false_reference
-          ] === 'undefined'
-        ) {
-          runs_lumisections_responsible_for_rule[rules_why_false_reference] = {
-            [identifier]: [+ls_index],
-          };
-        } else {
-          // We add the reference on where do this loss occurs for this particular rules:
-          runs_lumisections_responsible_for_rule[rules_why_false_reference][
-            identifier
-          ] = [
-            ...(runs_lumisections_responsible_for_rule[
-              rules_why_false_reference
-            ][identifier] || []),
-            +ls_index,
-          ];
-        }
-
-        // Increment individual counter
-        rules_why_false.forEach((rule) => {
-          const rule_stringified = JSON.stringify(rule);
-          const current_counter_quantity =
-            rules_flagged_false_quantity[rule_stringified];
-          if (typeof current_counter_quantity === 'undefined') {
-            rules_flagged_false_quantity[rule_stringified] = 1;
-            rules_flagged_false_quantity_luminosity[
-              rule_stringified
-            ] = luminosity_of_lumisection;
-          } else {
-            rules_flagged_false_quantity[rule_stringified] += 1;
-            rules_flagged_false_quantity_luminosity[
-              rule_stringified
-            ] += luminosity_of_lumisection;
-          }
-        });
-      }
+      });
     }
   }
 

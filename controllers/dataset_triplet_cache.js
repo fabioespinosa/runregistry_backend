@@ -2,25 +2,25 @@ const queue = require('async').queue;
 const sequelize = require('../models').sequelize;
 const Sequelize = require('../models').Sequelize;
 const {
-  convert_array_of_list_to_array_of_ranges
+  convert_array_of_list_to_array_of_ranges,
 } = require('golden-json-helpers');
 const {
   DatasetTripletCache,
   Dataset,
-  AggregatedLumisection
+  AggregatedLumisection,
 } = require('../models');
 const { Op } = Sequelize;
 const number_of_datasets_per_batch = 80;
 
-exports.fill_dataset_triplet_cache = async transaction => {
+exports.fill_dataset_triplet_cache = async (transaction) => {
   return new Promise(async (resolve, reject) => {
     const max_version = (await DatasetTripletCache.max('version')) || 0;
     const count = await Dataset.count({
       where: {
         version: {
-          [Op.gt]: max_version
-        }
-      }
+          [Op.gt]: max_version,
+        },
+      },
     });
 
     const number_of_batches = Math.ceil(count / number_of_datasets_per_batch);
@@ -31,15 +31,15 @@ exports.fill_dataset_triplet_cache = async transaction => {
         const dataset_batch = await Dataset.findAll({
           where: {
             version: {
-              [Op.gt]: max_version
-            }
+              [Op.gt]: max_version,
+            },
           },
           order: [
             ['version', 'ASC'],
-            ['run_number', 'ASC']
+            ['run_number', 'ASC'],
           ],
           limit: number_of_datasets_per_batch,
-          offset: i * number_of_datasets_per_batch
+          offset: i * number_of_datasets_per_batch,
         });
         const processed_datasets = await exports.processDatasets(
           dataset_batch,
@@ -49,14 +49,14 @@ exports.fill_dataset_triplet_cache = async transaction => {
       });
     }
     console.log(`Processing for ${count} datasets.`);
-    const asyncQueue = queue(async dataset_batch => await dataset_batch(), 1);
+    const asyncQueue = queue(async (dataset_batch) => await dataset_batch(), 1);
     asyncQueue.drain = async () => {
       console.log(
         `Cache generated for ${number_of_processed_datasets} datasets`
       );
       resolve();
     };
-    asyncQueue.error = err => {
+    asyncQueue.error = (err) => {
       console.log('Error: ');
       console.log(err);
       reject();
@@ -75,15 +75,15 @@ exports.processDatasets = async (
   if (transaction) {
     options.transaction = transaction;
   }
-  const promises = dataset_batch.map(async dataset => {
+  const promises = dataset_batch.map(async (dataset) => {
     try {
       const { name, run_number } = dataset;
       const merged_lumisections = await AggregatedLumisection.findAll({
         raw: true,
         where: {
           run_number,
-          name
-        }
+          name,
+        },
       });
       const dcs_summary = calculate_oms_lumisection_cache(merged_lumisections);
       const triplet_summary = calculate_rr_lumisection_cache(
@@ -91,6 +91,11 @@ exports.processDatasets = async (
       );
       const rr_ranges = calculate_rr_ranges(merged_lumisections);
       const dcs_ranges = calculate_oms_ranges(merged_lumisections);
+      const {
+        brilcalc_recorded_luminosity,
+        brilcalc_delivered_luminosity,
+      } = calculate_luminosity(merged_lumisections);
+
       await DatasetTripletCache.upsert(
         {
           name: dataset.name,
@@ -99,7 +104,9 @@ exports.processDatasets = async (
           dcs_summary,
           triplet_summary,
           rr_ranges,
-          dcs_ranges
+          dcs_ranges,
+          brilcalc_recorded_luminosity,
+          brilcalc_delivered_luminosity,
         },
         options
       );
@@ -132,7 +139,7 @@ exports.processDatasets = async (
   return await Promise.all(promises);
 };
 
-exports.fill_for_unfilled_datasets = async transaction => {
+exports.fill_for_unfilled_datasets = async (transaction) => {
   const count_query_function = async () =>
     await sequelize.query(
       `
@@ -141,7 +148,7 @@ exports.fill_for_unfilled_datasets = async transaction => {
                 WHERE triplet_summary IS NULL
             `,
       {
-        type: sequelize.QueryTypes.SELECT
+        type: sequelize.QueryTypes.SELECT,
       }
     );
   const count_query_result = await count_query_function();
@@ -163,7 +170,7 @@ exports.fill_for_unfilled_datasets = async transaction => {
                 OFFSET ${i * number_of_datasets_per_batch};
                 `,
         {
-          type: sequelize.QueryTypes.SELECT
+          type: sequelize.QueryTypes.SELECT,
         }
       );
       const processed_datasets = await exports.processDatasets(
@@ -177,7 +184,7 @@ exports.fill_for_unfilled_datasets = async transaction => {
   console.log(`Processing for ${count} datasets.`);
   const number_of_workers = 4;
   const asyncQueue = queue(
-    async dataset_batch => await dataset_batch(),
+    async (dataset_batch) => await dataset_batch(),
     number_of_workers
   );
   asyncQueue.drain = async () => {
@@ -193,7 +200,7 @@ exports.fill_for_unfilled_datasets = async transaction => {
       await exports.fill_for_unfilled_datasets(transaction);
     }
   };
-  asyncQueue.error = err => {
+  asyncQueue.error = (err) => {
     console.log('Error: ');
     console.log(err);
     throw err;
@@ -201,7 +208,7 @@ exports.fill_for_unfilled_datasets = async transaction => {
   await asyncQueue.push(async_functions);
 };
 
-exports.recalculate_all_triplet_cache = async transaction => {
+exports.recalculate_all_triplet_cache = async (transaction) => {
   const count = await Dataset.count();
   const number_of_batches = Math.ceil(count / number_of_datasets_per_batch);
   const async_functions = [];
@@ -211,10 +218,10 @@ exports.recalculate_all_triplet_cache = async transaction => {
       const dataset_batch = await Dataset.findAll({
         order: [
           ['version', 'ASC'],
-          ['run_number', 'ASC']
+          ['run_number', 'ASC'],
         ],
         limit: number_of_datasets_per_batch,
-        offset: i * number_of_datasets_per_batch
+        offset: i * number_of_datasets_per_batch,
       });
       const processed_datasets = await exports.processDatasets(
         dataset_batch,
@@ -225,11 +232,11 @@ exports.recalculate_all_triplet_cache = async transaction => {
   }
 
   console.log(`Processing for ${count} datasets.`);
-  const asyncQueue = queue(async dataset_batch => await dataset_batch(), 4);
+  const asyncQueue = queue(async (dataset_batch) => await dataset_batch(), 4);
   asyncQueue.drain = async () => {
     console.log(`Cache generated for ${number_of_processed_datasets} datasets`);
   };
-  asyncQueue.error = err => {
+  asyncQueue.error = (err) => {
     console.log('Error: ');
     console.log(err);
     throw err;
@@ -237,7 +244,7 @@ exports.recalculate_all_triplet_cache = async transaction => {
   await asyncQueue.push(async_functions);
 };
 
-const calculate_oms_lumisection_cache = merged_lumisections => {
+const calculate_oms_lumisection_cache = (merged_lumisections) => {
   // Put all the dcs bits present in the dataset
   const dcs_present_in_dataset = [];
   merged_lumisections.forEach(({ oms_lumisection }) => {
@@ -253,7 +260,7 @@ const calculate_oms_lumisection_cache = merged_lumisections => {
           'delivered_lumi',
           'live_lumi_per_lumi',
           'recorded_lumi_per_lumi',
-          'delivered_lumi_per_lumi'
+          'delivered_lumi_per_lumi',
         ].includes(dcs_bit)
       ) {
         dcs_present_in_dataset.push(dcs_bit);
@@ -262,12 +269,12 @@ const calculate_oms_lumisection_cache = merged_lumisections => {
   });
   const dcs_summary = {};
   // Initialize empty components:
-  dcs_present_in_dataset.forEach(dcs_bit => {
+  dcs_present_in_dataset.forEach((dcs_bit) => {
     dcs_summary[dcs_bit] = {
       TRUE: 0,
       FALSE: 0,
       NULL: 0,
-      EMPTY: 0
+      EMPTY: 0,
     };
   });
 
@@ -284,7 +291,7 @@ const calculate_oms_lumisection_cache = merged_lumisections => {
       ];
       if (i + 1 === lumisection_number) {
         current_merged_lumisection_element += 1;
-        dcs_present_in_dataset.forEach(dcs_bit => {
+        dcs_present_in_dataset.forEach((dcs_bit) => {
           if (typeof oms_lumisection[dcs_bit] !== 'undefined') {
             const dcs_bit_value = oms_lumisection[dcs_bit];
 
@@ -305,7 +312,7 @@ const calculate_oms_lumisection_cache = merged_lumisections => {
         });
       } else {
         // it is just a space between lumisections. where there are some lumisections above and some below, it just means its an empty lumisection
-        dcs_present_in_dataset.forEach(dcs_bit => {
+        dcs_present_in_dataset.forEach((dcs_bit) => {
           dcs_summary[dcs_bit]['EMPTY'] += 1;
         });
       }
@@ -315,7 +322,7 @@ const calculate_oms_lumisection_cache = merged_lumisections => {
   return dcs_summary;
 };
 
-const calculate_rr_lumisection_cache = merged_lumisections => {
+const calculate_rr_lumisection_cache = (merged_lumisections) => {
   // If there is null in the rr_lumisection, means that the lumisections
   if (
     merged_lumisections.length > 0 &&
@@ -336,11 +343,11 @@ const calculate_rr_lumisection_cache = merged_lumisections => {
 
   const triplet_summary = {};
   // Initialize empty components:
-  components_present_in_dataset.forEach(component => {
+  components_present_in_dataset.forEach((component) => {
     triplet_summary[component] = {
       EMPTY: 0,
       comments: [],
-      causes: []
+      causes: [],
     };
   });
   // Insert data:
@@ -355,7 +362,7 @@ const calculate_rr_lumisection_cache = merged_lumisections => {
       ];
       if (i + 1 === lumisection_number) {
         current_merged_lumisection_element += 1;
-        components_present_in_dataset.forEach(component => {
+        components_present_in_dataset.forEach((component) => {
           if (typeof rr_lumisection[component] === 'object') {
             const { status, comment, cause } = rr_lumisection[component];
             // We add the status:
@@ -384,7 +391,7 @@ const calculate_rr_lumisection_cache = merged_lumisections => {
         });
       } else {
         // it is just a space between lumisections. where there are some lumisections above and some below, it just means its an empty lumisection, which should not happen
-        components_present_in_dataset.forEach(component => {
+        components_present_in_dataset.forEach((component) => {
           triplet_summary[component]['EMPTY'] += 1;
         });
       }
@@ -393,7 +400,7 @@ const calculate_rr_lumisection_cache = merged_lumisections => {
   return triplet_summary;
 };
 
-const calculate_rr_ranges = merged_lumisections => {
+const calculate_rr_ranges = (merged_lumisections) => {
   if (
     merged_lumisections.length > 0 &&
     merged_lumisections[0].rr_lumisection === null
@@ -413,7 +420,7 @@ const calculate_rr_ranges = merged_lumisections => {
 
   const lumisections_component_status = {};
 
-  components_present_in_dataset.forEach(component => {
+  components_present_in_dataset.forEach((component) => {
     lumisections_component_status[component] = { EMPTY: [] };
   });
 
@@ -442,7 +449,7 @@ First step is to get it in the form of
       ];
       if (i + 1 === lumisection_number) {
         current_merged_lumisection_element += 1;
-        components_present_in_dataset.forEach(component => {
+        components_present_in_dataset.forEach((component) => {
           if (typeof rr_lumisection[component] === 'object') {
             const { status } = rr_lumisection[component];
             if (
@@ -450,7 +457,7 @@ First step is to get it in the form of
               'undefined'
             ) {
               lumisections_component_status[component][status] = [
-                lumisection_number
+                lumisection_number,
               ];
             } else {
               lumisections_component_status[component][status].push(
@@ -464,7 +471,7 @@ First step is to get it in the form of
           }
         });
       } else {
-        components_present_in_dataset.forEach(component => {
+        components_present_in_dataset.forEach((component) => {
           lumisections_component_status[component]['EMPTY'].push(
             lumisection_number
           );
@@ -490,7 +497,7 @@ First step is to get it in the form of
 
   const ranges_in_component = {};
 
-  components_present_in_dataset.forEach(component => {
+  components_present_in_dataset.forEach((component) => {
     ranges_in_component[component] = {};
   });
 
@@ -509,7 +516,7 @@ First step is to get it in the form of
   return ranges_in_component;
 };
 
-const calculate_oms_ranges = merged_lumisections => {
+const calculate_oms_ranges = (merged_lumisections) => {
   // Put all the dcs bits present in the dataset
   const dcs_present_in_dataset = [];
   merged_lumisections.forEach(({ oms_lumisection }) => {
@@ -525,7 +532,7 @@ const calculate_oms_ranges = merged_lumisections => {
           'delivered_lumi',
           'live_lumi_per_lumi',
           'recorded_lumi_per_lumi',
-          'delivered_lumi_per_lumi'
+          'delivered_lumi_per_lumi',
         ].includes(dcs_bit)
       ) {
         dcs_present_in_dataset.push(dcs_bit);
@@ -535,12 +542,12 @@ const calculate_oms_ranges = merged_lumisections => {
 
   const lumisection_dcs_values = {};
   // Initialize empty components:
-  dcs_present_in_dataset.forEach(dcs_bit => {
+  dcs_present_in_dataset.forEach((dcs_bit) => {
     lumisection_dcs_values[dcs_bit] = {
       TRUE: [],
       FALSE: [],
       NULL: [],
-      EMPTY: []
+      EMPTY: [],
     };
   });
 
@@ -556,7 +563,7 @@ const calculate_oms_ranges = merged_lumisections => {
       ];
       if (i + 1 === lumisection_number) {
         current_merged_lumisection_element += 1;
-        dcs_present_in_dataset.forEach(dcs_bit => {
+        dcs_present_in_dataset.forEach((dcs_bit) => {
           if (typeof oms_lumisection[dcs_bit] !== 'undefined') {
             const dcs_bit_value = oms_lumisection[dcs_bit];
             // If the value is null:
@@ -575,7 +582,7 @@ const calculate_oms_ranges = merged_lumisections => {
         });
       } else {
         // it is just a space between lumisections. where there are some lumisections above and some below, it just means its an empty lumisection
-        dcs_present_in_dataset.forEach(dcs_bit => {
+        dcs_present_in_dataset.forEach((dcs_bit) => {
           lumisection_dcs_values[dcs_bit]['EMPTY'].push(lumisection_number);
         });
       }
@@ -584,7 +591,7 @@ const calculate_oms_ranges = merged_lumisections => {
 
   const ranges_in_dcs = {};
 
-  dcs_present_in_dataset.forEach(dcs_bit => {
+  dcs_present_in_dataset.forEach((dcs_bit) => {
     ranges_in_dcs[dcs_bit] = {};
   });
 
@@ -599,9 +606,25 @@ const calculate_oms_ranges = merged_lumisections => {
   if (merged_lumisections.length > 0) {
     // Add the range of full lumisections
     ranges_in_dcs['all_lumisections'] = {
-      TRUE: [[1, merged_lumisections.length]]
+      TRUE: [[1, merged_lumisections.length]],
     };
   }
 
   return ranges_in_dcs;
+};
+
+const calculate_luminosity = (merged_lumisections) => {
+  let brilcalc_recorded_luminosity = 0;
+  let brilcalc_delivered_luminosity = 0;
+  merged_lumisections.forEach((lumisection) => {
+    const { oms_lumisection } = lumisection;
+    const recorded = +oms_lumisection.recorded || 0;
+    const delivered = +oms_lumisection.delivered || 0;
+    const recorded_non_negative = recorded >= 0 ? recorded : 0;
+    const delivered_non_negative = delivered >= 0 ? delivered : 0;
+    brilcalc_recorded_luminosity += recorded_non_negative;
+    brilcalc_delivered_luminosity += delivered_non_negative;
+  });
+
+  return { brilcalc_recorded_luminosity, brilcalc_delivered_luminosity };
 };

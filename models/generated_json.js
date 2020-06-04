@@ -47,6 +47,22 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.JSONB,
         allowNull: false,
       },
+      total_delivered_luminosity: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+      },
+      total_recorded_luminosity: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+      },
+      recorded_luminosity_in_json: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+      },
+      delivered_luminosity_in_json: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+      },
       total_recorded_luminosity_lost: {
         type: DataTypes.FLOAT,
         allowNull: false,

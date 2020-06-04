@@ -831,8 +831,13 @@ exports.get_data_of_json = async (req, res) => {
     lumisections.forEach((lumisection, index) => {
       const { lumisection_number, oms_lumisection } = lumisection;
       if (lumisection_numbers.includes(lumisection_number)) {
-        total_recorded_luminosity += +oms_lumisection.recorded || 0;
-        total_delivered_luminosity += +oms_lumisection.delivered || 0;
+        // We want non-negative luminosity numbers:
+        const recorded = +oms_lumisection.recorded || 0;
+        const delivered = +oms_lumisection.delivered || 0;
+        const recorded_non_negative = recorded >= 0 ? recorded : 0;
+        const delivered_non_negative = delivered >= 0 ? delivered : 0;
+        total_recorded_luminosity += recorded_non_negative;
+        total_delivered_luminosity += delivered_non_negative;
         const formatted_lumisection = exports.format_lumisection(lumisection);
         if (typeof json_with_data[dataset_identifier] === 'undefined') {
           json_with_data[dataset_identifier] = {

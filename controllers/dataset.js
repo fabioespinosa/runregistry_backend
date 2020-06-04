@@ -11,7 +11,7 @@ const {
   Event,
   Workspace,
   Version,
-  Run
+  Run,
 } = require('../models');
 const {
   get_rr_lumisections_for_dataset,
@@ -19,18 +19,20 @@ const {
   get_rr_lumisection_ranges_for_dataset,
   create_rr_lumisections,
   create_oms_lumisections,
-  update_oms_lumisections
+  update_oms_lumisections,
 } = require('./lumisection');
 const { create_new_version } = require('./version');
 const {
   fill_dataset_triplet_cache,
   fill_for_unfilled_datasets,
   recalculate_all_triplet_cache,
-  processDatasets
+  processDatasets,
 } = require('./dataset_triplet_cache');
 const { WAITING_DQM_GUI_CONSTANT } = require('../config/config')[
   process.env.ENV || 'development'
 ];
+
+fill_for_unfilled_datasets();
 
 const { Op } = Sequelize;
 const conversion_operator = {
@@ -48,7 +50,7 @@ const conversion_operator = {
   AND: Op.and,
   OR: Op.or,
   LIKE: Op.iLike,
-  NOTLIKE: Op.notLike
+  NOTLIKE: Op.notLike,
 };
 
 exports.update_or_create_dataset = async ({
@@ -57,7 +59,7 @@ exports.update_or_create_dataset = async ({
   dataset_metadata,
   atomic_version,
   transaction,
-  delete_dataset = false
+  delete_dataset = false,
 }) => {
   run_number = +run_number;
   if (!atomic_version) {
@@ -72,7 +74,7 @@ exports.update_or_create_dataset = async ({
     }
     const event = await Event.create(
       {
-        atomic_version
+        atomic_version,
       },
       { transaction }
     );
@@ -83,7 +85,7 @@ exports.update_or_create_dataset = async ({
         run_number,
         dataset_metadata,
         version: event.version,
-        deleted: delete_dataset
+        deleted: delete_dataset,
       },
       { transaction }
     );
@@ -134,9 +136,9 @@ exports.getDataset = async (req, res) => {
   const dataset = await Dataset.findOne({
     where: {
       run_number,
-      name: dataset_name
+      name: dataset_name,
     },
-    include: [{ model: Run }, { model: DatasetTripletCache }]
+    include: [{ model: Run }, { model: DatasetTripletCache }],
   });
   res.json(dataset);
 };
@@ -146,8 +148,8 @@ exports.recalculate_cache_for_specific_dataset = async (req, res) => {
   const dataset = await Dataset.findOne({
     where: {
       run_number,
-      name: dataset_name
-    }
+      name: dataset_name,
+    },
   });
   await processDatasets([dataset]);
   await exports.getDataset(req, res);
@@ -159,13 +161,13 @@ exports.new = async (req, res) => {
     dataset_name,
     rr_lumisections,
     oms_lumisections,
-    dataset_attributes
+    dataset_attributes,
   } = req.body;
   const dataset = await Dataset.findOne({
     where: {
       run_number,
-      name: dataset_name
-    }
+      name: dataset_name,
+    },
   });
   if (dataset !== null) {
     throw 'Dataset already exists';
@@ -176,7 +178,7 @@ exports.new = async (req, res) => {
     const { atomic_version } = await create_new_version({
       req,
       transaction,
-      comment: 'dataset creation'
+      comment: 'dataset creation',
     });
 
     const datasetEvent = await exports.update_or_create_dataset({
@@ -185,7 +187,7 @@ exports.new = async (req, res) => {
       dataset_metadata: dataset_attributes,
       req,
       atomic_version,
-      transaction
+      transaction,
     });
 
     // lumisections
@@ -196,7 +198,7 @@ exports.new = async (req, res) => {
       lumisections: rr_lumisections,
       req,
       atomic_version,
-      transaction
+      transaction,
     });
     // However for OMS lumisections, if there is new stuff, we simply append it to the current table, so that the aggregate will get the changes
     // It can edit oms_lumisections
@@ -214,7 +216,7 @@ exports.new = async (req, res) => {
         new_lumisections: oms_lumisections,
         req,
         atomic_version,
-        transaction
+        transaction,
       });
     }
     await transaction.commit();
@@ -232,8 +234,8 @@ exports.getDatasetsWaiting = async (req, res) => {
     where: {
       // DO NOT CHANGE THE FOLLOWING LINE AS APPLICATION LOGIC RELIES ON IT:
       'dataset_attributes.global_state': WAITING_DQM_GUI_CONSTANT,
-      deleted: false
-    }
+      deleted: false,
+    },
   });
   res.json(datasets);
 };
@@ -243,10 +245,10 @@ exports.getDatasetsWaitingDBS = async (req, res) => {
       // DO NOT CHANGE THE FOLLOWING LINE AS APPLICATION LOGIC RELIES ON IT:
       [Op.or]: [
         { 'dataset_attributes.appeared_in': '' },
-        { 'dataset_attributes.appeared_in': 'DQM GUI' }
+        { 'dataset_attributes.appeared_in': 'DQM GUI' },
       ],
-      deleted: false
-    }
+      deleted: false,
+    },
   });
   res.json(datasets);
 };
@@ -268,8 +270,8 @@ exports.appearedInDBS = async (req, res) => {
   const dataset = await Dataset.findOne({
     where: {
       run_number,
-      name: dataset_name
-    }
+      name: dataset_name,
+    },
   });
   let { appeared_in } = dataset.dataset_attributes;
 
@@ -281,22 +283,22 @@ exports.appearedInDBS = async (req, res) => {
   }
   const { atomic_version } = await create_new_version({
     req,
-    comment: 'dataset appeared in DBS'
+    comment: 'dataset appeared in DBS',
   });
   await exports.update_or_create_dataset({
     dataset_name,
     run_number,
     dataset_metadata: {
-      appeared_in: appeared_in.concat('DBS')
+      appeared_in: appeared_in.concat('DBS'),
     },
-    atomic_version
+    atomic_version,
   });
   const saved_dataset = await Dataset.findOne({
     where: {
       run_number,
-      name: dataset_name
+      name: dataset_name,
     },
-    include: [{ model: Run }, { model: DatasetTripletCache }]
+    include: [{ model: Run }, { model: DatasetTripletCache }],
   });
   res.json(saved_dataset);
 };
@@ -306,8 +308,8 @@ exports.appearedInDQMGUI = async (req, res) => {
   const dataset = await Dataset.findOne({
     where: {
       run_number,
-      name: dataset_name
-    }
+      name: dataset_name,
+    },
   });
 
   let { appeared_in } = dataset.dataset_attributes;
@@ -320,22 +322,22 @@ exports.appearedInDQMGUI = async (req, res) => {
   }
   const { atomic_version } = await create_new_version({
     req,
-    comment: 'dataset appeared in DQM GUI'
+    comment: 'dataset appeared in DQM GUI',
   });
   await exports.update_or_create_dataset({
     dataset_name,
     run_number,
     dataset_metadata: {
-      appeared_in: appeared_in.concat('DQM GUI')
+      appeared_in: appeared_in.concat('DQM GUI'),
     },
-    atomic_version
+    atomic_version,
   });
   const saved_dataset = await Dataset.findOne({
     where: {
       run_number,
-      name: dataset_name
+      name: dataset_name,
     },
-    include: [{ model: Run }, { model: DatasetTripletCache }]
+    include: [{ model: Run }, { model: DatasetTripletCache }],
   });
 
   res.json(saved_dataset);
@@ -362,8 +364,8 @@ exports.appearedInDQMGUI = async (req, res) => {
   // });
 };
 
-const formatSortings = sortings => {
-  return sortings.map(sorting => {
+const formatSortings = (sortings) => {
+  return sortings.map((sorting) => {
     let [key, order] = sorting;
     if (key === 'oms_attributes.ls_duration') {
       key = sequelize.cast(
@@ -395,7 +397,7 @@ exports.getDatasetsFilteredOrdered = async (req, res) => {
   const formated_sortings = formatSortings(sortings);
   const count = await Dataset.count({
     where: filter,
-    include
+    include,
   });
   let pages = Math.ceil(count / page_size);
   let offset = page_size * page;
@@ -406,11 +408,11 @@ exports.getDatasetsFilteredOrdered = async (req, res) => {
         ? formated_sortings
         : [
             ['run_number', 'DESC'],
-            ['name', 'ASC']
+            ['name', 'ASC'],
           ],
     limit: page_size,
     offset,
-    include
+    include,
   });
   res.json({ datasets, pages, count });
 };
@@ -423,9 +425,9 @@ exports.moveDataset = async (req, res) => {
     where: { run_number, name: dataset_name },
     include: [
       {
-        model: Run
-      }
-    ]
+        model: Run,
+      },
+    ],
   });
   const { dataset_attributes } = dataset;
   const new_dataset_attributes = {};
@@ -453,21 +455,21 @@ exports.moveDataset = async (req, res) => {
   }
   const { atomic_version } = await create_new_version({
     req,
-    comment: 'manual change of state of dataset'
+    comment: 'manual change of state of dataset',
   });
 
   await exports.update_or_create_dataset({
     dataset_name,
     run_number,
     dataset_metadata: new_dataset_attributes,
-    atomic_version
+    atomic_version,
   });
   const saved_dataset = await Dataset.findOne({
     where: {
       run_number,
-      name: dataset_name
+      name: dataset_name,
     },
-    include: [{ model: Run }, { model: DatasetTripletCache }]
+    include: [{ model: Run }, { model: DatasetTripletCache }],
   });
 
   res.json(saved_dataset);
@@ -480,9 +482,9 @@ exports.manual_edit = async (req, res) => {
     where: { run_number, name: dataset_name },
     include: [
       {
-        model: Run
-      }
-    ]
+        model: Run,
+      },
+    ],
   });
   if (dataset === null) {
     throw 'Dataset not found';
@@ -500,13 +502,13 @@ exports.manual_edit = async (req, res) => {
   if (new_attributes_length > 0) {
     const { atomic_version } = await create_new_version({
       req,
-      comment: 'dataset manual update of attributes'
+      comment: 'dataset manual update of attributes',
     });
     const datasetEvent = await update_or_create_dataset({
       dataset_name,
       run_number,
       dataset_metadata: new_dataset_attributes,
-      atomic_version
+      atomic_version,
     });
   } else {
     throw 'Nothing to update, the attributes sent are the same as those in the dataset already stored';
@@ -514,9 +516,9 @@ exports.manual_edit = async (req, res) => {
   const saved_dataset = await Dataset.findOne({
     where: {
       run_number,
-      name: dataset_name
+      name: dataset_name,
     },
-    include: [{ model: Run }, { model: DatasetTripletCache }]
+    include: [{ model: Run }, { model: DatasetTripletCache }],
   });
   res.json(saved_dataset);
 };
@@ -543,7 +545,7 @@ exports.duplicate_datasets = async (req, res) => {
   let {
     source_dataset_name,
     target_dataset_name,
-    workspaces_to_duplicate_into
+    workspaces_to_duplicate_into,
   } = req.body;
 
   const [filter, include] = exports.calculate_dataset_filter_and_include(
@@ -552,7 +554,7 @@ exports.duplicate_datasets = async (req, res) => {
 
   const datasets_to_copy = await Dataset.findAll({
     where: filter,
-    include
+    include,
   });
   if (datasets_to_copy.length === 0) {
     throw `No dataset found for filter criteria`;
@@ -566,9 +568,9 @@ exports.duplicate_datasets = async (req, res) => {
     const { atomic_version } = await create_new_version({
       req,
       transaction,
-      comment: 'dc_tool: duplication of datasets'
+      comment: 'dc_tool: duplication of datasets',
     });
-    const promises = datasets_to_copy.map(dataset => async () => {
+    const promises = datasets_to_copy.map((dataset) => async () => {
       const { run_number } = dataset;
       // We go through the state of every workspace, if the user included that workspace in the "copy" tool, then we copy that. If not, then we don't
       // If the user didn't include a workspace, then the duplicated dataset will not appear in such workspace (because there is no state there)
@@ -592,7 +594,7 @@ exports.duplicate_datasets = async (req, res) => {
 
       // If there was a newly created workspace sent, and it wasn't saved before on the dataset, we should still add the state to the dataset, and set it to pending:
       // So that it shows up in the newly created workspace:
-      workspaces_to_duplicate_into.forEach(workspace => {
+      workspaces_to_duplicate_into.forEach((workspace) => {
         new_dataset_attributes[`${workspace}_state`] =
           new_dataset_attributes[`${workspace}_state`] ||
           WAITING_DQM_GUI_CONSTANT;
@@ -603,7 +605,7 @@ exports.duplicate_datasets = async (req, res) => {
         run_number,
         dataset_metadata: new_dataset_attributes,
         atomic_version,
-        transaction
+        transaction,
       });
       // We need to copy both RR and OMS lumisections in case later on someone wants to edit some OMS ls bit
       const original_rr_lumisections = await get_rr_lumisections_for_dataset(
@@ -620,7 +622,7 @@ exports.duplicate_datasets = async (req, res) => {
         lumisections: original_rr_lumisections,
         req,
         atomic_version,
-        transaction
+        transaction,
       });
       const new_oms_lumisections = await create_oms_lumisections({
         run_number,
@@ -628,13 +630,13 @@ exports.duplicate_datasets = async (req, res) => {
         lumisections: original_oms_lumisections,
         req,
         atomic_version,
-        transaction
+        transaction,
       });
     });
 
     const number_of_workers = 1;
     const asyncQueue = queue(
-      async dataset => await dataset(),
+      async (dataset) => await dataset(),
       number_of_workers
     );
 
@@ -649,15 +651,15 @@ exports.duplicate_datasets = async (req, res) => {
           const saved_dataset = await Dataset.findOne({
             where: {
               run_number,
-              name: target_dataset_name
+              name: target_dataset_name,
             },
             include: [
               {
                 model: Run,
-                attributes: ['rr_attributes', 'oms_attributes']
+                attributes: ['rr_attributes', 'oms_attributes'],
               },
-              { model: DatasetTripletCache }
-            ]
+              { model: DatasetTripletCache },
+            ],
           });
           return saved_dataset;
         }
@@ -681,7 +683,7 @@ exports.copy_column_from_datasets = async (req, res) => {
   const {
     source_dataset_name,
     target_dataset_name,
-    columns_to_copy
+    columns_to_copy,
   } = req.body;
   const [filter, include] = exports.calculate_dataset_filter_and_include(
     req.body.filter
@@ -689,7 +691,7 @@ exports.copy_column_from_datasets = async (req, res) => {
 
   const datasets_to_copy = await Dataset.findAll({
     where: filter,
-    include
+    include,
   });
   if (datasets_to_copy.length === 0) {
     throw `No dataset found for filter criteria`;
@@ -713,9 +715,9 @@ exports.copy_column_from_datasets = async (req, res) => {
   }
 
   const tuple_of_dataset_source_target = [];
-  source_datasets.forEach(dataset => {
+  source_datasets.forEach((dataset) => {
     const tuple = [dataset];
-    target_datasets.forEach(target_dataset => {
+    target_datasets.forEach((target_dataset) => {
       if (dataset.run_number === target_dataset.run_number) {
         tuple.push(target_dataset);
       }
@@ -734,18 +736,18 @@ exports.copy_column_from_datasets = async (req, res) => {
       req,
       transaction,
       comment:
-        'dc_tool: copy column of lumisections from certain datasets to certain datasets'
+        'dc_tool: copy column of lumisections from certain datasets to certain datasets',
     });
     const promises = tuple_of_dataset_source_target.map(
       ([dataset_source, dataset_target]) => async () => {
         const {
           name: name_source,
-          run_number: run_number_source
+          run_number: run_number_source,
         } = dataset_source;
 
         const {
           name: name_target,
-          run_number: run_number_target
+          run_number: run_number_target,
         } = dataset_target;
 
         // We need to copy only the RR flag they selected
@@ -755,8 +757,8 @@ exports.copy_column_from_datasets = async (req, res) => {
         );
 
         const filtered_rr_lumisections = source_rr_lumisections.map(
-          lumisection => {
-            columns_to_copy.map(column => {
+          (lumisection) => {
+            columns_to_copy.map((column) => {
               if (typeof lumisection[column] === 'undefined') {
                 throw `Column ${column} does not exist in the source dataset ${name_source} ${run_number_source}`;
               }
@@ -775,7 +777,7 @@ exports.copy_column_from_datasets = async (req, res) => {
           lumisections: filtered_rr_lumisections,
           req,
           atomic_version,
-          transaction
+          transaction,
         });
         // We bump the version of the datasetevent table so it knows which datasets to regenerate in the cache
         await exports.update_or_create_dataset({
@@ -783,13 +785,13 @@ exports.copy_column_from_datasets = async (req, res) => {
           run_number: run_number_target,
           dataset_metadata: {},
           atomic_version,
-          transaction
+          transaction,
         });
       }
     );
     const number_of_workers = 1;
     const asyncQueue = queue(
-      async dataset => await dataset(),
+      async (dataset) => await dataset(),
       number_of_workers
     );
 
@@ -804,15 +806,15 @@ exports.copy_column_from_datasets = async (req, res) => {
           const saved_dataset = await Dataset.findOne({
             where: {
               run_number,
-              name
+              name,
             },
             include: [
               {
                 model: Run,
-                attributes: ['rr_attributes']
+                attributes: ['rr_attributes'],
               },
-              { model: DatasetTripletCache }
-            ]
+              { model: DatasetTripletCache },
+            ],
           });
           return saved_dataset;
         }
@@ -850,7 +852,7 @@ exports.change_multiple_states = async (req, res) => {
   }
   const datasets_to_change_state = await Dataset.findAll({
     where: filter,
-    include
+    include,
   });
   if (datasets_to_change_state.length === 0) {
     throw `No dataset found for filter criteria`;
@@ -866,9 +868,9 @@ exports.change_multiple_states = async (req, res) => {
         change_in_all_workspaces
           ? '(in all workspaces)'
           : `from state ${from_state} to ${to_state} in workspace ${workspace_to_change_state_in}`
-      }`
+      }`,
     });
-    const promises = datasets_to_change_state.map(async dataset => {
+    const promises = datasets_to_change_state.map(async (dataset) => {
       const { name, run_number, dataset_attributes } = dataset;
       let dataset_metadata = {};
       if (change_in_all_workspaces) {
@@ -894,7 +896,7 @@ exports.change_multiple_states = async (req, res) => {
         run_number,
         dataset_metadata,
         atomic_version,
-        transaction
+        transaction,
       });
     });
     await Promise.all(promises);
@@ -904,18 +906,18 @@ exports.change_multiple_states = async (req, res) => {
         const saved_dataset = await Dataset.findOne({
           where: {
             run_number,
-            name
+            name,
           },
           include: [
             {
               model: Run,
-              attributes: ['rr_attributes', 'oms_attributes', 'oms_attributes']
+              attributes: ['rr_attributes', 'oms_attributes', 'oms_attributes'],
             },
             {
               model: DatasetTripletCache,
-              attributes: ['triplet_summary', 'dcs_summary']
-            }
-          ]
+              attributes: ['triplet_summary', 'dcs_summary'],
+            },
+          ],
         });
         return saved_dataset;
       }
@@ -939,7 +941,7 @@ exports.datasetColumnBatchUpdate = async (req, res) => {
   const { columns_to_update, new_status } = req.body;
   const datasets_to_update = await Dataset.findAll({
     where: filter,
-    include
+    include,
   });
   if (datasets_to_update.length === 0) {
     throw `No dataset found for filter criteria`;
@@ -952,9 +954,9 @@ exports.datasetColumnBatchUpdate = async (req, res) => {
       req,
       transaction,
       comment:
-        'dc_tool: change column of lumisections to a certain state (GOOD,BAD) in batch'
+        'dc_tool: change column of lumisections to a certain state (GOOD,BAD) in batch',
     });
-    const promises = datasets_to_update.map(dataset => async () => {
+    const promises = datasets_to_update.map((dataset) => async () => {
       const { name, run_number } = dataset;
 
       const rr_lumisections = await get_rr_lumisections_for_dataset(
@@ -962,8 +964,8 @@ exports.datasetColumnBatchUpdate = async (req, res) => {
         name
       );
 
-      const changed_lumisections = rr_lumisections.map(lumisection => {
-        columns_to_update.map(column => {
+      const changed_lumisections = rr_lumisections.map((lumisection) => {
+        columns_to_update.map((column) => {
           if (typeof lumisection[column] === 'undefined') {
             throw `Column ${column} does not exist in the source dataset ${name} ${run_number}`;
           }
@@ -983,7 +985,7 @@ exports.datasetColumnBatchUpdate = async (req, res) => {
         lumisections: changed_lumisections,
         req,
         atomic_version,
-        transaction
+        transaction,
       });
       // We bump the version of the datasetevent table so it knows which datasets to regenerate in the cache
       await exports.update_or_create_dataset({
@@ -991,13 +993,13 @@ exports.datasetColumnBatchUpdate = async (req, res) => {
         run_number,
         dataset_metadata: {},
         atomic_version,
-        transaction
+        transaction,
       });
     });
 
     const number_of_workers = 1;
     const asyncQueue = queue(
-      async dataset => await dataset(),
+      async (dataset) => await dataset(),
       number_of_workers
     );
 
@@ -1011,15 +1013,15 @@ exports.datasetColumnBatchUpdate = async (req, res) => {
           const saved_dataset = await Dataset.findOne({
             where: {
               run_number,
-              name
+              name,
             },
             include: [
               {
                 model: Run,
-                attributes: ['rr_attributes', 'oms_attributes']
+                attributes: ['rr_attributes', 'oms_attributes'],
               },
-              { model: DatasetTripletCache }
-            ]
+              { model: DatasetTripletCache },
+            ],
           });
           return saved_dataset;
         }
@@ -1048,7 +1050,7 @@ exports.hide_datasets = async (req, res) => {
 
   const datasets_to_hide = await Dataset.findAll({
     where: filter,
-    include
+    include,
   });
   if (datasets_to_hide.length === 0) {
     throw `No dataset(s) found for filter criteria`;
@@ -1060,9 +1062,9 @@ exports.hide_datasets = async (req, res) => {
     const { atomic_version } = await create_new_version({
       req,
       transaction,
-      overwriteable_comment: `dc_tool: hiding datasets, reason: ${reason_for_hiding}`
+      overwriteable_comment: `dc_tool: hiding datasets, reason: ${reason_for_hiding}`,
     });
-    const promises = datasets_to_hide.map(async dataset => {
+    const promises = datasets_to_hide.map(async (dataset) => {
       const { name, run_number } = dataset;
       if (name === 'online') {
         throw 'You cannot delete the online dataset belonging to a run';
@@ -1073,7 +1075,7 @@ exports.hide_datasets = async (req, res) => {
         atomic_version,
         dataset_metadata: {},
         transaction,
-        delete_dataset: true
+        delete_dataset: true,
       });
     });
     await Promise.all(promises);
@@ -1100,9 +1102,9 @@ exports.export_to_csv = async (req, res) => {
         ? sortings
         : [
             ['run_number', 'DESC'],
-            ['name', 'ASC']
+            ['name', 'ASC'],
           ],
-    include
+    include,
   });
 
   datasets = datasets.map(({ dataValues }) => {
@@ -1111,7 +1113,7 @@ exports.export_to_csv = async (req, res) => {
       name,
       dataset_attributes,
       DatasetTripletCache,
-      Run
+      Run,
     } = dataValues;
     const { rr_attributes, oms_attributes } = Run.dataValues;
     const { stop_reason, short_run } = rr_attributes;
@@ -1123,7 +1125,7 @@ exports.export_to_csv = async (req, res) => {
       stop_reason,
       short_run,
       ls_duration,
-      ...dataset_attributes
+      ...dataset_attributes,
     };
     const { triplet_summary } = DatasetTripletCache;
     for (const [key, val] of Object.entries(triplet_summary)) {
@@ -1148,7 +1150,7 @@ exports.getUniqueDatasetNames = async (req, res) => {
   const datasets_filter_criteria = await Dataset.findAll({
     attributes: ['name'],
     where: filter,
-    include
+    include,
   });
   if (datasets_filter_criteria.length > 12000) {
     throw `Dataset query too big, limit is 12000`;
@@ -1170,14 +1172,14 @@ const getTripletSummaryFilter = (filter, contains_something) => {
       contains_something = true;
     } else if (key === 'and' || key === 'or') {
       triplet_filter[key] = val
-        .filter(rule => {
+        .filter((rule) => {
           const [new_rule, new_contains_something] = getTripletSummaryFilter(
             rule,
             contains_something
           );
           return new_contains_something;
         })
-        .map(rule => {
+        .map((rule) => {
           const [new_rule, new_contains_something] = getTripletSummaryFilter(
             rule,
             contains_something
@@ -1203,14 +1205,14 @@ const getRunFilter = (filter, contains_something) => {
       contains_something = true;
     } else if (key === 'and' || key === 'or') {
       new_filter[key] = val
-        .filter(rule => {
+        .filter((rule) => {
           const [new_rule, new_contains_something] = getRunFilter(
             rule,
             contains_something
           );
           return new_contains_something;
         })
-        .map(rule => {
+        .map((rule) => {
           const [new_rule, new_contains_something] = getRunFilter(
             rule,
             contains_something
@@ -1234,14 +1236,14 @@ const getDatasetFilter = (filter, contains_something) => {
       delete new_filter[key];
     } else if (key === 'and' || key === 'or') {
       new_filter[key] = val
-        .filter(rule => {
+        .filter((rule) => {
           const [new_rule, new_contains_something] = getDatasetFilter(
             rule,
             contains_something
           );
           return new_contains_something;
         })
-        .map(rule => {
+        .map((rule) => {
           const [new_rule, new_contains_something] = getDatasetFilter(
             rule,
             contains_something
@@ -1257,7 +1259,7 @@ const getDatasetFilter = (filter, contains_something) => {
   return [new_filter, contains_something];
 };
 
-exports.calculate_dataset_filter_and_include = client_filter => {
+exports.calculate_dataset_filter_and_include = (client_filter) => {
   // A user can filter on triplets, or on any other field
   // If the user filters by triplets, then :
   let [dataset_filter, dataset_filter_exists] = getDatasetFilter(
@@ -1286,20 +1288,20 @@ exports.calculate_dataset_filter_and_include = client_filter => {
 
   let filter = {
     ...changeNameOfAllKeys(dataset_filter, conversion_operator),
-    deleted: false
+    deleted: false,
   };
   // If its filtering by run class, then include it in run filter
   let include = [
     {
       model: Run,
       attributes: ['rr_attributes', 'oms_attributes'],
-      where: run_filter
+      where: run_filter,
     },
     {
       model: DatasetTripletCache,
       where: triplet_summary_filter,
-      attributes: ['triplet_summary', 'dcs_summary']
-    }
+      attributes: ['triplet_summary', 'dcs_summary'],
+    },
   ];
   return [filter, include];
 };
