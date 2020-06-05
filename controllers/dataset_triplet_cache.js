@@ -10,7 +10,7 @@ const {
   AggregatedLumisection,
 } = require('../models');
 const { Op } = Sequelize;
-const number_of_datasets_per_batch = 80;
+const number_of_datasets_per_batch = 200;
 
 exports.fill_dataset_triplet_cache = async (transaction) => {
   return new Promise(async (resolve, reject) => {

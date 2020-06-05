@@ -47,6 +47,14 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.JSONB,
         allowNull: false,
       },
+      min_run_number: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+      },
+      max_run_number: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+      },
       total_delivered_luminosity: {
         type: DataTypes.FLOAT,
         allowNull: false,
@@ -68,6 +76,14 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       total_delivered_luminosity_lost: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+      },
+      total_recorded_luminosity_from_run_range: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+      },
+      total_delivered_luminosity_from_run_range: {
         type: DataTypes.FLOAT,
         allowNull: false,
       },

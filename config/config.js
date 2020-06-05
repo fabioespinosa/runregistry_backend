@@ -43,6 +43,12 @@ module.exports = {
     host: 'dbod-gc005.cern.ch',
     dialect: 'postgres',
     port: 6601,
+    pool: {
+      max: 30,
+      min: 0,
+      idle: 20000,
+      acquire: 2000000,
+    },
     define: {
       // Make sequelize not pluralize the name of tables:
       freezeTableName: true,
@@ -72,6 +78,12 @@ module.exports = {
     host: 'dbod-gc005.cern.ch',
     dialect: 'postgres',
     port: 6601,
+    pool: {
+      max: 30,
+      min: 0,
+      idle: 20000,
+      acquire: 2000000,
+    },
     define: {
       // Make sequelize not pluralize the name of tables:
       freezeTableName: true,
@@ -133,6 +145,12 @@ module.exports = {
     define: {
       // Make sequelize not pluralize the name of tables:
       freezeTableName: true,
+    },
+    pool: {
+      max: 30,
+      min: 0,
+      idle: 20000,
+      acquire: 2000000,
     },
     WAITING_DQM_GUI_CONSTANT: 'waiting dqm gui',
     API_URL: 'http://runregistry-api:8351',

@@ -16,10 +16,12 @@ const {
   GeneratedJson,
   Version,
   AggregatedLumisection,
+  DatasetTripletCache,
 } = require('../models');
 const { format_lumisection } = require('./lumisection');
 const pMap = require('p-map');
 const Queue = require('bull');
+const { Op } = Sequelize;
 
 const jsonProcessingQueue = new Queue('json processing', REDIS_URL);
 console.log(REDIS_URL);
@@ -271,6 +273,8 @@ jsonProcessingQueue.process(async (job, done) => {
       json_logic,
       generated_json,
       generated_json_with_dataset_names,
+      min_run_number,
+      max_run_number,
       generated_anti_json: {},
       generated_anti_json_with_dataset_names: {},
       total_recorded_luminosity,
@@ -279,6 +283,8 @@ jsonProcessingQueue.process(async (job, done) => {
       delivered_luminosity_in_json,
       total_recorded_luminosity_lost: -1,
       total_delivered_luminosity_lost: -1,
+      total_recorded_luminosity_from_run_range: -1,
+      total_delivered_luminosity_from_run_range: -1,
       rules_flagged_false_quantity_luminosity: {},
       rules_flagged_false_combination_luminosity: {},
       runs_lumisections_responsible_for_rule: {},
@@ -331,6 +337,15 @@ jsonProcessingQueue.process(async (job, done) => {
       anti_golden_json_data
     );
 
+    // Get whole luminosity for whole run range:
+    const {
+      brilcalc_recorded_luminosity: total_recorded_luminosity_from_run_range,
+      brilcalc_delivered_luminosity: total_delivered_luminosity_from_run_range,
+    } = await get_online_luminosity_from_run_range(
+      min_run_number,
+      max_run_number
+    );
+
     await saved_json.update({
       generated_anti_json,
       generated_anti_json_with_dataset_names,
@@ -339,6 +354,8 @@ jsonProcessingQueue.process(async (job, done) => {
       rules_flagged_false_quantity_luminosity,
       rules_flagged_false_combination_luminosity,
       runs_lumisections_responsible_for_rule,
+      total_recorded_luminosity_from_run_range,
+      total_delivered_luminosity_from_run_range,
     });
 
     done(null, {
@@ -351,11 +368,9 @@ jsonProcessingQueue.process(async (job, done) => {
   }
 });
 
-exports.get_online_luminosity_from_run_range = async (run_min, run_max) => {
-  // We get the luminosity from the online dataset, since this contains absolutely all short runs, even commissioning, all that didn't make it to offline
-  const luminosity_runs = await DatasetTripletCache.findAll({
+const get_online_luminosity_from_run_range = async (run_min, run_max) => {
+  const [luminosity_of_run_range] = await DatasetTripletCache.findAll({
     attributes: [
-      'run_number',
       [
         sequelize.fn('sum', sequelize.col('brilcalc_recorded_luminosity')),
         'brilcalc_recorded_luminosity',
@@ -365,15 +380,18 @@ exports.get_online_luminosity_from_run_range = async (run_min, run_max) => {
         'brilcalc_delivered_luminosity',
       ],
     ],
-    group: ['DatasetTripletCache.run_number'],
     where: {
+      // We get the luminosity from the online dataset, since this contains absolutely all short runs, even commissioning, all that didn't make it to offline
       name: 'online',
       run_number: {
-        [Op.min]: run_min,
-        [Op.max]: run_max,
+        [Op.gte]: run_min,
+        [Op.lte]: run_max,
       },
     },
+    raw: true,
   });
+
+  return luminosity_of_run_range;
 };
 
 exports.get_anti_json_evaluated = (anti_golden_json_data, json_logic) => {
