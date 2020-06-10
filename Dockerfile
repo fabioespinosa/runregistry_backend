@@ -11,4 +11,6 @@ COPY . .
 
 EXPOSE 9500
 
+RUN npm run migrate
+
 CMD ["npm", "run", "kubernetes"]

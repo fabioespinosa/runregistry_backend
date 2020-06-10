@@ -55,6 +55,7 @@ exports.update_or_create_dataset = async ({
   dataset_name,
   run_number,
   dataset_metadata,
+  datasets_in_gui = [],
   atomic_version,
   transaction,
   delete_dataset = false,
@@ -82,6 +83,7 @@ exports.update_or_create_dataset = async ({
         name: dataset_name,
         run_number,
         dataset_metadata,
+        datasets_in_gui,
         version: event.version,
         deleted: delete_dataset,
       },
@@ -90,23 +92,24 @@ exports.update_or_create_dataset = async ({
     // update the Dataset table
     await sequelize.query(
       `
-                CREATE TEMPORARY TABLE updated_dataset_references as SELECT DISTINCT run_number, name from "DatasetEvent" where "DatasetEvent"."version" > (SELECT COALESCE((SELECT MAX("version") from "Dataset"), 0));
+        CREATE TEMPORARY TABLE updated_dataset_references as SELECT DISTINCT run_number, name from "DatasetEvent" where "DatasetEvent"."version" > (SELECT COALESCE((SELECT MAX("version") from "Dataset"), 0));
 
-                CREATE TEMPORARY TABLE updated_datasets as SELECT "DatasetEvent".* FROM "DatasetEvent" 
-                INNER JOIN updated_dataset_references ON "DatasetEvent"."run_number" = updated_dataset_references."run_number" AND "DatasetEvent"."name" = updated_dataset_references."name";
+        CREATE TEMPORARY TABLE updated_datasets as SELECT "DatasetEvent".* FROM "DatasetEvent" 
+        INNER JOIN updated_dataset_references ON "DatasetEvent"."run_number" = updated_dataset_references."run_number" AND "DatasetEvent"."name" = updated_dataset_references."name";
 
-                INSERT INTO "Dataset" (run_number, name, dataset_attributes , deleted, "version")
-                SELECT  run_number, 
-                        name,
-                        mergejsonb(dataset_metadata ORDER BY version),
-                        (SELECT deleted from "DatasetEvent" WHERE "version" = (SELECT max(version) FROM updated_datasets AS "deleted")),
-                        (SELECT max(version) FROM "DatasetEvent" ) AS "version"
-                FROM updated_datasets
-                GROUP BY (run_number, name)
-                ON CONFLICT ("run_number", "name") DO UPDATE SET "run_number"=EXCLUDED."run_number", "name"=EXCLUDED."name", "dataset_attributes" = EXCLUDED."dataset_attributes", "deleted" = EXCLUDED."deleted", "version" = EXCLUDED."version";
+        INSERT INTO "Dataset" (run_number, name, dataset_attributes, datasets_in_gui, deleted, "version")
+        SELECT  run_number, 
+                name,
+                mergejsonb(dataset_metadata ORDER BY version),
+                mergejsonbarray(datasets_in_gui ORDER BY version),
+                (SELECT deleted from "DatasetEvent" WHERE "version" = (SELECT max(version) FROM updated_datasets AS "deleted")),
+                (SELECT max(version) FROM "DatasetEvent" ) AS "version"
+        FROM updated_datasets
+        GROUP BY (run_number, name)
+        ON CONFLICT ("run_number", "name") DO UPDATE SET "run_number"=EXCLUDED."run_number", "name"=EXCLUDED."name", "dataset_attributes" = EXCLUDED."dataset_attributes", "datasets_in_gui" = EXCLUDED."datasets_in_gui",  "deleted" = EXCLUDED."deleted", "version" = EXCLUDED."version";
 
-                DROP TABLE updated_dataset_references;
-                DROP TABLE updated_datasets;
+        DROP TABLE updated_dataset_references;
+        DROP TABLE updated_datasets;
         `,
       { transaction }
     );

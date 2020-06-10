@@ -3,13 +3,14 @@ IF NOT EXISTS pgcrypto;
 BEGIN;
     DROP VIEW IF EXISTS "RunView";
     DROP VIEW IF EXISTS "AggregatedLumisection";
-    DROP AGGREGATE IF EXISTS oms_attributes
+DROP AGGREGATE IF EXISTS oms_attributes
     (jsonb);
 DROP AGGREGATE IF EXISTS rr_attributes
 (jsonb);
 DROP AGGREGATE IF EXISTS mergejsonb
 (jsonb);
-
+DROP AGGREGATE IF EXISTS mergejsonbarray
+(jsonb);
 
 
 CREATE OR REPLACE FUNCTION
@@ -32,6 +33,19 @@ mergejsonb, stype = jsonb, initcond = '{}');
 CREATE AGGREGATE rr_attributes(jsonb)
 (sfunc =
 mergejsonb, stype = jsonb, initcond = '{}');
+
+
+CREATE OR REPLACE FUNCTION
+    mergejsonbarray
+(jsonb, jsonb) RETURNS jsonb
+AS 'SELECT array_to_json(array(select distinct jsonb_array_elements( $1 || $2)))::jsonb;'
+LANGUAGE SQL                                   
+    IMMUTABLE
+    RETURNS NULL ON NULL INPUT;
+
+CREATE AGGREGATE mergejsonbarray(jsonb)
+(sfunc =
+mergejsonbarray, stype = jsonb, initcond = '[]');
 
 
 CREATE OR REPLACE VIEW "RunView" as
