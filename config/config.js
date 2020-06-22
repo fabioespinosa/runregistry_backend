@@ -19,7 +19,9 @@ module.exports = {
       acquire: 2000000,
     },
     WAITING_DQM_GUI_CONSTANT: 'waiting dqm gui',
-    API_URL: 'http://localhost:9500',
+    API_URL: process.env.DOCKER_POSTGRES
+      ? 'http://dev:9500'
+      : 'http://localhost:9500',
     OMS_URL: `https://cmsoms.cern.ch/agg/api/v1`,
     REDIS_URL: `redis://redis:6379`,
     OMS_RUNS: (number_of_runs = 10) =>

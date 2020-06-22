@@ -49,6 +49,7 @@ const conversion_operator = {
   OR: Op.or,
   LIKE: Op.iLike,
   NOTLIKE: Op.notLike,
+  contains: Op.contains,
 };
 
 exports.update_or_create_dataset = async ({
@@ -1253,7 +1254,11 @@ const getDatasetFilter = (filter, contains_something) => {
           return new_rule;
         });
     } else {
-      new_filter[key] = val;
+      if (key.startsWith('datasets_in_gui')) {
+        new_filter[key] = { contains: Object.values(val)[0] };
+      } else {
+        new_filter[key] = val;
+      }
       contains_something = true;
     }
   }

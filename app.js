@@ -22,7 +22,7 @@ models.sequelize
       if (process.env.ENV !== 'development') {
         const cron = require('./cron/1.get_runs');
       }
-      const dqm_gui_pinging = require('./cron_datasets/2.ping_dqm_gui');
+      // const dqm_gui_pinging = require('./cron_datasets/2.ping_dqm_gui');
       // const dbs_pinging = require('./cron_datasets/2.ping_dbs');
     });
 
@@ -68,9 +68,4 @@ models.sequelize
   })
   .catch((err) => {
     console.log(err);
-    // app.listen(port, () => {
-    //   console.log(
-    //     `Error establishing other services, server listening in port ${port}`
-    //   );
-    // });
   });
