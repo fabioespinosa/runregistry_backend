@@ -27,9 +27,9 @@ const jsonProcessingQueue = new Queue('json processing', REDIS_URL);
 console.log(REDIS_URL);
 exports.get_jsons = async (req, res) => {
   // TODO: paginate
-  // const failed = await jsonProcessingQueue.getFailed();
-  // const waiting = await jsonProcessingQueue.getWaiting();
-  // const active = await jsonProcessingQueue.getActive();
+  const failed = await jsonProcessingQueue.getFailed();
+  const waiting = await jsonProcessingQueue.getWaiting();
+  const active = await jsonProcessingQueue.getActive();
   const saved_jsons = await GeneratedJson.findAll();
   const jsons = [
     ...failed.map(({ id, data, failedReason }) => ({
