@@ -32,31 +32,31 @@ exports.get_jsons = async (req, res) => {
   // const active = await jsonProcessingQueue.getActive();
   const saved_jsons = await GeneratedJson.findAll();
   const jsons = [
-    // ...failed.map(({ id, data, failedReason }) => ({
-    //   ...data,
-    //   id,
-    //   failedReason,
-    //   progress: 0,
-    //   active: false,
-    //   waiting: false,
-    //   failed: true,
-    // })),
-    // ...waiting.map(({ id, _progress, data }) => ({
-    //   ...data,
-    //   id,
-    //   progress: _progress,
-    //   active: false,
-    //   waiting: true,
-    //   failed: false,
-    // })),
-    // ...active.map(({ id, _progress, data }) => ({
-    //   ...data,
-    //   id,
-    //   progress: _progress,
-    //   active: true,
-    //   waiting: false,
-    //   failed: false,
-    // })),
+    ...failed.map(({ id, data, failedReason }) => ({
+      ...data,
+      id,
+      failedReason,
+      progress: 0,
+      active: false,
+      waiting: false,
+      failed: true,
+    })),
+    ...waiting.map(({ id, _progress, data }) => ({
+      ...data,
+      id,
+      progress: _progress,
+      active: false,
+      waiting: true,
+      failed: false,
+    })),
+    ...active.map(({ id, _progress, data }) => ({
+      ...data,
+      id,
+      progress: _progress,
+      active: true,
+      waiting: false,
+      failed: false,
+    })),
     ...saved_jsons.map(({ dataValues }) => ({
       ...dataValues,
       progress: 1,
