@@ -10,7 +10,7 @@ const {
   OMS_RUNS,
   API_URL,
   RUNS_PER_API_CALL,
-  SECONDS_PER_API_CALL
+  SECONDS_PER_API_CALL,
 } = config[process.env.ENV || 'development'];
 const { save_runs, update_runs } = require('./2.save_or_update_runs');
 const cert = `${__dirname}/../certs/usercert.pem`;
@@ -28,18 +28,18 @@ const fetch_runs = async (
 
   if (first_time) {
     headers = {
-      Cookie: await getCookie({ url: oms_url, certificate: cert, key })
+      Cookie: await getCookie({ url: oms_url, certificate: cert, key }),
     };
   }
   if (!first_time) {
     // We sleep for 2 seconds not to degrade OMS API (if it is not first time):
-    await Promise(resolve => {
+    await new Promise((resolve) => {
       setTimeout(resolve, 2000);
     });
   }
 
   const oms_response = await axios.get(oms_url, {
-    headers
+    headers,
   });
   if (typeof oms_response.data.data === 'undefined') {
     throw Error('Invalid cookie in request');
@@ -105,10 +105,10 @@ handleErrors(fetch_runs, 'Error fetching new runs')();
 const calculate_new_runs = (fetched_runs, last_saved_runs) => {
   const new_runs = [];
 
-  fetched_runs.forEach(fetched_run => {
+  fetched_runs.forEach((fetched_run) => {
     let exists = false;
     // Check if it exists in the already saved runs:
-    last_saved_runs.forEach(existing_run => {
+    last_saved_runs.forEach((existing_run) => {
       if (+fetched_run.run_number === existing_run.run_number) {
         exists = true;
       }
@@ -116,7 +116,7 @@ const calculate_new_runs = (fetched_runs, last_saved_runs) => {
     // If it does not exist in alreay saved runs, check if it exists in the recently created array.
     if (!exists) {
       let already_saved = false;
-      new_runs.forEach(run => {
+      new_runs.forEach((run) => {
         if (+fetched_run.run_number === +run.run_number) {
           already_saved = true;
         }
@@ -139,13 +139,13 @@ const calculate_new_runs = (fetched_runs, last_saved_runs) => {
 const calculate_runs_to_update = (fetched_runs, last_saved_runs) => {
   const runs_to_update = [];
   const min_run_number = get_min_run_number(last_saved_runs);
-  fetched_runs.forEach(fetched_run => {
+  fetched_runs.forEach((fetched_run) => {
     // If the run_number is less than the minimum of the already saved runs, then it is one from the past, which needs to be updated. Else we compare timestamps
     if (fetched_run.run_number < min_run_number) {
       runs_to_update.push(fetched_run);
     } else {
       // If the run_number is inside the existing already saved runs, then we check for the timestamp:
-      last_saved_runs.forEach(existing_run => {
+      last_saved_runs.forEach((existing_run) => {
         // if runs are the same (i.e. same run_number), check last_update
         if (+fetched_run.run_number === +existing_run.run_number) {
           const last_updated_existing_run = new Date(
@@ -163,7 +163,7 @@ const calculate_runs_to_update = (fetched_runs, last_saved_runs) => {
   return runs_to_update;
 };
 
-const get_min_run_number = array_of_runs => {
+const get_min_run_number = (array_of_runs) => {
   const min_run_number = array_of_runs.reduce(
     (min_run_number, run) =>
       run.run_number < min_run_number ? run.run_number : min_run_number,
@@ -172,7 +172,7 @@ const get_min_run_number = array_of_runs => {
   return min_run_number;
 };
 
-const get_max_run_number = array_of_runs => {
+const get_max_run_number = (array_of_runs) => {
   const max_run_number = array_of_runs.reduce(
     (max_run_number, run) =>
       run.run_number > max_run_number ? run.run_number : max_run_number,
