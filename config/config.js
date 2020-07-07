@@ -105,7 +105,7 @@ module.exports = {
     DBS_DATASETS: (run_number) => `DBSReader/datasets?run_num=${run_number}`,
     SECONDS_PER_DBS_CHECK: 3600,
     DQM_GUI_URL: 'https://cmsweb.cern.ch/dqm/offline/data/json/samples?match=',
-    SECONDS_PER_DQM_GUI_CHECK: 40,
+    SECONDS_PER_DQM_GUI_CHECK: 3600,
   },
   dev_kubernetes: {
     username: 'admin',
@@ -134,7 +134,7 @@ module.exports = {
     DBS_DATASETS: (run_number) => `DBSReader/datasets?run_num=${run_number}`,
     SECONDS_PER_DBS_CHECK: 3600,
     DQM_GUI_URL: 'https://cmsweb.cern.ch/dqm/offline/data/json/samples?match=',
-    SECONDS_PER_DQM_GUI_CHECK: 40,
+    SECONDS_PER_DQM_GUI_CHECK: 3600,
   },
   prod_kubernetes: {
     username: 'admin',
@@ -155,7 +155,7 @@ module.exports = {
       acquire: 2000000,
     },
     WAITING_DQM_GUI_CONSTANT: 'waiting dqm gui',
-    API_URL: 'http://runregistry-api:8351',
+    API_URL: 'http://rr-prod-api:8351',
     OMS_URL: `https://cmsoms.cern.ch/agg/api/v1`,
     REDIS_URL: `redis://rr-redis:8352`,
     OMS_RUNS: (number_of_runs = 10) =>
@@ -169,7 +169,7 @@ module.exports = {
     DBS_DATASETS: (run_number) => `DBSReader/datasets?run_num=${run_number}`,
     SECONDS_PER_DBS_CHECK: 3600,
     DQM_GUI_URL: 'https://cmsweb.cern.ch/dqm/offline/data/json/samples?match=',
-    SECONDS_PER_DQM_GUI_CHECK: 40,
+    SECONDS_PER_DQM_GUI_CHECK: 3600,
   },
 
   // The online components are also the rr_lumisection_whitelist

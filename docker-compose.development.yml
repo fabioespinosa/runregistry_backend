@@ -20,22 +20,22 @@ services:
       - 9229:9229 # For debugger
 
   # Enable to ping DQM GUI
-  pinging_dqm_gui:
-    image: node:12.10.0
-    depends_on:
-      - postgres
-      - dev
-    volumes:
-      - nodemodules:/usr/src/service/node_modules
-      - .:/usr/src/service
-    working_dir: /usr/src/service
-    environment:
-      - NODE_ENV=development
-      - DOCKER_POSTGRES=true
-    command: npm run start_pinging_gui
-    # Enable the following ports for debugging:
-    # ports:
-    #   - 9229:9229 # For debugger
+  # pinging_dqm_gui:
+  #   image: node:12.10.0
+  #   depends_on:
+  #     - postgres
+  #     - dev
+  #   volumes:
+  #     - nodemodules:/usr/src/service/node_modules
+  #     - .:/usr/src/service
+  #   working_dir: /usr/src/service
+  #   environment:
+  #     - NODE_ENV=development
+  #     - DOCKER_POSTGRES=true
+  #   command: npm run start_pinging_gui
+  # Enable the following ports for debugging:
+  # ports:
+  #   - 9229:9229 # For debugger
 
   processing_jsons:
     image: node:12.10.0
