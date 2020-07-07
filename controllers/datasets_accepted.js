@@ -47,6 +47,7 @@ exports.new = async (req, res) => {
 
 exports.edit = async (req, res) => {
   const new_datasets_accepted_data = req.body;
+  const { id_dataset_accepted } = req.params;
   const edited_datasets_accepted = await editItem(
     DatasetsAcceptedList,
     DatasetsAcceptedEntries,
