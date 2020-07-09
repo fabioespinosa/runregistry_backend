@@ -618,6 +618,9 @@ exports.edit_rr_lumisections = async (req, res) => {
   if (!status) {
     throw 'No status present when trying to edit lumisections';
   }
+  if (status === 'BAD' && (!comment || comment.length < 3)) {
+    throw 'When setting lumisections as BAD, there MUST be a comment for this action.';
+  }
   const lumisection_metadata = {
     [component]: {
       // For consistency we want triplet values to be either their value or empty strings:
@@ -681,6 +684,89 @@ exports.edit_rr_lumisections = async (req, res) => {
     }`;
   }
 };
+
+exports.edit_oms_lumisections = async (req, res) => {
+  const {
+    run_number,
+    dataset_name,
+    component: dcs_bit,
+    new_lumisection_range,
+  } = req.body;
+  let { start, end, status, comment } = new_lumisection_range;
+  if (status === 'true') {
+    status = true;
+  }
+  if (status === 'false') {
+    status = false;
+  }
+  if (status !== true && status !== false) {
+    throw 'DCS Bits can only be true or false';
+  }
+  if (!status) {
+    throw 'No status present when trying to edit lumisections';
+  }
+  if (!comment || comment.length < 3) {
+    throw 'No comment present when editing OMS lumisections, comment MUST be present when editing OMS lumisections';
+  }
+
+  const lumisection_metadata = {
+    [dcs_bit]: status,
+  };
+  if (dataset_name === 'online') {
+    const run = await Run.findByPk(run_number);
+    if (run.rr_attributes.state !== 'OPEN') {
+      throw 'Run must be in state OPEN to be edited';
+    }
+  } else {
+    // TODO: validate the dataset state is OPEN in this workspace (fom backend)
+    const dataset = Dataset.findOne({
+      where: {
+        name: dataset_name,
+        run_number,
+      },
+    });
+  }
+
+  let transaction;
+  try {
+    transaction = await sequelize.transaction();
+    const { atomic_version } = await create_new_version({
+      req,
+      transaction,
+      comment: `Edit OMS lumisection ranges, user comment: '${comment}'`,
+    });
+    const new_range = await update_or_create_lumisection({
+      run_number,
+      dataset_name,
+      lumisection_metadata,
+      start_lumisection: start,
+      end_lumisection: end,
+      req,
+      LSEvent: OMSLumisectionEvent,
+      LSEventAssignation: OMSLumisectionEventAssignation,
+      atomic_version,
+      transaction,
+    });
+    // Bump the version in the dataset so the fill_dataset_triplet_cache will know that the lumisections inside it changed, and so can refill the cache:
+    const { update_or_create_dataset } = require('./dataset');
+    const datasetEvent = await update_or_create_dataset({
+      dataset_name,
+      run_number,
+      dataset_metadata: {},
+      atomic_version,
+      transaction,
+    });
+    await transaction.commit();
+    await fill_dataset_triplet_cache();
+    res.json(new_range);
+  } catch (err) {
+    console.log(err);
+    await transaction.rollback();
+    throw `Error updating oms lumisections of ${dataset_name} dataset, run number: ${run_number}: ${
+      err.message || err
+    }`;
+  }
+};
 exports.get_rr_and_oms_lumisection_ranges = async (req, res) => {
   const { run_number, dataset_name } = req.body;
   const rr_lumisections = await exports.get_rr_lumisections_for_dataset(
@@ -727,10 +813,39 @@ exports.get_rr_lumisection_ranges = async (req, res) => {
   res.json(ls_ranges);
 };
 
+// get ranges per dcs_bit in the form of:
+// dt_ready: [{from:x, to: y, value: false}, {}]
+// cms_active: [{},{}]
+exports.get_oms_lumisection_ranges_by_dcs_bit = async (req, res) => {
+  const { run_number, dataset_name } = req.body;
+  const oms_lumisections = await exports.get_oms_lumisections_for_dataset(
+    run_number,
+    dataset_name || 'online'
+  );
+
+  // Put all the dcs bits in the dataset
+  const dcs_bits_present = [];
+  oms_lumisections.forEach((lumisection) => {
+    for (const [dcs_bit, val] of Object.entries(lumisection)) {
+      if (!dcs_bits_present.includes(dcs_bit)) {
+        dcs_bits_present.push(dcs_bit);
+      }
+    }
+  });
+
+  const ranges = {};
+  dcs_bits_present.forEach((dcs_bit) => {
+    const dcs_bit_lumisections = oms_lumisections.map((lumisection) => {
+      return { status: lumisection[dcs_bit] };
+    });
+    ranges[dcs_bit] = exports.getLumisectionRanges(dcs_bit_lumisections, ['*']);
+  });
+
+  res.json(ranges);
+};
+
 exports.get_oms_lumisection_ranges = async (req, res) => {
   const { run_number, dataset_name } = req.body;
-  // Dataset name is always online if its from OMS
-  // unless its from the import data (which includes exceptions)
   const oms_lumisections = await exports.get_oms_lumisections_for_dataset(
     run_number,
     dataset_name || 'online'
@@ -788,6 +903,52 @@ exports.get_rr_lumisection_history = async (req, res) => {
             WHERE run_number=:run_number and name=:name
             GROUP BY run_number, name, "LumisectionEvent".version
             ORDER BY "LumisectionEvent".version
+        ) lumisection_events
+        INNER JOIN "Event"
+        on lumisection_events.version = "Event".version
+
+        INNER JOIN "Version"
+        on "Event".atomic_version = "Version".atomic_version
+
+        INNER JOIN "JSONBDeduplication"
+        on lumisection_events."lumisection_metadata_id" = "JSONBDeduplication".id
+        `,
+    {
+      type: sequelize.QueryTypes.SELECT,
+      replacements: { run_number, name: dataset_name },
+    }
+  );
+  res.json(history);
+};
+
+exports.get_oms_lumisection_history = async (req, res) => {
+  const { run_number, dataset_name } = req.body;
+  const history = await sequelize.query(
+    `SELECT
+            lumisection_events.version,
+            lumisection_events.run_number,
+            lumisection_events.name,
+            lumisection_events.start,
+            lumisection_events.end,
+            "Version".by,
+            "Version".comment,
+            "Version"."createdAt",
+            "JSONBDeduplication".jsonb
+        FROM (
+            SELECT
+                "OMSLumisectionEvent".version,
+                run_number,
+                "name",
+                "OMSLumisectionEvent".lumisection_metadata_id,
+                min("OMSLumisectionEventAssignation".lumisection_number) as start,
+                max("OMSLumisectionEventAssignation".lumisection_number) as end
+            FROM "OMSLumisectionEvent"
+            INNER JOIN "JSONBDeduplication" on "OMSLumisectionEvent".lumisection_metadata_id = "JSONBDeduplication".id
+            INNER JOIN "Event" on "Event".version = "OMSLumisectionEvent".version
+            INNER JOIN "OMSLumisectionEventAssignation" on "OMSLumisectionEvent".version = "OMSLumisectionEventAssignation".version
+            WHERE run_number=:run_number and (name='online' OR name=:name)
+            GROUP BY run_number, name, "OMSLumisectionEvent".version
+            ORDER BY "OMSLumisectionEvent".version
         ) lumisection_events
         INNER JOIN "Event"
         on lumisection_events.version = "Event".version

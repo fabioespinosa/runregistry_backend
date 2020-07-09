@@ -20,6 +20,11 @@ module.exports = (app) => {
     '/lumisections/rr_lumisection_ranges_by_component',
     catchAPI(Lumisection.get_rr_lumisection_ranges_by_component)
   );
+  // Used to edit OMS lumisections
+  app.post(
+    '/lumisections/oms_lumisection_ranges_by_dcs_bit',
+    catchAPI(Lumisection.get_oms_lumisection_ranges_by_dcs_bit)
+  );
   app.post(
     '/lumisections/rr_lumisections',
     catchAPI(Lumisection.get_rr_lumisections)
@@ -29,9 +34,14 @@ module.exports = (app) => {
     catchAPI(Lumisection.get_oms_lumisections)
   );
   app.put(
-    '/lumisections/edit_lumisections',
+    '/lumisections/edit_rr_lumisections',
     auth,
     catchAPI(Lumisection.edit_rr_lumisections)
+  );
+  app.put(
+    '/lumisections/edit_oms_lumisections',
+    auth,
+    catchAPI(Lumisection.edit_oms_lumisections)
   );
   app.post(
     '/lumisections/get_data_of_json',
@@ -40,6 +50,10 @@ module.exports = (app) => {
   app.post(
     '/lumisections/get_rr_lumisection_history',
     catchAPI(Lumisection.get_rr_lumisection_history)
+  );
+  app.post(
+    '/lumisections/get_oms_lumisection_history',
+    catchAPI(Lumisection.get_oms_lumisection_history)
   );
   app.post(
     '/lumisections/get_luminosity_of_json_with_dataset_names',
