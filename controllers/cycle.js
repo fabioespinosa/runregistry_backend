@@ -3,7 +3,9 @@ const Cycle = require('../models').Cycle;
 const CycleDataset = require('../models').CycleDataset;
 const Dataset = require('../models').Dataset;
 const Sequelize = require('../models').Sequelize;
-const { moveDataset } = require('./dataset');
+const { default: PQueue } = require('p-queue');
+const { create_new_version } = require('./version');
+const { moveDataset, update_or_create_dataset } = require('./dataset');
 const { calculate_dataset_filter_and_include } = require('./dataset');
 
 exports.getOneInternal = async (id_cycle) => {
@@ -279,7 +281,65 @@ exports.deleteDatasetsFromCycle = async (req, res) => {
   }
 };
 
-exports.signOffDatasetsInCycle = async (req, res) => {};
+exports.moveAllDatasetsInCycleTo = async (req, res) => {
+  const { workspace } = req.params;
+  const { id_cycle, to_state } = req.body;
+  const cycle = await exports.getOneInternal(id_cycle);
+
+  const { cycle_attributes, datasets } = cycle;
+  // Check wether cycle is still open:
+  const cycle_state_in_workspace = cycle_attributes[`${workspace}_state`];
+  if (cycle_state_in_workspace === 'completed') {
+    throw `This cycle is already marked COMPLETED`;
+  }
+
+  // Check wether all datasets are already in COMPLETED state, if so, error out
+  const datasets_to_move = datasets.filter((dataset) => {
+    const dataset_state_in_workspace =
+      dataset.dataset_attributes[`${workspace}_state`];
+    return (
+      typeof dataset_state_in_workspace !== 'undefined' &&
+      dataset_state_in_workspace !== 'COMPLETED'
+    );
+  });
+
+  if (datasets_to_move.length === 0) {
+    throw `All the datasets in this cycle in workspace ${workspace}, have already been moved to COMPLETED OR no dataset is in this workspace in this cycle`;
+  }
+
+  let transaction;
+  try {
+    transaction = await sequelize.transaction();
+    const { atomic_version } = await create_new_version({
+      req,
+      comment: `Change all datasets in cycle ${id_cycle} to ${to_state}.`,
+    });
+
+    const promises = datasets_to_move.map(
+      ({ run_number, name, dataset_attributes }) => async () => {
+        await update_or_create_dataset({
+          dataset_name: name,
+          run_number,
+          dataset_metadata: {
+            [`${workspace}_state`]: to_state,
+          },
+          atomic_version,
+          transaction,
+        });
+      }
+    );
+
+    const queue = new PQueue({ concurrency: 2 });
+    await queue.addAll(promises);
+    await transaction.commit();
+    const updated_cycle = await exports.getOneInternal(id_cycle);
+    res.json(updated_cycle);
+  } catch (err) {
+    console.log(err);
+    await transaction.rollback();
+    throw `Error moving all datasets in cycle ${id_cycle} to completed. Error: ${err}`;
+  }
+};
 
 exports.moveCycleBackToPending = async (req, res) => {
   const { workspace } = req.params;
@@ -308,9 +368,6 @@ exports.markCycleCompletedInWorkspace = async (req, res) => {
   const { workspace } = req.params;
   const { id_cycle } = req.body;
   const cycle = await exports.getOneInternal(id_cycle);
-  if (cycle === null) {
-    throw 'Cycle not found';
-  }
 
   // If cycle is global, it shall be completed in all other workspaces before being marked complete in global:
   const states_still_open = [];

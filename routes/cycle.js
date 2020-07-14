@@ -34,4 +34,9 @@ module.exports = (app) => {
     catchAPI(Cycle.moveDataset)
   );
   app.delete('/cycles', auth, catchAPI(Cycle.delete));
+  app.post(
+    '/cycles/move_all_datasets_to/:workspace',
+    auth,
+    catchAPI(Cycle.moveAllDatasetsInCycleTo)
+  );
 };
