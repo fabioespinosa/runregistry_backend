@@ -880,6 +880,7 @@ exports.get_rr_lumisection_history = async (req, res) => {
   const history = await sequelize.query(
     `SELECT
             lumisection_events.version,
+            lumisection_events.manual_change,
             lumisection_events.run_number,
             lumisection_events.name,
             lumisection_events.start,
@@ -894,6 +895,7 @@ exports.get_rr_lumisection_history = async (req, res) => {
                 run_number,
                 "name",
                 "LumisectionEvent".lumisection_metadata_id,
+                "LumisectionEvent".manual_change,
                 min("LumisectionEventAssignation".lumisection_number) as start,
                 max("LumisectionEventAssignation".lumisection_number) as end
             FROM "LumisectionEvent"
@@ -902,7 +904,7 @@ exports.get_rr_lumisection_history = async (req, res) => {
             INNER JOIN "LumisectionEventAssignation" on "LumisectionEvent".version = "LumisectionEventAssignation".version
             WHERE run_number=:run_number and name=:name
             GROUP BY run_number, name, "LumisectionEvent".version
-            ORDER BY "LumisectionEvent".manual_change ASC, LumisectionEvent".version ASC
+            ORDER BY "LumisectionEvent".manual_change ASC, "LumisectionEvent".version ASC
         ) lumisection_events
         INNER JOIN "Event"
         on lumisection_events.version = "Event".version
