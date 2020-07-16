@@ -256,7 +256,10 @@ exports.automatic_run_update = async (req, res) => {
 
   const run = await Run.findByPk(run_number);
   if (run === null) {
-    throw 'Run not found';
+    // Run doesn't exist, we create it
+    console.log('Trying to update run when we need to create it');
+    await exports.new(req, res);
+    return;
   }
   const { oms_attributes, rr_attributes } = run.dataValues;
   let was_run_updated = false;
