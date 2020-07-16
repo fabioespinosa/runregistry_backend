@@ -902,7 +902,7 @@ exports.get_rr_lumisection_history = async (req, res) => {
             INNER JOIN "LumisectionEventAssignation" on "LumisectionEvent".version = "LumisectionEventAssignation".version
             WHERE run_number=:run_number and name=:name
             GROUP BY run_number, name, "LumisectionEvent".version
-            ORDER BY "LumisectionEvent".version
+            ORDER BY "LumisectionEvent".manual_change ASC, LumisectionEvent".version ASC
         ) lumisection_events
         INNER JOIN "Event"
         on lumisection_events.version = "Event".version
