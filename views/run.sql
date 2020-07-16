@@ -101,7 +101,7 @@ FROM (
     oms_lumisection_changes.lumisection_number,
     oms_lumisection_changes.name,
     mergejsonb(rr_jsonb
-ORDER BY rr_version ASC
+ORDER BY manual_change ASC, rr_version ASC
 ) AS rr_lumisection FROM
     (
 
@@ -144,9 +144,9 @@ oms_lumisection_changes
 	INNER JOIN
 
 --	RR LUMISECTION:
-(SELECT run_number, name, lumisection_number, jsonb AS rr_jsonb, rr_version
+(SELECT run_number, name, lumisection_number, manual_change,  jsonb AS rr_jsonb, rr_version
 FROM (
-		SELECT run_number, name, lumisection_number, jsonb, "LumisectionEventAssignation".version AS rr_version
+		SELECT run_number, name, lumisection_number, jsonb, manual_change, "LumisectionEventAssignation".version AS rr_version
     FROM "LumisectionEventAssignation"
         INNER JOIN "LumisectionEvent" ON "LumisectionEventAssignation".version = "LumisectionEvent".version
         INNER JOIN "JSONBDeduplication" ON "LumisectionEvent"."lumisection_metadata_id" = "JSONBDeduplication"."id"
