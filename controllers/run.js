@@ -11,14 +11,14 @@ const {
   create_rr_lumisections,
   update_oms_lumisections,
   update_rr_lumisections,
-  get_rr_lumisections_for_dataset
+  get_rr_lumisections_for_dataset,
 } = require('./lumisection');
 const { update_or_create_dataset } = require('./dataset');
 const { create_new_version } = require('./version');
 const { fill_dataset_triplet_cache } = require('./dataset_triplet_cache');
 const { manually_update_a_run } = require('../cron/2.save_or_update_runs');
 const {
-  create_offline_waiting_datasets
+  create_offline_waiting_datasets,
 } = require('../cron_datasets/1.create_datasets');
 const {
   Run,
@@ -26,7 +26,7 @@ const {
   DatasetTripletCache,
   Event,
   RunEvent,
-  Version
+  Version,
 } = require('../models');
 
 const update_or_create_run = async ({
@@ -35,7 +35,7 @@ const update_or_create_run = async ({
   rr_metadata,
   atomic_version,
   req,
-  transaction
+  transaction,
 }) => {
   run_number = +run_number;
   const by = req.email || req.get('email');
@@ -48,7 +48,7 @@ const update_or_create_run = async ({
     }
     const event = await Event.create(
       {
-        atomic_version
+        atomic_version,
       },
       { transaction }
     );
@@ -67,7 +67,7 @@ const update_or_create_run = async ({
         rr_metadata,
         version: event.version,
         deleted: false,
-        manual_change
+        manual_change,
       },
       { transaction }
     );
@@ -127,12 +127,12 @@ const conversion_operator = {
   AND: Op.and,
   OR: Op.or,
   LIKE: Op.iLike,
-  NOTLIKE: Op.notLike
+  NOTLIKE: Op.notLike,
 };
 
 exports.getAll = async (req, res) => {
   const runs = await Run.findAll({
-    order: [['run_number', 'DESC']]
+    order: [['run_number', 'DESC']],
   });
   res.json(runs);
 };
@@ -142,9 +142,9 @@ exports.getOne = async (req, res) => {
     include: [
       {
         model: DatasetTripletCache,
-        attributes: ['triplet_summary']
-      }
-    ]
+        attributes: ['triplet_summary'],
+      },
+    ],
   });
   res.json(run);
 };
@@ -152,7 +152,7 @@ exports.getOne = async (req, res) => {
 exports.getLastUpdated50 = async (req, res) => {
   const runs = await Run.findAll({
     order: [['oms_attributes.last_update', 'DESC']],
-    limit: 50
+    limit: 50,
   });
   res.json(runs);
 };
@@ -160,10 +160,10 @@ exports.getLastUpdated50 = async (req, res) => {
 exports.getRunWithHistory = async (req, res) => {
   let run_events = await RunEvent.findAll({
     where: {
-      run_number: req.params.run_number
+      run_number: req.params.run_number,
     },
     order: [['version', 'ASC']],
-    include: [{ model: Event, include: [{ model: Version }] }]
+    include: [{ model: Event, include: [{ model: Version }] }],
   });
   run_events = run_events.map(
     ({ oms_metadata, rr_metadata, run_number, version, Event, Version }) => ({
@@ -172,7 +172,7 @@ exports.getRunWithHistory = async (req, res) => {
       run_number,
       version,
       ...Event.dataValues,
-      ...Event.Version.dataValues
+      ...Event.Version.dataValues,
     })
   );
   res.json(run_events);
@@ -184,7 +184,7 @@ exports.new = async (req, res) => {
     oms_attributes,
     rr_attributes,
     oms_lumisections,
-    rr_lumisections
+    rr_lumisections,
   } = req.body;
   const { run_number } = oms_attributes;
   const run = await Run.findByPk(run_number);
@@ -202,7 +202,7 @@ exports.new = async (req, res) => {
     const { atomic_version } = await create_new_version({
       req,
       transaction,
-      comment: 'run creation'
+      comment: 'run creation',
     });
     const runEvent = await update_or_create_run({
       run_number,
@@ -210,14 +210,14 @@ exports.new = async (req, res) => {
       rr_metadata: rr_attributes,
       req,
       atomic_version,
-      transaction
+      transaction,
     });
     const datasetEvent = await update_or_create_dataset({
       dataset_name: 'online',
       run_number,
       dataset_metadata: {},
       atomic_version,
-      transaction
+      transaction,
     });
     if (rr_lumisections.length > 0 || oms_lumisections.length > 0) {
       const saved_oms_lumisections = await create_oms_lumisections({
@@ -226,7 +226,7 @@ exports.new = async (req, res) => {
         lumisections: oms_lumisections,
         req,
         atomic_version,
-        transaction
+        transaction,
       });
 
       const saved_rr_lumisections = await create_rr_lumisections({
@@ -235,7 +235,7 @@ exports.new = async (req, res) => {
         lumisections: rr_lumisections,
         req,
         atomic_version,
-        transaction
+        transaction,
       });
     }
     await transaction.commit();
@@ -259,11 +259,6 @@ exports.automatic_run_update = async (req, res) => {
     throw 'Run not found';
   }
   const { oms_attributes, rr_attributes } = run.dataValues;
-  if (rr_attributes.state !== 'OPEN') {
-    // TODO: Case where we update OMS attributes after signoff AS LONG AS THEY DON'T change RR flags
-    // If they update RR FLAGS, either in LSs or in Run stuff, we flag the run
-    // throw 'Run must be in state OPEN to be edited';
-  }
   let was_run_updated = false;
   let transaction;
   try {
@@ -277,7 +272,7 @@ exports.automatic_run_update = async (req, res) => {
       const version_result = await create_new_version({
         req,
         transaction,
-        comment: 'run automatic update'
+        comment: 'run automatic update',
       });
       atomic_version = version_result.atomic_version;
     }
@@ -290,7 +285,7 @@ exports.automatic_run_update = async (req, res) => {
       new_lumisections: rr_lumisections,
       req,
       atomic_version,
-      transaction
+      transaction,
     });
     if (newRRLumisectionRanges.length > 0) {
       if (rr_attributes.state === 'OPEN') {
@@ -301,7 +296,7 @@ exports.automatic_run_update = async (req, res) => {
           new_lumisections: oms_lumisections,
           req,
           atomic_version,
-          transaction
+          transaction,
         });
         // Bump the version in the dataset so the fill_dataset_triplet_cache will know that the lumisections inside it changed, and so can refill the cache:
         const datasetEvent = await update_or_create_dataset({
@@ -309,7 +304,7 @@ exports.automatic_run_update = async (req, res) => {
           run_number,
           dataset_metadata: {},
           atomic_version,
-          transaction
+          transaction,
         });
         was_run_updated = true;
       } else {
@@ -318,7 +313,7 @@ exports.automatic_run_update = async (req, res) => {
           const { atomic_version } = await create_new_version({
             req,
             overwriteable_comment:
-              'run flagged: run is not in OPEN state, received update from OMS which affected the RR Lumisections. It needs revision'
+              'run flagged: run is not in OPEN state, received update from OMS which affected the RR Lumisections. It needs revision',
           });
           // Notice we do not pass transaction in the following call, so that we can create new transaction and the run is flagged
           const runEvent = await update_or_create_run({
@@ -326,10 +321,26 @@ exports.automatic_run_update = async (req, res) => {
             oms_metadata: {},
             rr_metadata: { run_needs_to_be_updated_manually: true },
             atomic_version,
-            req
+            req,
           });
           throw 'Run is not in state OPEN, and received update from OMS which affected the RR Lumisections, it is now flagged so that it is later updated manually';
         }
+      }
+    }
+
+    // Now that the run is over, we update the OMS LSs as well when we receive an update
+    if (!was_run_updated && oms_attributes.end_time !== null) {
+      const newOMSLumisectionRange = await update_oms_lumisections({
+        run_number: run_number,
+        dataset_name: 'online',
+        new_lumisections: oms_lumisections,
+        req,
+        atomic_version,
+        transaction,
+      });
+      // If there were some LSs to change:
+      if (newOMSLumisectionRange.length > 0) {
+        was_run_updated = true;
       }
     }
 
@@ -359,7 +370,7 @@ exports.automatic_run_update = async (req, res) => {
       const { atomic_version } = await create_new_version({
         req,
         overwriteable_comment:
-          'run flagged: run is not in OPEN state, received update from OMS which affected the rr_attributes of the run. It needs revision'
+          'run flagged: run is not in OPEN state, received update from OMS which affected the rr_attributes of the run. It needs revision',
       });
       // If there are new RR attributes and the run is no longer in state OPEN, the run needs to be flagged:
       const runEvent = await update_or_create_run({
@@ -367,7 +378,7 @@ exports.automatic_run_update = async (req, res) => {
         oms_metadata: {},
         rr_metadata: { run_needs_to_be_updated_manually: true },
         atomic_version,
-        req
+        req,
       });
       throw 'Run is not in state OPEN, and received update from OMS which affected the rr_attributes of the run, it is now flagged so that it is later updated manually';
     }
@@ -379,7 +390,7 @@ exports.automatic_run_update = async (req, res) => {
         rr_metadata: new_rr_attributes,
         req,
         atomic_version,
-        transaction
+        transaction,
       });
       was_run_updated = true;
       console.log(`updated run ${run_number}`);
@@ -391,9 +402,9 @@ exports.automatic_run_update = async (req, res) => {
         include: [
           {
             model: DatasetTripletCache,
-            attributes: ['triplet_summary']
-          }
-        ]
+            attributes: ['triplet_summary'],
+          },
+        ],
       });
       res.json(run.dataValues);
     } else {
@@ -428,7 +439,7 @@ exports.manual_edit = async (req, res) => {
     const { atomic_version } = await create_new_version({
       req,
       transaction,
-      comment: 'run manual edit'
+      comment: 'run manual edit',
     });
     const new_rr_attributes = getObjectWithAttributesThatChanged(
       rr_attributes,
@@ -443,7 +454,7 @@ exports.manual_edit = async (req, res) => {
         rr_metadata: new_rr_attributes,
         req,
         atomic_version,
-        transaction
+        transaction,
       });
       console.log(`updated run ${run_number}`);
     }
@@ -453,9 +464,9 @@ exports.manual_edit = async (req, res) => {
       include: [
         {
           model: DatasetTripletCache,
-          attributes: ['triplet_summary']
-        }
-      ]
+          attributes: ['triplet_summary'],
+        },
+      ],
     });
     res.json(run.dataValues);
   } catch (err) {
@@ -471,9 +482,9 @@ exports.markSignificant = async (req, res) => {
     include: [
       {
         model: DatasetTripletCache,
-        attributes: ['triplet_summary']
-      }
-    ]
+        attributes: ['triplet_summary'],
+      },
+    ],
   });
   if (run === null) {
     throw 'Run not found';
@@ -493,7 +504,7 @@ exports.markSignificant = async (req, res) => {
     const { atomic_version } = await create_new_version({
       req,
       transaction,
-      comment: 'mark run significant'
+      comment: 'mark run significant',
     });
     await update_or_create_run({
       run_number,
@@ -501,7 +512,7 @@ exports.markSignificant = async (req, res) => {
       rr_metadata,
       req,
       atomic_version,
-      transaction
+      transaction,
     });
     await transaction.commit();
     // We do this to make sure the LUMISECTIONS classification are there
@@ -510,15 +521,15 @@ exports.markSignificant = async (req, res) => {
       email,
       manually_significant: true,
       comment: `${email} marked run significant, component statuses refreshed`,
-      atomic_version
+      atomic_version,
     });
     const updated_run = await Run.findByPk(run_number, {
       include: [
         {
           model: DatasetTripletCache,
-          attributes: ['triplet_summary']
-        }
-      ]
+          attributes: ['triplet_summary'],
+        },
+      ],
     });
     res.json(updated_run);
   } catch (e) {
@@ -542,15 +553,15 @@ exports.refreshRunClassAndComponents = async (req, res) => {
 
   await manually_update_a_run(run_number, {
     email,
-    comment: `${email} requested refresh from OMS`
+    comment: `${email} requested refresh from OMS`,
   });
   const saved_run = await Run.findByPk(run_number, {
     include: [
       {
         model: DatasetTripletCache,
-        attributes: ['triplet_summary']
-      }
-    ]
+        attributes: ['triplet_summary'],
+      },
+    ],
   });
   res.json(saved_run);
 };
@@ -613,7 +624,7 @@ exports.moveRun = async (req, res) => {
     const { atomic_version } = await create_new_version({
       req,
       transaction,
-      comment: 'move state (e.g. OPEN, SIGNOFF) of run'
+      comment: 'move state (e.g. OPEN, SIGNOFF) of run',
     });
     await update_or_create_run({
       run_number,
@@ -621,7 +632,7 @@ exports.moveRun = async (req, res) => {
       rr_metadata,
       atomic_version,
       req,
-      transaction
+      transaction,
     });
 
     if (to_state === 'SIGNOFF' || to_state === 'COMPLETED') {
@@ -633,9 +644,9 @@ exports.moveRun = async (req, res) => {
       include: [
         {
           model: DatasetTripletCache,
-          attributes: ['triplet_summary']
-        }
-      ]
+          attributes: ['triplet_summary'],
+        },
+      ],
     });
     res.json(saved_run.dataValues);
   } catch (e) {
@@ -652,14 +663,14 @@ const getTripletSummaryFilter = (filter, contains_something) => {
       contains_something = true;
     } else if (key === 'and' || key === 'or') {
       triplet_filter[key] = val
-        .filter(rule => {
+        .filter((rule) => {
           const [new_rule, new_contains_something] = getTripletSummaryFilter(
             rule,
             contains_something
           );
           return new_contains_something;
         })
-        .map(rule => {
+        .map((rule) => {
           const [new_rule, new_contains_something] = getTripletSummaryFilter(
             rule,
             contains_something
@@ -679,14 +690,14 @@ const getRunFilter = (filter, contains_something) => {
       delete new_filter[key];
     } else if (key === 'and' || key === 'or') {
       new_filter[key] = val
-        .filter(rule => {
+        .filter((rule) => {
           const [new_rule, new_contains_something] = getRunFilter(
             rule,
             contains_something
           );
           return new_contains_something;
         })
-        .map(rule => {
+        .map((rule) => {
           const [new_rule, new_contains_something] = getRunFilter(
             rule,
             contains_something
@@ -702,8 +713,8 @@ const getRunFilter = (filter, contains_something) => {
   return [new_filter, contains_something];
 };
 
-const formatSortings = sortings => {
-  return sortings.map(sorting => {
+const formatSortings = (sortings) => {
+  return sortings.map((sorting) => {
     let [key, order] = sorting;
     if (key === 'oms_attributes.ls_duration') {
       key = sequelize.cast(
@@ -748,20 +759,20 @@ exports.getRunsFilteredOrdered = async (req, res) => {
   const formated_sortings = formatSortings(sortings);
   let filter = {
     ...changeNameOfAllKeys(run_filter, conversion_operator),
-    deleted: false
+    deleted: false,
   };
   let offset = page_size * page;
   let include = [
     {
       model: DatasetTripletCache,
       where: triplet_summary_filter,
-      attributes: ['triplet_summary']
-    }
+      attributes: ['triplet_summary'],
+    },
   ];
   // findAndCountAll is slower than doing separate count, and filtering
   const count = await Run.count({
     where: filter,
-    include
+    include,
   });
   let pages = Math.ceil(count / page_size);
   let runs = await Run.findAll({
@@ -772,7 +783,7 @@ exports.getRunsFilteredOrdered = async (req, res) => {
         : [['run_number', 'DESC']],
     limit: page_size,
     offset,
-    include
+    include,
   });
   res.json({ runs, pages, count });
 };
@@ -782,8 +793,8 @@ exports.getDatasetNamesOfRun = async (req, res) => {
   const datasets = await Dataset.findAll({
     where: {
       run_number,
-      deleted: false
-    }
+      deleted: false,
+    },
   });
   const unique_dataset_names_object = {};
   datasets.forEach(({ name }) => {

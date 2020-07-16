@@ -2,8 +2,8 @@ const Permission = require('../controllers/permission');
 const requireAuth = async (req, res, next) => {
   try {
     if (process.env.NODE_ENV === 'development') {
-      next();
-      return;
+      // next();
+      // return;
     }
     let authenticated = false;
     const email = req.get('email') || '';
