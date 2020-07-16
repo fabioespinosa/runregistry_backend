@@ -12,6 +12,7 @@ exports.create_new_version = ({
     options.transaction = transaction;
   }
   const by = req.email || req.get('email');
+  // overwriteable_comment has priority over the rest:
   comment =
     overwriteable_comment || req.comment || comment || req.get('comment');
   if (!by) {

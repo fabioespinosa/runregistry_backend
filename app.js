@@ -3,8 +3,9 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const models = require('./models/index');
+// Add timestamps to logs:
+require('console-stamp')(console);
 const { expressError } = require('./utils/error_handlers');
-
 const routes = require('./routes/index');
 const port = 9500;
 

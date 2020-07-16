@@ -125,6 +125,7 @@ const ping_dqm_gui = async () => {
     const all_datasets_in_rr = await get_all_datasets_in_rr();
     const all_datasets_in_gui = await get_all_datasets_in_gui();
 
+    let count_of_dataset_links_added_in_gui = 0;
     const promises = all_datasets_in_rr.map(
       ({ run_number, name, datasets_in_gui }) => async () => {
         const datasets_accepted_by_name = datasets_accepted[name] || [];
@@ -159,14 +160,20 @@ const ping_dqm_gui = async () => {
             atomic_version,
             transaction,
           });
+          count_of_dataset_links_added_in_gui += future_datasets_in_gui.length;
         }
       }
     );
     await queue.addAll(promises);
+    if (count_of_dataset_links_added_in_gui > 0) {
+      console.log(`Added ${count_of_dataset_links_added_in_gui} dataset links`);
+      await transaction.commit();
+    } else {
+      await transaction.rollback();
+    }
     console.log(
       'finished job of fecthing all GUI datasets and comparing them with RR'
     );
-    await transaction.commit();
   } catch (err) {
     console.log(err.message);
     await transaction.rollback();

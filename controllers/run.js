@@ -315,7 +315,7 @@ exports.automatic_run_update = async (req, res) => {
             overwriteable_comment:
               'run flagged: run is not in OPEN state, received update from OMS which affected the RR Lumisections. It needs revision',
           });
-          // Notice we do not pass transaction in the following call, so that we can create new transaction and the run is flagged
+          // Notice we do not pass transaction in the following call
           const runEvent = await update_or_create_run({
             run_number,
             oms_metadata: {},
@@ -393,9 +393,9 @@ exports.automatic_run_update = async (req, res) => {
         transaction,
       });
       was_run_updated = true;
+      await transaction.commit();
       console.log(`updated run ${run_number}`);
     }
-    await transaction.commit();
     await fill_dataset_triplet_cache();
     if (was_run_updated) {
       const run = await Run.findByPk(run_number, {
@@ -408,7 +408,8 @@ exports.automatic_run_update = async (req, res) => {
       });
       res.json(run.dataValues);
     } else {
-      // Nothing changed:
+      // Nothing changed so we remove the version since having a version without any change is useless:
+      await transaction.rollback();
       res.status(204);
       res.send();
     }
