@@ -393,11 +393,11 @@ exports.automatic_run_update = async (req, res) => {
         transaction,
       });
       was_run_updated = true;
-      await transaction.commit();
-      console.log(`updated run ${run_number}`);
     }
-    await fill_dataset_triplet_cache();
     if (was_run_updated) {
+      await transaction.commit();
+      await fill_dataset_triplet_cache();
+      console.log(`updated run ${run_number}`);
       const run = await Run.findByPk(run_number, {
         include: [
           {
