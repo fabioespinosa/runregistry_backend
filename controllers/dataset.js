@@ -838,6 +838,7 @@ exports.change_multiple_states_in_all_workspaces = (req, res) => {
   req.body.change_in_all_workspaces = true;
   return exports.change_multiple_states(req, res);
 };
+
 exports.change_multiple_states = async (req, res) => {
   const { change_in_all_workspaces } = req.body;
   const { workspace_to_change_state_in, from_state, to_state } = req.params;
@@ -888,10 +889,9 @@ exports.change_multiple_states = async (req, res) => {
         if (!current_state) {
           throw `No state defined for ${run_number} in ${name} in workspace ${workspace_to_change_state_in}, cannot change state`;
         }
-        if (current_state !== from_state) {
-          throw `You are trying to change some datasets from ${from_state} to ${to_state}. However there exists at least 1 of them that is in state ${current_state} (${run_number}, ${name}). In order to batch change states you must go from the same state for all the datasets that you are trying to change. Try either changing the state or setting another filter so that only datasets of the same state are being changed`;
+        if (current_state === from_state) {
+          dataset_metadata[`${workspace_to_change_state_in}_state`] = to_state;
         }
-        dataset_metadata[`${workspace_to_change_state_in}_state`] = to_state;
       }
       await exports.update_or_create_dataset({
         dataset_name: name,

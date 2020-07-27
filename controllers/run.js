@@ -257,7 +257,7 @@ exports.automatic_run_update = async (req, res) => {
   const run = await Run.findByPk(run_number);
   if (run === null) {
     // Run doesn't exist, we create it
-    console.log('Trying to update run when we need to create it');
+    console.log('Trying to update run when we need to create it first');
     await exports.new(req, res);
     return;
   }
@@ -266,7 +266,6 @@ exports.automatic_run_update = async (req, res) => {
   let transaction;
   try {
     // If there was a change in the lumisections, we also update the dataset triplet cache
-
     transaction = await sequelize.transaction();
     let atomic_version;
     if (req.body.atomic_version) {
