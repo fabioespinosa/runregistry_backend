@@ -4,6 +4,7 @@ const requireAuth = async (req, res, next) => {
     if (process.env.NODE_ENV === 'development') {
       // next();
       // return;
+      // https://authorization-service-api.web.cern.ch/api/v1.0/Identity/current/groups?field=groupIdentifier
     }
     let authenticated = false;
     const email = req.get('email') || '';

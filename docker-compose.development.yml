@@ -37,23 +37,23 @@ services:
   # ports:
   #   - 9229:9229 # For debugger
 
-  processing_jsons:
-    image: node:12.10.0
-    depends_on:
-      - postgres
-      - dev
-      - redis
-    volumes:
-      - nodemodules:/usr/src/service/node_modules
-      - .:/usr/src/service
-    working_dir: /usr/src/service
-    environment:
-      - NODE_ENV=development
-      - DOCKER_POSTGRES=true
-    command: npm run start_processing_jsons
-    # Enable the following ports for debugging:
-    # ports:
-    #   - 9229:9229 # For debugger
+  # processing_jsons:
+  #   image: node:12.10.0
+  #   depends_on:
+  #     - postgres
+  #     - dev
+  #     - redis
+  #   volumes:
+  #     - nodemodules:/usr/src/service/node_modules
+  #     - .:/usr/src/service
+  #   working_dir: /usr/src/service
+  #   environment:
+  #     - NODE_ENV=development
+  #     - DOCKER_POSTGRES=true
+  #   command: npm run start_processing_jsons
+  # Enable the following ports for debugging:
+  # ports:
+  #   - 9229:9229 # For debugger
 
   postgres:
     image: postgres:11.2-alpine
