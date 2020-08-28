@@ -57,9 +57,6 @@ services:
 
   postgres:
     image: postgres:11.2-alpine
-    build:
-      context: .
-      shm_size: 4gb
     shm_size: 4gb
     environment:
       - POSTGRES_USER=hackathon
