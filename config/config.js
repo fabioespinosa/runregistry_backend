@@ -123,7 +123,7 @@ module.exports = {
     API_URL: 'http://dev-rr-api:8354',
     OMS_URL: `https://cmsoms.cern.ch/agg/api/v1`,
     REDIS_URL: `redis://dev-rr-redis:8356`,
-    OMS_RUNS: (number_of_runs = 10) =>
+    OMS_RUNS: (number_of_runs = 49) =>
       `runs?sort=-last_update&page[limit]=${number_of_runs}`,
     OMS_SPECIFIC_RUN: (run_number) => `runs?filter[run_number]=${run_number}`,
     OMS_LUMISECTIONS: (run_number) =>

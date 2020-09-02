@@ -26,7 +26,7 @@ In order to stop all run registry services just press ctrl + c
 
 Next time you want to run the backend, you just need to run `make dev`.
 
-## Adding data to your development environment
+## Adding real data to your development environment's database
 
 It is almost useless to test Run Registry without any data that your development backend can serve.
 
@@ -55,7 +55,11 @@ pg_dump -f dump.sql -d runregistry_database -U admin -h localhost -p 5433
 psql -h localhost -p 6543 -U hackathon -d runregistry_database -f dump.sql
 ```
 
-Now if you run `make dev` the API will connect to a fresh copy of the production data of run registry, therefore your local environment resembles the production environment as much as possible, you can run runregistry_frontend locally to then interact with your development API.
+Now if you run `make dev` the API will connect to a fresh copy of the production data of run registry running in your local postgres database container. Now, your local environment resembles the production environment as much as possible, you can run runregistry_frontend locally to then interact with your development API.
+
+## The Stack
+
+Run registry is a full-stack javascript application. Meaning both its front-end and back-end are written using JavaScript. There is also a python API pip client[https://github.com/fabioespinosa/runregistry_api_client] for users who want to acces
 
 ## Performing migrations
 

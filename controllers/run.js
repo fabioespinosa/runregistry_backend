@@ -358,7 +358,7 @@ exports.automatic_run_update = async (req, res) => {
     const new_oms_attributes_length = Object.keys(new_oms_attributes).length;
 
     if (new_oms_attributes_length > 0) {
-      if (oms_attributes.end_time !== null) {
+      if (req.body.oms_attributes.end_time !== null) {
         // If there are new OMS attributes and the run is already over, we are interested in them
         was_run_updated = true;
       }
