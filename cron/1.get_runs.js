@@ -155,10 +155,8 @@ const calculate_runs_to_update = (fetched_runs, last_saved_runs) => {
           // If the last_update of fetched run is greater than that of previously saved run, we need to update the run
           if (last_updated_fetched_run > last_updated_existing_run) {
             runs_to_update.push(fetched_run);
-          } else if (
-            new Date(fetched_run.end_time) > last_updated_fetched_run
-          ) {
-            // We also check if the end_time of the same run is greater than its last update (currently OMS doesn't contemplate end_time as an event to trigger a last_update, this check should not be done in the future if they fix this issue)
+          } else if (fetched_run.end_time !== existing_run.end_time) {
+            // We also check if the end_time differs (since currently the last_update from OMS doesn't contemplate it)
             runs_to_update.push(fetched_run);
           }
         }
