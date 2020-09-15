@@ -282,9 +282,9 @@ exports.getNewLumisectionRanges = (
   // Check if the lumisections are equal, if they are equal, do nothing.
   // If the lumisections are different, then create the ranges for the ones which changed
 
-  // if (previous_lumisections.length > new_lumisections.length) {
-  //   throw 'Lumisections cannot be deleted';
-  // }
+  if (previous_lumisections.length > new_lumisections.length) {
+    throw 'Lumisections cannot be deleted';
+  }
   const new_ls_ranges = [];
 
   for (let i = 0; i < new_lumisections.length; i++) {
