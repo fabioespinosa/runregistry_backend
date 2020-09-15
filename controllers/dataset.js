@@ -171,9 +171,9 @@ exports.new = async (req, res) => {
       name: dataset_name,
     },
   });
-  if (dataset !== null) {
-    throw 'Dataset already exists';
-  }
+  // if (dataset !== null) {
+  //   throw 'Dataset already exists';
+  // }
   let transaction;
   try {
     transaction = await sequelize.transaction();
@@ -209,9 +209,9 @@ exports.new = async (req, res) => {
         run_number,
         dataset_name
       );
-      if (oms_lumisections.length !== previous_oms_lumisections.length) {
-        throw 'Given lumisections length do not match online lumisections length';
-      }
+      // if (oms_lumisections.length !== previous_oms_lumisections.length) {
+      // throw 'Given lumisections length do not match online lumisections length';
+      // }
       const newOMSLumisectionRange = await update_oms_lumisections({
         run_number,
         dataset_name,

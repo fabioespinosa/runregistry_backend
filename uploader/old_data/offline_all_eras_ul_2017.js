@@ -23,7 +23,7 @@ exports.save_runs_from_old_rr = async (rows, number_of_tries) => {
     // This script requires that the runs that exist in the offline table MUST exist already in the online, and be already inserted
     const result = await client.query(`
             select offline.* from offline 
-            where run_number > 1 and run_number <= 350000 and rda_name <> '/Global/Online/ALL'  and (rda_name = '/ReReco/Run2017C_UL2019/DQM' or rda_name = '/ReReco/Run2017E_UL2019/DQM')
+            where run_number > 1 and run_number <= 350000 and rda_name <> '/Global/Online/ALL'  and (rda_name similar to '/ReReco/Run2017__UL2019/DQM')
             and (lumisection_ranges_global is not null)
             order by run_number ASC;
         `);
@@ -137,13 +137,13 @@ exports.save_runs_from_old_rr = async (rows, number_of_tries) => {
         },
         {
           headers: {
-            email: `fespinos@cern.ch ${
+            email: `auto@auto ${
               workspace_user
                 ? workspace_user.global && workspace_user.global
                 : ''
             }`,
             comment:
-              'migration of all workspaces of UL2017 era C and E only form old RR. Now to overwrite incorrect manual sync done by sandeep before. This time using not auto@auto but fespinos@cern.ch',
+              'migration of all workspaces of all eras from UL2017 in old RR',
           },
           maxContentLength: 52428890000,
         }

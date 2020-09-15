@@ -265,7 +265,6 @@ exports.automatic_run_update = async (req, res) => {
   let was_run_updated = false;
   let transaction;
   try {
-    // If there was a change in the lumisections, we also update the dataset triplet cache
     transaction = await sequelize.transaction();
     let atomic_version;
     if (req.body.atomic_version) {
@@ -369,6 +368,7 @@ exports.automatic_run_update = async (req, res) => {
       rr_attributes.state !== 'OPEN' &&
       rr_attributes.run_needs_to_be_updated_manually !== true
     ) {
+      // Notice we don't pass a transacion here:
       const { atomic_version } = await create_new_version({
         req,
         overwriteable_comment:
