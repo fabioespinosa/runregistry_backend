@@ -40,7 +40,7 @@
     "get-attributes-specified-from-array": "^1.0.1",
     "get-object-with-attributes-that-changed": "^1.0.2",
     "golden-json-helpers": "^1.0.0",
-    "json-logic-js": "^1.2.2",
+    "json-logic-js": "^2.0.0",
     "json-logic-to-sql-compiler": "^1.0.10",
     "lodash": "^4.17.19",
     "mocha": "^6.0.2",
