@@ -1,5 +1,6 @@
 const axios = require('axios');
-const getCookie = require('cern-get-sso-cookie');
+const {getToken} = require('../auth/get_token')
+const https = require('https');
 const queue = require('async').queue;
 const {
     get_OMS_lumisections
@@ -9,13 +10,16 @@ const {
     calculate_rr_lumisections,
     calculate_oms_attributes
 } = require('./3.calculate_rr_attributes');
-const cert = `${__dirname}/../certs/usercert.pem`;
-const key = `${__dirname}/../certs/userkey.pem`;
 
 const { API_URL, OMS_URL, OMS_SPECIFIC_RUN } = require('../config/config')[
     process.env.ENV || 'development'
 ];
 
+const instance = axios.create({
+    httpsAgent: new https.Agent({
+      rejectUnauthorized: false,
+    }),
+  });
 // The runs to be saved get here, they await to be classified into cosmics/collision/commission:
 // AND check if they are significant
 // IF the run is significant, the lumisection component's statuses get assigned
@@ -268,13 +272,9 @@ exports.manually_update_a_run = async (
     const endpoint = `${OMS_URL}/${OMS_SPECIFIC_RUN(run_number)}`;
     const {
         data: { data: fetched_run }
-    } = await axios.get(endpoint, {
+    } = await instance.get(endpoint, {
         headers: {
-            Cookie: await getCookie({
-                url: endpoint,
-                certificate: cert,
-                key
-            })
+            'Authorization': `Bearer ${await getToken()}`
         }
     });
     const run_oms_attributes = fetched_run[0].attributes;

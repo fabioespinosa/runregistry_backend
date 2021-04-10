@@ -20,7 +20,7 @@ models.sequelize
     server.listen(port, () => {
       console.log(`server listening in port ${port}`);
       // const cron = require('./cron/1.get_runs'); // (for testing)
-      if (process.env.ENV !== 'development') {
+      if (process.env.ENV === 'development') {
         const cron = require('./cron/1.get_runs');
       }
       // const dqm_gui_pinging = require('./cron_datasets/2.ping_dqm_gui');
