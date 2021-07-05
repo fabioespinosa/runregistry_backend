@@ -23,6 +23,7 @@ module.exports = {
       ? 'http://dev:9500'
       : 'http://localhost:9500',
     OMS_URL: `https://cmsoms.cern.ch/agg/api/v1`,
+    AUTH_SERVICE_URL: 'https://auth.cern.ch/auth/realms/cern/protocol/openid-connect/token',
     REDIS_URL: `redis://redis:6379`,
     OMS_RUNS: (number_of_runs = 10) =>
       `runs?sort=-last_update&page[limit]=${number_of_runs}`,
@@ -36,6 +37,9 @@ module.exports = {
     SECONDS_PER_DBS_CHECK: 6010,
     DQM_GUI_URL: 'https://cmsweb.cern.ch/dqm/offline/data/json/samples?match=',
     SECONDS_PER_DQM_GUI_CHECK: 6000,
+    CLIENT_ID: 'rr-api-client',
+    CLIENT_SECRET: '',
+    AUDIENCE: 'cmsoms-prod',
   },
   staging: {
     username: 'admin',
@@ -58,6 +62,7 @@ module.exports = {
     WAITING_DQM_GUI_CONSTANT: 'waiting dqm gui',
     API_URL: 'http://localhost:9500',
     OMS_URL: `https://cmsoms.cern.ch/agg/api/v1`,
+    AUTH_SERVICE_URL: 'https://auth.cern.ch/auth/realms/cern/protocol/openid-connect/token',
     REDIS_URL: `redis://dev-rr-redis.runregistry.svc.cluster.local`,
     OMS_RUNS: (number_of_runs = 10) =>
       `runs?sort=-last_update&page[limit]=${number_of_runs}`,
@@ -71,6 +76,9 @@ module.exports = {
     SECONDS_PER_DBS_CHECK: 3600,
     DQM_GUI_URL: 'https://cmsweb.cern.ch/dqm/offline/data/json/samples?match=',
     SECONDS_PER_DQM_GUI_CHECK: 3600,
+    CLIENT_ID: 'rr-api-client',
+    CLIENT_SECRET: '',
+    AUDIENCE: 'cmsoms-prod',
   },
   production: {
     username: 'admin',
@@ -93,6 +101,7 @@ module.exports = {
     WAITING_DQM_GUI_CONSTANT: 'waiting dqm gui',
     API_URL: 'http://localhost:9500',
     OMS_URL: `https://cmsoms.cern.ch/agg/api/v1`,
+    AUTH_SERVICE_URL: 'https://auth.cern.ch/auth/realms/cern/protocol/openid-connect/token',
     REDIS_URL: `redis://cmsweb-srv4-services-s22bllwnqyac-node-0:31505`,
     OMS_RUNS: (number_of_runs = 10) =>
       `runs?sort=-last_update&page[limit]=${number_of_runs}`,
@@ -106,6 +115,9 @@ module.exports = {
     SECONDS_PER_DBS_CHECK: 3600,
     DQM_GUI_URL: 'https://cmsweb.cern.ch/dqm/offline/data/json/samples?match=',
     SECONDS_PER_DQM_GUI_CHECK: 3600,
+    CLIENT_ID: 'rr-api-client',
+    CLIENT_SECRET: '',
+    AUDIENCE: 'cmsoms-prod',
   },
   dev_kubernetes: {
     username: 'admin',
@@ -122,6 +134,7 @@ module.exports = {
     WAITING_DQM_GUI_CONSTANT: 'waiting dqm gui',
     API_URL: 'http://dev-rr-api:8354',
     OMS_URL: `https://cmsoms.cern.ch/agg/api/v1`,
+    AUTH_SERVICE_URL: 'https://auth.cern.ch/auth/realms/cern/protocol/openid-connect/token',
     REDIS_URL: `redis://dev-rr-redis:8356`,
     OMS_RUNS: (number_of_runs = 49) =>
       `runs?sort=-last_update&page[limit]=${number_of_runs}`,
@@ -135,6 +148,9 @@ module.exports = {
     SECONDS_PER_DBS_CHECK: 3600,
     DQM_GUI_URL: 'https://cmsweb.cern.ch/dqm/offline/data/json/samples?match=',
     SECONDS_PER_DQM_GUI_CHECK: 3600,
+    CLIENT_ID: 'rr-api-client',
+    CLIENT_SECRET: '',
+    AUDIENCE: 'cmsoms-prod',
   },
   prod_kubernetes: {
     username: 'admin',
@@ -157,6 +173,7 @@ module.exports = {
     WAITING_DQM_GUI_CONSTANT: 'waiting dqm gui',
     API_URL: 'http://rr-prod-api:8351',
     OMS_URL: `https://cmsoms.cern.ch/agg/api/v1`,
+    AUTH_SERVICE_URL: 'https://auth.cern.ch/auth/realms/cern/protocol/openid-connect/token',
     REDIS_URL: `redis://rr-redis:8352`,
     OMS_RUNS: (number_of_runs = 10) =>
       `runs?sort=-last_update&page[limit]=${number_of_runs}`,
@@ -170,6 +187,9 @@ module.exports = {
     SECONDS_PER_DBS_CHECK: 3600,
     DQM_GUI_URL: 'https://cmsweb.cern.ch/dqm/offline/data/json/samples?match=',
     SECONDS_PER_DQM_GUI_CHECK: 3600,
+    CLIENT_ID: 'rr-api-client',
+    CLIENT_SECRET: '',
+    AUDIENCE: 'cmsoms-prod',
   },
 
   // The online components are also the rr_lumisection_whitelist
@@ -252,3 +272,4 @@ module.exports = {
     'delivered',
   ],
 };
+
