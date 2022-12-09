@@ -36,7 +36,7 @@
     "csv-parse": "^4.8.5",
     "csv-stringify": "^5.3.3",
     "deep-equal": "^2.0.1",
-    "express": "^4.16.4",
+    "express": "^4.17.3",
     "get-attributes-specified-from-array": "^1.0.1",
     "get-object-with-attributes-that-changed": "^1.0.2",
     "golden-json-helpers": "^1.0.0",
